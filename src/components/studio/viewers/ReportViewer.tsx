@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
 import { MessageContent } from '@/components/chat/MessageContent';
 import {
@@ -11,17 +11,19 @@ import {
   Headphones,
   ScrollText,
   Check,
-  FileCheck,
+  X,
 } from 'lucide-react';
 
 export function ReportViewer({
   title,
   content,
   onListen,
+  onClose,
 }: {
   title: string;
   content: string;
   onListen?: (textToRead: string) => void;
+  onClose?: () => void;
 }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -33,7 +35,7 @@ export function ReportViewer({
       toast({
         title: 'Copied to Clipboard',
         description: 'Report content has been copied.',
-        variant: 'brand',
+        variant: 'success',
       });
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -51,7 +53,7 @@ export function ReportViewer({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: 'Report Markdown saved.', variant: 'neutral' });
+    toast({ title: 'Downloaded', description: 'Report Markdown saved.', variant: 'success' });
   };
 
   const handlePrintPdf = () => {
@@ -62,17 +64,17 @@ export function ReportViewer({
     <div className="flex flex-col h-full bg-[#191919] text-[#f4f4f2]">
       {/* Top Toolbar */}
       <div className="h-14 border-b border-[#303030] bg-[#1f1f1f] px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <ScrollText className="w-4 h-4 text-rose-400" />
-          <h2 className="font-display font-bold text-sm text-[#f4f4f2] truncate max-w-sm sm:max-w-md">
+        <div className="flex items-center gap-2.5 min-w-0 pr-4">
+          <ScrollText className="w-4 h-4 text-rose-400 shrink-0" />
+          <h2 className="font-display font-bold text-sm text-[#f4f4f2] truncate">
             {title}
           </h2>
-          <span className="text-[10px] font-display font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 hidden sm:inline-block">
-            Formal Report
+          <span className="text-[10px] font-display font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 shrink-0 hidden sm:inline-block">
+            Analytical Report
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {onListen && (
             <Button
               variant="secondary"
@@ -114,6 +116,16 @@ export function ReportViewer({
           >
             <Printer className="w-3.5 h-3.5" />
           </Button>
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
+              title="Close Report"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -126,4 +138,3 @@ export function ReportViewer({
     </div>
   );
 }
-

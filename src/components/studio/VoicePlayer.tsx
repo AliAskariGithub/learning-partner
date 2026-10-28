@@ -215,7 +215,7 @@ export function VoicePlayer({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast({ title: 'Downloaded Transcript', description: 'Web Speech transcript saved.', variant: 'brand' });
+      toast({ title: 'Downloaded Transcript', description: 'Web Speech transcript saved.', variant: 'success' });
     } else if (safeAudioKeys.length > 0) {
       // Download first segment or link
       const key = safeAudioKeys[0];
@@ -225,7 +225,7 @@ export function VoicePlayer({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      toast({ title: 'Download Started', description: 'Audio segment downloading.', variant: 'brand' });
+      toast({ title: 'Download Started', description: 'Audio segment downloading.', variant: 'success' });
     }
   };
 
@@ -409,6 +409,15 @@ export function VoicePlayer({
             >
               <Minimize2 className="w-3.5 h-3.5" />
             </Button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
+              title="Close Voice Player"
+            >
+              <X className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>

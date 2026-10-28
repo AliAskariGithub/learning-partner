@@ -65,9 +65,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Resolve Model and API Key
+    // 4. Resolve Model and verify capability
     const modelDef = getModelDefinition(modelId);
-    const keyInfo = await getDecryptedKeyForProvider(userId, modelDef.provider);
+
+    // Capability check: Quiz mode requires structured output
+    if (mode === 'quiz' && !modelDef.capabilities.structuredOutput) {
+      return new Response(
+        JSON.stringify({
+          error: `The selected model (${modelDef.name}) does not support Quiz mode (requires structured output). Please switch to a supported model.`,
+          code: 'CAPABILITY_UNSUPPORTED',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let keyInfo = await getDecryptedKeyForProvider(userId, modelDef.provider);
+
+    // If no key found for selected provider, check if Google Gemini default is available
+    if (!keyInfo && process.env.GOOGLE_GENERATIVE_AI_API_KEY && modelDef.provider === 'google') {
+      keyInfo = {
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+        customBaseUrl: null,
+        keyId: 'env-default',
+      };
+    }
 
     if (!keyInfo) {
       const providerMeta = PROVIDER_REGISTRY[modelDef.provider];
@@ -189,7 +210,7 @@ export async function POST(req: NextRequest) {
     const aiModel = createProviderModel({
       provider: modelDef.provider,
       apiKey: keyInfo.apiKey,
-      modelId,
+      modelId: modelDef.id,
       customBaseUrl: keyInfo.customBaseUrl,
     });
 
@@ -205,11 +226,12 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // 13. Trigger streaming
+    // 13. Trigger streaming with maxRetries: 2
     const result = streamText({
       model: aiModel,
       system: systemPrompt,
       messages: chatHistory,
+      maxRetries: 2,
       async onFinish({ text }) {
         if (!text?.trim()) return;
 
@@ -258,9 +280,20 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Chat endpoint error:', error);
 
-    const errorMessage =
+    let errorMessage =
       error?.message ||
       'An unexpected error occurred while communicating with the AI model.';
+
+    if (
+      errorMessage.includes('high demand') ||
+      errorMessage.includes('overloaded') ||
+      errorMessage.includes('503') ||
+      errorMessage.includes('429') ||
+      errorMessage.includes('Failed after') ||
+      errorMessage.includes('RESOURCE_EXHAUSTED')
+    ) {
+      errorMessage = 'The AI model is currently experiencing unusually high demand. Please try again in a few moments or switch to another model.';
+    }
 
     return new Response(
       JSON.stringify({
@@ -271,4 +304,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

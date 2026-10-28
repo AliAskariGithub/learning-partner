@@ -10,3 +10,4 @@ export * from './tabs';
 export * from './skeleton';
 export * from './toast';
 export * from './collapsible';
+export * from './DirectionalHover';

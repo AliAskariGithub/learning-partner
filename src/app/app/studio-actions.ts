@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { outputs, StudioOutput, sources, sourceChunks, notebooks } from '@/db/schema';
 import { requireUser } from '@/lib/auth/session';
 import { getDecryptedKeyForProvider } from './api-key-actions';
-import { getModelDefinition, ProviderId } from '@/lib/ai/providers';
+import { getModelDefinition, ProviderId, ModelCapabilities } from '@/lib/ai/providers';
 import { createProviderModel } from '@/lib/ai/factory';
 import { assembleStudioPrompt, StudioPromptParams } from '@/lib/ai/prompts';
 import { synthesizeVoiceScript } from '@/lib/ai/tts';
@@ -43,6 +43,107 @@ export async function getNotebookOutputs(notebookId: string): Promise<StudioOutp
 }
 
 /**
+ * Executes text generation with an automated fallback cascade.
+ * If the primary model encounters high demand / 503 / 429 / overload,
+ * it retries with secondary high-availability models within the same provider family.
+ */
+async function generateTextWithFallback(params: {
+  provider: ProviderId;
+  apiKey: string;
+  modelId: string;
+  customBaseUrl?: string | null;
+  system: string;
+  prompt: string;
+  temperature?: number;
+}): Promise<string> {
+  const { provider, apiKey, modelId, customBaseUrl, system, prompt, temperature = 0.3 } = params;
+
+  // Start strictly with the user-selected model
+  const candidateModels: string[] = [modelId];
+  if (provider === 'google') {
+    const googleFallbacks = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
+    for (const fb of googleFallbacks) {
+      if (!candidateModels.includes(fb)) candidateModels.push(fb);
+    }
+  } else if (provider === 'openai') {
+    const openaiFallbacks = ['gpt-4o', 'gpt-4o-mini'];
+    for (const fb of openaiFallbacks) {
+      if (!candidateModels.includes(fb)) candidateModels.push(fb);
+    }
+  } else if (provider === 'anthropic') {
+    const anthropicFallbacks = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'];
+    for (const fb of anthropicFallbacks) {
+      if (!candidateModels.includes(fb)) candidateModels.push(fb);
+    }
+  } else if (provider === 'groq') {
+    const groqFallbacks = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+    for (const fb of groqFallbacks) {
+      if (!candidateModels.includes(fb)) candidateModels.push(fb);
+    }
+  }
+
+  let primaryError: any = null;
+  let lastError: any = null;
+
+  for (let i = 0; i < candidateModels.length; i++) {
+    const currentModelId = candidateModels[i];
+    try {
+      const languageModel = createProviderModel({
+        provider,
+        apiKey,
+        modelId: currentModelId,
+        customBaseUrl,
+      });
+
+      const res = await generateText({
+        model: languageModel,
+        system,
+        prompt,
+        temperature,
+        maxRetries: 1,
+      });
+
+      if (res.text && res.text.trim()) {
+        return res.text.trim();
+      }
+    } catch (err: any) {
+      if (i === 0) {
+        primaryError = err;
+      }
+      lastError = err;
+      console.warn(`Model generation attempt with ${currentModelId} failed:`, err.message);
+      if (i < candidateModels.length - 1) {
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    }
+  }
+
+  const errToReport = primaryError || lastError;
+  const msg = errToReport?.message || '';
+
+  if (msg.includes('Quota exceeded') || msg.includes('limit: 20') || msg.toLowerCase().includes('quota')) {
+    throw new Error(
+      `Daily API request quota exceeded for ${modelId}. Please switch models or try again later.`
+    );
+  }
+
+  if (
+    msg.includes('high demand') ||
+    msg.includes('overloaded') ||
+    msg.includes('503') ||
+    msg.includes('429') ||
+    msg.includes('Failed after') ||
+    msg.includes('RESOURCE_EXHAUSTED')
+  ) {
+    throw new Error(
+      `The selected AI model (${modelId}) is currently experiencing unusually high demand. We attempted multiple retries. Please wait a moment and click Regenerate.`
+    );
+  }
+
+  throw errToReport || new Error(`Generation failed with ${modelId}.`);
+}
+
+/**
  * Generates a new Studio output item.
  */
 export async function generateStudioOutput(
@@ -74,9 +175,24 @@ export async function generateStudioOutput(
       };
     }
 
-    // Determine model to use
+    // Determine model to use from user selection
     const modelId = params.modelId || 'gemini-3.8-flash';
     const modelDef = getModelDefinition(modelId);
+
+    // Capability check: Ensure the selected model supports this studio output type
+    const requiredCapability: keyof ModelCapabilities =
+      type === 'voice'
+        ? 'audioOutput'
+        : type === 'quiz' || type === 'flashcards' || type === 'mind_map'
+        ? 'structuredOutput'
+        : 'text';
+
+    if (!modelDef.capabilities[requiredCapability]) {
+      return {
+        success: false,
+        error: `The selected model (${modelDef.name}) does not support ${type.replace('_', ' ')} generation (requires ${requiredCapability} capability). Please choose a supported model in the model switcher.`,
+      };
+    }
 
     // Retrieve active provider API key for text model
     let keyInfo = await getDecryptedKeyForProvider(user.id, modelDef.provider);
@@ -178,30 +294,24 @@ export async function generateStudioOutput(
 
     const outputId = initialRow.id;
 
-    // Asynchronous / immediate generation pipeline
+    // Asynchronous / immediate generation pipeline with fallback
     try {
-      const languageModel = createProviderModel({
-        provider: modelDef.provider,
-        apiKey: keyInfo.apiKey,
-        modelId: modelDef.id,
-        customBaseUrl: keyInfo.customBaseUrl,
-      });
-
       const { systemPrompt, userPrompt } = assembleStudioPrompt({
         type,
         sourcesContext: formattedContext,
         options,
       });
 
-      // Generate text with model
-      let genResponse = await generateText({
-        model: languageModel,
+      // Generate text with model fallback
+      let rawContent = await generateTextWithFallback({
+        provider: modelDef.provider,
+        apiKey: keyInfo.apiKey,
+        modelId: modelDef.id,
+        customBaseUrl: keyInfo.customBaseUrl,
         system: systemPrompt,
         prompt: userPrompt,
         temperature: type === 'quiz' || type === 'flashcards' || type === 'mind_map' ? 0.2 : 0.4,
       });
-
-      let rawContent = genResponse.text.trim();
 
       // Clean markdown code fence if model wrapped raw JSON in ```json ... ```
       if (rawContent.startsWith('```json')) {
@@ -228,13 +338,16 @@ export async function generateStudioOutput(
             .where(eq(outputs.id, outputId));
         } catch {
           // Retry once if JSON was malformed
-          const retryResponse = await generateText({
-            model: languageModel,
+          let retryText = await generateTextWithFallback({
+            provider: modelDef.provider,
+            apiKey: keyInfo.apiKey,
+            modelId: modelDef.id,
+            customBaseUrl: keyInfo.customBaseUrl,
             system: `${systemPrompt}\nIMPORTANT: Your previous response was invalid JSON. Return ONLY the raw valid JSON payload. No explanations.`,
             prompt: userPrompt,
             temperature: 0.1,
           });
-          let retryText = retryResponse.text.trim();
+
           if (retryText.startsWith('```json')) {
             retryText = retryText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
           } else if (retryText.startsWith('```')) {
@@ -261,13 +374,16 @@ export async function generateStudioOutput(
           if (!Array.isArray(script)) throw new Error('Script is not an array.');
         } catch {
           // Retry script generation once
-          const retryScript = await generateText({
-            model: languageModel,
+          let retryText = await generateTextWithFallback({
+            provider: modelDef.provider,
+            apiKey: keyInfo.apiKey,
+            modelId: modelDef.id,
+            customBaseUrl: keyInfo.customBaseUrl,
             system: `${systemPrompt}\nCRITICAL: Return ONLY a valid JSON array of objects with schema: [{ "speaker": "Alex", "text": "..." }]. No code blocks.`,
             prompt: userPrompt,
             temperature: 0.2,
           });
-          let retryText = retryScript.text.trim();
+
           if (retryText.startsWith('```json')) {
             retryText = retryText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
           } else if (retryText.startsWith('```')) {
@@ -346,11 +462,20 @@ export async function generateStudioOutput(
       return { success: true, outputId };
     } catch (err: any) {
       console.error('Studio generation failed:', err);
+      const cleanError =
+        err?.message?.includes('high demand') ||
+        err?.message?.includes('overloaded') ||
+        err?.message?.includes('503') ||
+        err?.message?.includes('429') ||
+        err?.message?.includes('Failed after')
+          ? `${modelDef.name} is temporarily experiencing unusually high demand. Please wait a moment and click Regenerate.`
+          : err?.message || 'Generation failed. Please try again.';
+
       await db
         .update(outputs)
         .set({
           status: 'failed',
-          errorMessage: err.message || 'Generation failed. Please try again.',
+          errorMessage: cleanError,
           updatedAt: new Date(),
         })
         .where(eq(outputs.id, outputId));
@@ -358,7 +483,7 @@ export async function generateStudioOutput(
       return {
         success: false,
         outputId,
-        error: err.message || 'Generation failed.',
+        error: cleanError,
       };
     }
   } catch (outerErr: any) {
@@ -424,7 +549,8 @@ export async function deleteStudioOutput(
  * Regenerates an existing studio output using its current settings.
  */
 export async function regenerateStudioOutput(
-  outputId: string
+  outputId: string,
+  modelId?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const user = await requireUser();
@@ -443,7 +569,7 @@ export async function regenerateStudioOutput(
       type: row.type as any,
       title: row.title,
       sourceIds: (row.sourceIds as string[]) || undefined,
-      modelId: row.model,
+      modelId: modelId || row.model || 'gemini-3.8-flash',
       options: {
         voiceStyle: (row.voiceConfig as any)?.style,
         voiceFormat: (row.voiceConfig as any)?.format,

@@ -12,17 +12,19 @@ import {
   BookOpen,
   List,
   Check,
-  FileText,
+  X,
 } from 'lucide-react';
 
 export function StudyGuideViewer({
   title,
   content,
   onListen,
+  onClose,
 }: {
   title: string;
   content: string;
   onListen?: (textToRead: string) => void;
+  onClose?: () => void;
 }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -50,7 +52,7 @@ export function StudyGuideViewer({
       toast({
         title: 'Copied to Clipboard',
         description: 'Study Guide markdown has been copied.',
-        variant: 'brand',
+        variant: 'success',
       });
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -68,7 +70,7 @@ export function StudyGuideViewer({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: 'Markdown file saved.', variant: 'neutral' });
+    toast({ title: 'Downloaded', description: 'Markdown file saved.', variant: 'success' });
   };
 
   const handlePrintPdf = () => {
@@ -86,14 +88,17 @@ export function StudyGuideViewer({
     <div className="flex flex-col h-full bg-[#191919] text-[#f4f4f2]">
       {/* Top Toolbar */}
       <div className="h-14 border-b border-[#303030] bg-[#1f1f1f] px-6 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <BookOpen className="w-4 h-4 text-emerald-400" />
-          <h2 className="font-display font-bold text-sm text-[#f4f4f2] truncate max-w-sm sm:max-w-md">
+        <div className="flex items-center gap-2.5 min-w-0 pr-4">
+          <BookOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+          <h2 className="font-display font-bold text-sm text-[#f4f4f2] truncate">
             {title}
           </h2>
+          <span className="text-[10px] font-display font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 shrink-0 hidden sm:inline-block">
+            Curriculum Guide
+          </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {onListen && (
             <Button
               variant="secondary"
@@ -135,6 +140,16 @@ export function StudyGuideViewer({
           >
             <Printer className="w-3.5 h-3.5" />
           </Button>
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
+              title="Close Guide"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -153,7 +168,7 @@ export function StudyGuideViewer({
                   key={idx}
                   type="button"
                   onClick={() => handleScrollToHeading(item.id)}
-                  className={`text-left w-full text-xs transition-colors hover:text-brand-300 block truncate ${
+                  className={`text-left w-full text-xs transition-colors hover:text-brand-300 block truncate cursor-pointer ${
                     item.level === 3 ? 'pl-3 text-[#7a7a74]' : 'font-display font-medium text-[#9a9a94]'
                   }`}
                 >
@@ -174,4 +189,3 @@ export function StudyGuideViewer({
     </div>
   );
 }
-

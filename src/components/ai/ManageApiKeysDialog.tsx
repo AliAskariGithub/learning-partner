@@ -10,6 +10,8 @@ import {
   Pencil,
   Check,
   AlertCircle,
+  AlertTriangle,
+  Activity,
   ExternalLink,
   RefreshCw,
   Eye,
@@ -31,6 +33,8 @@ import {
   deleteApiKey,
   updateApiKeyLabel,
   testExistingKey,
+  discoverAndTestModels,
+  TestedModelInfo,
 } from '@/app/app/api-key-actions';
 import { useToast } from '@/components/ui/toast';
 
@@ -38,12 +42,14 @@ interface ManageApiKeysDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onKeysUpdated?: () => void;
+  onSelectModel?: (modelId: string) => void;
 }
 
 export function ManageApiKeysDialog({
   open,
   onOpenChange,
   onKeysUpdated,
+  onSelectModel,
 }: ManageApiKeysDialogProps) {
   const { toast } = useToast();
 
@@ -70,6 +76,12 @@ export function ManageApiKeysDialog({
 
   // Retesting state
   const [retestingKeyId, setRetestingKeyId] = useState<string | null>(null);
+
+  // Model discovery & testing state
+  const [discoveredModels, setDiscoveredModels] = useState<TestedModelInfo[]>([]);
+  const [discoveredProvider, setDiscoveredProvider] = useState<ProviderId | null>(null);
+  const [discoveringKeyId, setDiscoveringKeyId] = useState<string | null>(null);
+  const [isDiscovering, setIsDiscovering] = useState(false);
 
   const fetchKeys = async () => {
     setLoading(true);
@@ -117,17 +129,44 @@ export function ManageApiKeysDialog({
       if (res.success && res.key) {
         setValidationResult({
           success: true,
-          message: `Key successfully verified and connected with ${activeProviderMeta.name}!`,
+          message: `Key successfully verified with ${activeProviderMeta.name}! Fetching and testing supported models...`,
         });
+        const currentKey = keyInput.trim();
+        const currentProvider = selectedProvider;
+        const currentBaseUrl = customBaseUrl.trim();
+
         setKeyInput('');
         setLabelInput('');
         setCustomBaseUrl('');
         await fetchKeys();
         onKeysUpdated?.();
+
+        // Immediately fetch and test models supported by this API key
+        setIsDiscovering(true);
+        try {
+          const discRes = await discoverAndTestModels({
+            provider: currentProvider,
+            apiKey: currentKey,
+            customBaseUrl: currentBaseUrl || undefined,
+          });
+          if (discRes.success && discRes.models.length > 0) {
+            setDiscoveredModels(discRes.models);
+            setDiscoveredProvider(currentProvider);
+            setValidationResult({
+              success: true,
+              message: `Key verified! Discovered ${discRes.models.length} supported models (${discRes.models.filter(m => m.status === 'working').length} verified online & ready).`,
+            });
+          }
+        } catch (discErr) {
+          console.warn('Model discovery failed:', discErr);
+        } finally {
+          setIsDiscovering(false);
+        }
+
         toast({
           title: 'API Key Saved',
-          description: `${activeProviderMeta.name} key is now active.`,
-          variant: 'brand',
+          description: `${activeProviderMeta.name} key is active and models tested.`,
+          variant: 'success',
         });
       } else {
         setValidationResult({
@@ -166,9 +205,40 @@ export function ManageApiKeysDialog({
       );
       setEditingKeyId(null);
       onKeysUpdated?.();
-      toast({ title: 'Key Renamed', variant: 'brand' });
+      toast({ title: 'Key Renamed', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error renaming key', description: err.message, variant: 'error' });
+    }
+  };
+
+  const handleCheckModelsForKey = async (keyId: string, provider: ProviderId) => {
+    setDiscoveringKeyId(keyId);
+    try {
+      toast({
+        title: 'Checking Models',
+        description: `Querying available models from ${PROVIDER_REGISTRY[provider]?.name || provider}...`,
+        variant: 'info',
+      });
+      const res = await discoverAndTestModels({ provider, keyId });
+      if (res.success && res.models.length > 0) {
+        setDiscoveredModels(res.models);
+        setDiscoveredProvider(provider);
+        toast({
+          title: 'Models Verified',
+          description: `Found ${res.models.length} supported models (${res.models.filter(m => m.status === 'working').length} working).`,
+          variant: 'success',
+        });
+      } else {
+        toast({
+          title: 'No Models Found',
+          description: res.error || 'Could not fetch models for this key.',
+          variant: 'error',
+        });
+      }
+    } catch (err: any) {
+      toast({ title: 'Discovery Failed', description: err.message, variant: 'error' });
+    } finally {
+      setDiscoveringKeyId(null);
     }
   };
 
@@ -177,7 +247,7 @@ export function ManageApiKeysDialog({
     try {
       const res = await testExistingKey(keyId);
       if (res.valid) {
-        toast({ title: 'Key Valid', description: 'Provider confirmed key is active.', variant: 'brand' });
+        toast({ title: 'Key Valid', description: 'Provider confirmed key is active.', variant: 'success' });
       } else {
         toast({
           title: 'Key Invalid',
@@ -260,16 +330,31 @@ export function ManageApiKeysDialog({
                   {activeProviderMeta.description}
                 </p>
               </div>
-              {activeProviderMeta.keyUrl && (
-                <a
-                  href={activeProviderMeta.keyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-display text-brand-400 hover:text-brand-300 hover:underline"
-                >
-                  Get key <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+              <div className="flex items-center gap-2">
+                {activeProviderMeta.usageUrl && (
+                  <a
+                    href={activeProviderMeta.usageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-display font-medium bg-[#191919] hover:bg-[#2e2e2e] border border-[#303030] text-amber-400 hover:text-amber-300 transition cursor-pointer shadow-sm"
+                    title="View rate limits, quotas, and current consumption"
+                  >
+                    <Activity className="w-3 h-3" />
+                    <span>View Usage</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-[#9a9a94]" />
+                  </a>
+                )}
+                {activeProviderMeta.keyUrl && (
+                  <a
+                    href={activeProviderMeta.keyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-display text-brand-400 hover:text-brand-300 hover:underline"
+                  >
+                    Get key <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Custom base URL field for generic OpenAI compatible */}
@@ -373,6 +458,109 @@ export function ManageApiKeysDialog({
             </div>
           </form>
 
+
+          {/* Discovered & Tested Models Section */}
+          {(isDiscovering || discoveredModels.length > 0) && (
+            <div className="p-4 rounded-xl bg-[#262626] border border-[#3a3a3a] space-y-3 shadow-md animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-brand-400" />
+                    <h4 className="text-xs font-display font-bold text-[#f4f4f2]">
+                      Supported Models for {discoveredProvider ? PROVIDER_REGISTRY[discoveredProvider]?.name : activeProviderMeta.name}
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-[#9a9a94] font-serif mt-0.5">
+                    Live ping test results from your API key. Green models are verified working right now.
+                  </p>
+                </div>
+                {discoveredProvider && PROVIDER_REGISTRY[discoveredProvider]?.usageUrl && (
+                  <a
+                    href={PROVIDER_REGISTRY[discoveredProvider].usageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-display font-medium bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition cursor-pointer"
+                  >
+                    <Activity className="w-3 h-3 text-amber-400" />
+                    <span>View Usage</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-amber-300/60" />
+                  </a>
+                )}
+              </div>
+
+              {isDiscovering ? (
+                <div className="py-6 text-center text-xs text-[#9a9a94] flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-brand-400" />
+                  <span>Connecting to provider API and pinging candidate models...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {discoveredModels.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-2.5 rounded-xl bg-[#191919] border border-[#303030] flex flex-col justify-between space-y-2 hover:border-[#404040] transition"
+                    >
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <h5 className="font-display font-bold text-xs text-[#f4f4f2] truncate">
+                            {m.name}
+                          </h5>
+                          <p className="text-[10px] text-[#9a9a94] font-mono mt-0.5">
+                            {Math.round(m.contextWindow / 1000)}k context
+                          </p>
+                        </div>
+                        {m.status === 'working' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Working
+                          </span>
+                        ) : m.status === 'quota_exceeded' ? (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[9px] font-mono font-medium bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shrink-0"
+                            title={m.statusDetails}
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            Quota Limit
+                          </span>
+                        ) : (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[9px] font-mono font-medium bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0"
+                            title={m.statusDetails}
+                          >
+                            <AlertCircle className="w-2.5 h-2.5" />
+                            Unavailable
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] pt-1 border-t border-[#262626]">
+                        <span className="text-[#71717a] font-serif truncate max-w-[150px]">
+                          {m.statusDetails || 'Tested'}
+                        </span>
+                        {m.status === 'working' && onSelectModel && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectModel(m.id);
+                              toast({
+                                title: 'Model Activated',
+                                description: `Switched to ${m.name}.`,
+                                variant: 'success',
+                              });
+                            }}
+                            className="text-brand-400 hover:text-brand-300 font-display font-semibold hover:underline cursor-pointer"
+                          >
+                            Use Model
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Connected Keys List */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -463,12 +651,35 @@ export function ManageApiKeysDialog({
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {meta.usageUrl && (
+                          <a
+                            href={meta.usageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-display font-medium bg-[#191919] border border-[#303030] text-[#9a9a94] hover:text-amber-300 hover:border-amber-500/40 transition"
+                            title={`View ${meta.name} usage & limits`}
+                          >
+                            <Activity className="w-3 h-3 text-amber-400" />
+                            <span className="hidden sm:inline">View Usage</span>
+                            <ExternalLink className="w-2.5 h-2.5 text-[#9a9a94]" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleCheckModelsForKey(k.id, k.provider)}
+                          disabled={discoveringKeyId === k.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-display font-medium bg-brand-500/10 border border-brand-500/30 text-brand-300 hover:bg-brand-500/20 transition cursor-pointer"
+                          title="Test and list supported models for this key"
+                        >
+                          <Sparkles className={`w-3 h-3 ${discoveringKeyId === k.id ? 'animate-spin' : ''}`} />
+                          <span className="hidden sm:inline">{discoveringKeyId === k.id ? 'Checking...' : 'Check Models'}</span>
+                        </button>
                         <button
                           onClick={() => handleRetestKey(k.id)}
                           disabled={isRetesting}
                           title="Test key connection"
-                          className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919] rounded-lg transition"
+                          className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919] rounded-lg transition cursor-pointer"
                         >
                           <RefreshCw
                             className={`w-3.5 h-3.5 ${isRetesting ? 'animate-spin' : ''}`}

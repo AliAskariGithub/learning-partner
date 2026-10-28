@@ -34,7 +34,7 @@ export default async function SettingsPage() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-3xl w-full mx-auto p-6 md:p-10">
+      <main className="flex-1 max-w-5xl lg:max-w-6xl w-full mx-auto p-6 md:p-10">
         <div className="mb-8">
           <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-[#f4f4f2]">
             User Profile &amp; Preferences

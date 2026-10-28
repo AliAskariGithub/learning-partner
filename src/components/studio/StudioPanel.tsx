@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Dialog } from '@/components/ui';
+import { Button, Input, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
 import { StudioOutput, Source, Notebook } from '@/db/schema';
 import { SafeApiKey } from '@/app/app/api-key-actions';
-import { CapabilityGate } from '@/components/ai/CapabilityGate';
+import { getModelDefinition } from '@/lib/ai/providers';
 import {
   HelpCircle,
   Layers,
@@ -21,10 +21,12 @@ import {
   RotateCcw,
   Download,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Headphones,
   FileText,
+  Loader2,
 } from 'lucide-react';
 import {
   generateStudioOutput,
@@ -32,6 +34,7 @@ import {
   deleteStudioOutput,
   regenerateStudioOutput,
 } from '@/app/app/studio-actions';
+import { Shimmer } from '@/components/ai-elements/shimmer';
 import { StudioGenerateDialog } from './StudioGenerateDialog';
 import { QuizViewer } from './viewers/QuizViewer';
 import { FlashcardsViewer } from './viewers/FlashcardsViewer';
@@ -76,6 +79,13 @@ export function StudioPanel({
 }: StudioPanelProps) {
   const { toast } = useToast();
 
+  // Local outputs state synchronized with parent outputs for instant optimistic rendering
+  const [localOutputs, setLocalOutputs] = useState<StudioOutput[]>(outputs);
+
+  useEffect(() => {
+    setLocalOutputs(outputs);
+  }, [outputs]);
+
   // Active generation dialog
   const [generateDialogType, setGenerateDialogType] = useState<
     'quiz' | 'flashcards' | 'study_guide' | 'summary' | 'mind_map' | 'report' | 'voice' | null
@@ -95,6 +105,12 @@ export function StudioPanel({
 
   // Floating Mini Voice Player State
   const [miniVoiceOutput, setMiniVoiceOutput] = useState<StudioOutput | null>(null);
+
+  // Hover state for directional gliding highlight across studio tiles
+  const [hoveredTileId, setHoveredTileId] = useState<string | null>(null);
+
+  // Active model definition and capabilities
+  const activeModelDef = getModelDefinition(selectedModelId);
 
   // ----------------------------------------------------
   // Exactly 7 Studio Tiles in prescribed order
@@ -162,44 +178,112 @@ export function StudioPanel({
     setGenerateDialogType(tileId);
   };
 
-  const handleExecuteGenerate = async (params: {
+  const handleExecuteGenerate = (params: {
     type: 'quiz' | 'flashcards' | 'study_guide' | 'summary' | 'mind_map' | 'report' | 'voice';
     sourceIds: string[];
     options: any;
   }) => {
-    setIsGenerating(true);
-    try {
-      const res = await generateStudioOutput({
-        notebookId: notebook.id,
-        type: params.type,
-        sourceIds: params.sourceIds,
-        modelId: selectedModelId,
-        options: params.options,
-      });
+    // 1. Immediately close the dialog
+    setGenerateDialogType(null);
 
-      if (res.success) {
+    // 2. Resolve title
+    const typeTitles: Record<string, string> = {
+      quiz: 'Comprehensive Knowledge Quiz',
+      flashcards: 'Active Recall Flashcards',
+      study_guide: 'Complete Study Guide',
+      summary: 'Executive Briefing Document',
+      mind_map: 'Core Concepts Mind Map',
+      report: 'Deep Synthesis Report',
+      voice: 'Audio Overview Discussion',
+    };
+    const title = typeTitles[params.type] || 'Studio Synthesis';
+
+    // 3. Immediately insert optimistic generating card in local outputs
+    const tempId = `temp-${Date.now()}`;
+    const optimisticOutput: StudioOutput = {
+      id: tempId,
+      notebookId: notebook.id,
+      userId: notebook.userId,
+      type: params.type,
+      title,
+      content: null,
+      sourceIds: params.sourceIds,
+      model: selectedModelId,
+      status: 'generating',
+      errorMessage: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      script: null,
+      audioKeys: null,
+      durationSeconds: null,
+      voiceConfig: null,
+    };
+
+    setLocalOutputs((prev) => [optimisticOutput, ...prev.filter((o) => o.id !== tempId)]);
+
+    // 4. Semantic info toast
+    toast({
+      title: 'Generating Output',
+      description: `${title} is synthesizing in the background with ${activeModelDef.name}...`,
+      variant: 'info',
+    });
+
+    // 5. Trigger generation in background
+    generateStudioOutput({
+      notebookId: notebook.id,
+      type: params.type,
+      sourceIds: params.sourceIds,
+      modelId: selectedModelId,
+      options: params.options,
+    })
+      .then((res) => {
+        if (res.success) {
+          toast({
+            title: 'Output Ready',
+            description: `${title} generated successfully.`,
+            variant: 'success',
+          });
+          if (onRefreshOutputs) onRefreshOutputs();
+        } else {
+          setLocalOutputs((prev) =>
+            prev.map((o) =>
+              o.id === tempId
+                ? {
+                    ...o,
+                    id: res.outputId || tempId,
+                    status: 'failed',
+                    errorMessage: res.error || 'Generation failed.',
+                  }
+                : o
+            )
+          );
+          toast({
+            title: 'Generation Failed',
+            description: res.error || 'Could not complete synthesis. Click retry on the card.',
+            variant: 'error',
+          });
+          if (onRefreshOutputs) onRefreshOutputs();
+        }
+      })
+      .catch((err: any) => {
+        setLocalOutputs((prev) =>
+          prev.map((o) =>
+            o.id === tempId
+              ? {
+                  ...o,
+                  status: 'failed',
+                  errorMessage: err.message || 'Generation failed.',
+                }
+              : o
+          )
+        );
         toast({
-          title: 'Output Ready',
-          description: `Generated ${params.type.replace('_', ' ')} successfully.`,
-          variant: 'brand',
-        });
-        if (onRefreshOutputs) onRefreshOutputs();
-      } else {
-        toast({
-          title: 'Generation Failed',
-          description: res.error || 'Could not complete generation.',
+          title: 'Generation Error',
+          description: err.message || 'An error occurred during generation.',
           variant: 'error',
         });
-      }
-    } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err.message || 'Generation error.',
-        variant: 'error',
+        if (onRefreshOutputs) onRefreshOutputs();
       });
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   const handleRenameClick = (output: StudioOutput) => {
@@ -214,7 +298,7 @@ export function StudioPanel({
     try {
       const res = await renameStudioOutput(renameTargetOutput.id, renameInputText);
       if (res.success) {
-        toast({ title: 'Renamed', description: 'Output title updated.', variant: 'brand' });
+        toast({ title: 'Renamed', description: 'Output title updated.', variant: 'success' });
         setRenameTargetOutput(null);
         if (onRefreshOutputs) onRefreshOutputs();
       } else {
@@ -232,7 +316,8 @@ export function StudioPanel({
     try {
       const res = await deleteStudioOutput(outputId);
       if (res.success) {
-        toast({ title: 'Deleted', description: 'Output removed.', variant: 'neutral' });
+        toast({ title: 'Deleted', description: 'Output removed.', variant: 'success' });
+        setLocalOutputs((prev) => prev.filter((o) => o.id !== outputId));
         if (activeViewerOutput?.id === outputId) setActiveViewerOutput(null);
         if (miniVoiceOutput?.id === outputId) setMiniVoiceOutput(null);
         if (onRefreshOutputs) onRefreshOutputs();
@@ -246,16 +331,30 @@ export function StudioPanel({
 
   const handleRegenerateOutput = async (outputId: string) => {
     setOpenMenuOutputId(null);
-    toast({ title: 'Regenerating Output', description: 'Running synthesis in background...', variant: 'brand' });
+    // Mark as generating locally
+    setLocalOutputs((prev) =>
+      prev.map((o) => (o.id === outputId ? { ...o, status: 'generating', errorMessage: null } : o))
+    );
+    toast({ title: 'Regenerating Output', description: 'Running synthesis in background...', variant: 'info' });
     try {
-      const res = await regenerateStudioOutput(outputId);
+      const res = await regenerateStudioOutput(outputId, selectedModelId);
       if (res.success) {
-        toast({ title: 'Regenerated', description: 'Updated with latest sources.', variant: 'brand' });
+        toast({ title: 'Regenerated', description: 'Updated with latest sources.', variant: 'success' });
         if (onRefreshOutputs) onRefreshOutputs();
       } else {
+        setLocalOutputs((prev) =>
+          prev.map((o) =>
+            o.id === outputId ? { ...o, status: 'failed', errorMessage: res.error || 'Regenerate failed.' } : o
+          )
+        );
         toast({ title: 'Regenerate Failed', description: res.error, variant: 'error' });
       }
     } catch (err: any) {
+      setLocalOutputs((prev) =>
+        prev.map((o) =>
+          o.id === outputId ? { ...o, status: 'failed', errorMessage: err.message || 'Regenerate error.' } : o
+        )
+      );
       toast({ title: 'Error', description: err.message, variant: 'error' });
     }
   };
@@ -272,19 +371,15 @@ export function StudioPanel({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ title: 'Exported', description: 'File downloaded.', variant: 'neutral' });
+    toast({ title: 'Exported', description: 'File downloaded.', variant: 'success' });
   };
 
   const handleOpenOutputViewer = (output: StudioOutput) => {
-    if (output.type === 'voice') {
-      setActiveViewerOutput(output);
-    } else {
-      setActiveViewerOutput(output);
-    }
+    setActiveViewerOutput(output);
   };
 
   const handleListenFromViewer = (textToRead: string) => {
-    // Open Voice dialog pre-configured to Narration
+    // Open Voice dialog
     setGenerateDialogType('voice');
   };
 
@@ -317,38 +412,114 @@ export function StudioPanel({
           Studio Synthesizers
         </p>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          {studioTiles.map((tile) => (
-            <CapabilityGate
-              key={tile.id}
-              feature={tile.capability}
-              modelId={selectedModelId}
-              className="w-full h-full"
-            >
+        <div
+          className="grid grid-cols-2 gap-2.5 relative"
+          onMouseLeave={() => setHoveredTileId(null)}
+        >
+          {studioTiles.map((tile) => {
+            const isSupported = Boolean(activeModelDef.capabilities[tile.capability]);
+
+            const tileCard = (
               <div
-                onClick={() => handleTileClick(tile.id)}
-                className="group relative p-3 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all flex flex-col justify-between min-h-[108px] w-full shadow-sm text-left"
+                onMouseEnter={() => isSupported && setHoveredTileId(tile.id)}
+                onClick={() => {
+                  if (!isSupported) {
+                    toast({
+                      title: 'Model Unsupported',
+                      description: `${activeModelDef.name} does not support ${tile.title} generation. Please switch to a supported model.`,
+                      variant: 'warning',
+                    });
+                    return;
+                  }
+                  handleTileClick(tile.id);
+                }}
+                className={`group relative p-3 rounded-2xl overflow-hidden transition-all duration-150 flex flex-col justify-between min-h-[108px] w-full text-left h-full ${
+                  isSupported
+                    ? 'cursor-pointer active:scale-[0.99]'
+                    : 'cursor-not-allowed opacity-45 grayscale-[40%]'
+                }`}
               >
-                <div className="flex items-start justify-between w-full">
-                  <div className="p-2 rounded-xl bg-[#191919] border border-[#303030] group-hover:scale-105 transition-transform">
+                {/* Default static card background */}
+                <div
+                  className={`absolute inset-0 rounded-2xl border transition-colors ${
+                    isSupported
+                      ? 'bg-[#262626] border-[#303030]'
+                      : 'bg-[#181818] border-dashed border-[#3a3a3a]'
+                  }`}
+                />
+
+                {/* Gliding directional highlight across studio synthesizers */}
+                {isSupported && (
+                  <GlidingHighlight
+                    activeId={null}
+                    hoverId={hoveredTileId}
+                    itemId={tile.id}
+                    layoutId="studio-synthesizers-glide"
+                    className="rounded-2xl bg-[#2c2c2c] border border-brand-500/60 shadow-lg shadow-brand-500/10"
+                  />
+                )}
+
+                <div className="relative z-10 flex items-start justify-between w-full gap-1">
+                  <div
+                    className={`p-2 rounded-xl bg-[#191919] border border-[#303030] transition-transform duration-150 shrink-0 ${
+                      isSupported ? 'group-hover:scale-105' : 'opacity-60'
+                    }`}
+                  >
                     {tile.icon}
                   </div>
-                  <span className="text-[9px] font-display font-medium px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] group-hover:text-[#f4f4f2] border border-[#303030]">
-                    {tile.badge}
-                  </span>
+                  {isSupported ? (
+                    <span className="text-[9px] font-display font-medium px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] group-hover:text-[#f4f4f2] border border-[#303030] shrink-0">
+                      {tile.badge}
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[9px] font-mono font-medium px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1 shrink-0 max-w-[80px] truncate"
+                      title="Model Unsupported"
+                    >
+                      <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate">Unsupported</span>
+                    </span>
+                  )}
                 </div>
 
-                <div className="mt-2">
-                  <h3 className="text-xs font-display font-bold text-[#f4f4f2] group-hover:text-brand-300 transition-colors">
+                <div className="relative z-10 mt-2">
+                  <h3
+                    className={`text-xs font-display font-bold transition-colors ${
+                      isSupported ? 'text-[#f4f4f2] group-hover:text-brand-300' : 'text-[#7a7a74]'
+                    }`}
+                  >
                     {tile.title}
                   </h3>
-                  <p className="text-[10px] text-[#9a9a94] font-serif line-clamp-2 mt-0.5 leading-snug">
-                    {tile.desc}
-                  </p>
+                  {isSupported ? (
+                    <p className="text-[10px] text-[#9a9a94] font-serif line-clamp-2 mt-0.5 leading-snug">
+                      {tile.desc}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-rose-400/90 font-serif line-clamp-2 mt-0.5 leading-snug">
+                      {activeModelDef.name} does not support this.
+                    </p>
+                  )}
                 </div>
               </div>
-            </CapabilityGate>
-          ))}
+            );
+
+            if (!isSupported) {
+              return (
+                <Tooltip
+                  key={tile.id}
+                  content={`${activeModelDef.name} does not support ${tile.title} generation. Select a model with ${tile.capability} support in the model switcher.`}
+                >
+                  <div className="w-full h-full">{tileCard}</div>
+                </Tooltip>
+              );
+            }
+
+            return (
+              <div key={tile.id} className="w-full h-full">
+                {tileCard}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -359,55 +530,89 @@ export function StudioPanel({
             Generated Outputs
           </p>
           <span className="text-[10px] text-[#9a9a94] font-mono">
-            {outputs.length} {outputs.length === 1 ? 'item' : 'items'}
+            {localOutputs.length} {localOutputs.length === 1 ? 'item' : 'items'}
           </span>
         </div>
 
-        {outputs.length === 0 ? (
+        {localOutputs.length === 0 ? (
           <div className="py-8 text-center px-4 rounded-2xl bg-[#262626]/50 border border-dashed border-[#303030]">
             <Sparkles className="w-6 h-6 text-[#9a9a94] mx-auto mb-2 opacity-40" />
             <p className="text-xs font-display font-semibold text-[#f4f4f2]">No outputs generated yet</p>
             <p className="text-[11px] text-[#9a9a94] font-serif mt-1 max-w-[220px] mx-auto leading-relaxed">
-              Select any of the 7 studio synthesizers above to create quizzes, flashcards, study guides, or voice-overs.
+              Select any of the studio synthesizers above to create quizzes, flashcards, study guides, or voice-overs.
             </p>
           </div>
         ) : (
           <div className="space-y-2">
-            {outputs.map((out) => {
+            {localOutputs.map((out) => {
               const isMenuOpen = openMenuOutputId === out.id;
               const sourceCount = Array.isArray(out.sourceIds) ? out.sourceIds.length : 0;
+              const isGeneratingItem = out.status === 'generating';
+              const isFailedItem = out.status === 'failed';
+              const isReadyItem = out.status === 'ready';
 
               return (
                 <div
                   key={out.id}
-                  className="group relative p-3 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/40 transition-all flex items-start justify-between gap-3 shadow-sm"
+                  className={`group relative p-3 rounded-2xl border transition-all flex items-start justify-between gap-3 shadow-sm ${
+                    isGeneratingItem
+                      ? 'bg-[#25221b]/80 border-amber-500/40 shadow-amber-500/5'
+                      : isFailedItem
+                      ? 'bg-[#261f20]/80 border-rose-500/40'
+                      : 'bg-[#262626] border-[#303030] hover:border-brand-500/40'
+                  }`}
                 >
-                  {/* Left Icon & Title clickable to open viewer */}
+                  {/* Left Icon & Title */}
                   <div
-                    onClick={() => out.status === 'ready' && handleOpenOutputViewer(out)}
+                    onClick={() => {
+                      if (isReadyItem) {
+                        handleOpenOutputViewer(out);
+                      } else if (isGeneratingItem) {
+                        toast({
+                          title: 'Synthesizing in Progress',
+                          description: 'This output is generating in the background. It will be ready in a moment.',
+                          variant: 'info',
+                        });
+                      }
+                    }}
                     className={`flex items-start gap-2.5 flex-1 min-w-0 ${
-                      out.status === 'ready' ? 'cursor-pointer' : 'cursor-default'
+                      isReadyItem ? 'cursor-pointer' : isGeneratingItem ? 'cursor-wait' : 'cursor-default'
                     }`}
                   >
-                    <div className="p-2 rounded-xl bg-[#191919] border border-[#303030] shrink-0 mt-0.5">
-                      {getTypeIcon(out.type)}
+                    <div
+                      className={`p-2 rounded-xl shrink-0 mt-0.5 border ${
+                        isGeneratingItem
+                          ? 'bg-amber-950/40 border-amber-500/30'
+                          : isFailedItem
+                          ? 'bg-rose-950/40 border-rose-500/30'
+                          : 'bg-[#191919] border-[#303030]'
+                      }`}
+                    >
+                      {isGeneratingItem ? (
+                        <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                      ) : (
+                        getTypeIcon(out.type)
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-xs font-display font-bold text-[#f4f4f2] truncate group-hover:text-brand-300 transition-colors">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4
+                          className={`text-xs font-display font-bold truncate transition-colors ${
+                            isReadyItem
+                              ? 'text-[#f4f4f2] group-hover:text-brand-300'
+                              : isGeneratingItem
+                              ? 'text-amber-200'
+                              : 'text-rose-200'
+                          }`}
+                        >
                           {out.title}
                         </h4>
-                        {/* Status Semantic Indicators */}
-                        {out.status === 'generating' && (
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 shrink-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            Synthesizing
-                          </span>
-                        )}
-                        {out.status === 'failed' && (
+
+                        {/* Semantic Status Badges */}
+                        {isFailedItem && (
                           <span
-                            className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1 shrink-0"
+                            className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 shrink-0"
                             title={out.errorMessage || 'Failed'}
                           >
                             <AlertCircle className="w-2.5 h-2.5" />
@@ -416,18 +621,48 @@ export function StudioPanel({
                         )}
                       </div>
 
-                      <p className="text-[10px] text-[#9a9a94] font-serif mt-0.5">
-                        {sourceCount} {sourceCount === 1 ? 'source' : 'sources'} · {formatRelativeTime(out.createdAt)}
+                      <p className="text-[10px] text-[#9a9a94] font-serif mt-0.5 truncate">
+                        {isGeneratingItem ? (
+                          <Shimmer
+                            as="span"
+                            duration={2.2}
+                            baseColor="#d97706"
+                            highlightColor="#fef3c7"
+                            className="font-serif text-[10px] font-medium"
+                          >
+                            Synthesizing in background...
+                          </Shimmer>
+                        ) : isFailedItem ? (
+                          <span className="text-rose-400/90 font-medium truncate block">
+                            {out.errorMessage || 'Generation failed. Click retry.'}
+                          </span>
+                        ) : (
+                          <span>
+                            {sourceCount} {sourceCount === 1 ? 'source' : 'sources'} · {formatRelativeTime(out.createdAt)}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
 
-                  {/* Right Actions Dropdown Menu */}
-                  <div className="relative shrink-0">
+                  {/* Right Actions: Quick Retry on Failure or Dropdown Menu */}
+                  <div className="relative shrink-0 flex items-center gap-1.5">
+                    {isFailedItem && (
+                      <button
+                        type="button"
+                        onClick={() => handleRegenerateOutput(out.id)}
+                        className="px-2 py-1 rounded-lg text-[10px] font-display font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Retry generation"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Retry
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setOpenMenuOutputId(isMenuOpen ? null : out.id)}
-                      className="p-1 rounded-lg text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#303030] transition-colors"
+                      className="p-1 rounded-lg text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#303030] transition-colors cursor-pointer"
                       title="Output actions"
                     >
                       <MoreVertical className="w-3.5 h-3.5" />
@@ -435,35 +670,39 @@ export function StudioPanel({
 
                     {isMenuOpen && (
                       <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[#1a1a1a] border border-[#383838] shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
-                        <button
-                          type="button"
-                          onClick={() => handleRenameClick(out)}
-                          className="w-full px-3 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#262626] flex items-center gap-2"
-                        >
-                          <Pencil className="w-3 h-3 text-[#9a9a94]" />
-                          Rename
-                        </button>
+                        {isReadyItem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRenameClick(out)}
+                            className="w-full px-3 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#262626] flex items-center gap-2 cursor-pointer"
+                          >
+                            <Pencil className="w-3 h-3 text-[#9a9a94]" />
+                            Rename
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleRegenerateOutput(out.id)}
-                          className="w-full px-3 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#262626] flex items-center gap-2"
+                          className="w-full px-3 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#262626] flex items-center gap-2 cursor-pointer"
                         >
                           <RotateCcw className="w-3 h-3 text-[#9a9a94]" />
                           Regenerate
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleExportOutput(out)}
-                          className="w-full px-3 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#262626] flex items-center gap-2"
-                        >
-                          <Download className="w-3 h-3 text-[#9a9a94]" />
-                          Export
-                        </button>
+                        {isReadyItem && (
+                          <button
+                            type="button"
+                            onClick={() => handleExportOutput(out)}
+                            className="w-full px-3 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#262626] flex items-center gap-2 cursor-pointer"
+                          >
+                            <Download className="w-3 h-3 text-[#9a9a94]" />
+                            Export
+                          </button>
+                        )}
                         <div className="h-px bg-[#303030] my-1" />
                         <button
                           type="button"
                           onClick={() => handleDeleteOutput(out.id)}
-                          className="w-full px-3 py-1.5 text-left text-xs font-display text-rose-400 hover:bg-rose-950/20 flex items-center gap-2"
+                          className="w-full px-3 py-1.5 text-left text-xs font-display text-rose-400 hover:bg-rose-950/20 flex items-center gap-2 cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" />
                           Delete
@@ -526,62 +765,69 @@ export function StudioPanel({
 
       {/* Full-Screen Output Viewer Dialog */}
       {activeViewerOutput && (
-        <Dialog open={Boolean(activeViewerOutput)} onOpenChange={() => setActiveViewerOutput(null)}>
-          <div className="w-[92vw] max-w-4xl h-[86vh] bg-[#191919] text-[#f4f4f2] rounded-3xl border border-[#303030] shadow-2xl overflow-hidden flex flex-col">
-            {activeViewerOutput.type === 'quiz' && (
-              <QuizViewer content={activeViewerOutput.content || '{}'} onClose={() => setActiveViewerOutput(null)} />
-            )}
-            {activeViewerOutput.type === 'flashcards' && (
-              <FlashcardsViewer
-                content={activeViewerOutput.content || '{}'}
-                onClose={() => setActiveViewerOutput(null)}
-              />
-            )}
-            {activeViewerOutput.type === 'study_guide' && (
-              <StudyGuideViewer
-                title={activeViewerOutput.title}
-                content={activeViewerOutput.content || ''}
-                onListen={handleListenFromViewer}
-              />
-            )}
-            {activeViewerOutput.type === 'summary' && (
-              <SummaryViewer
-                title={activeViewerOutput.title}
-                content={activeViewerOutput.content || ''}
-                onListen={handleListenFromViewer}
-              />
-            )}
-            {activeViewerOutput.type === 'mind_map' && (
-              <MindMapViewer
-                content={activeViewerOutput.content || '{}'}
-                onOpenSource={(srcId) => {
-                  const found = sources.find((s) => s.id === srcId);
-                  if (found && onOpenSourceViewer) onOpenSourceViewer(found);
-                }}
-              />
-            )}
-            {activeViewerOutput.type === 'report' && (
-              <ReportViewer
-                title={activeViewerOutput.title}
-                content={activeViewerOutput.content || ''}
-                onListen={handleListenFromViewer}
-              />
-            )}
-            {activeViewerOutput.type === 'voice' && (
-              <VoicePlayer
-                title={activeViewerOutput.title}
-                script={activeViewerOutput.script}
-                audioKeys={activeViewerOutput.audioKeys}
-                durationSeconds={activeViewerOutput.durationSeconds}
-                voiceConfig={activeViewerOutput.voiceConfig}
-                onClose={() => setActiveViewerOutput(null)}
-                onToggleMini={() => {
-                  setMiniVoiceOutput(activeViewerOutput);
-                  setActiveViewerOutput(null);
-                }}
-              />
-            )}
-          </div>
+        <Dialog
+          open={Boolean(activeViewerOutput)}
+          onOpenChange={() => setActiveViewerOutput(null)}
+          hideCloseButton
+          className="w-[95vw] max-w-5xl lg:max-w-6xl xl:max-w-7xl h-[88vh] max-h-[90vh] p-0 border-[#303030] bg-[#191919] overflow-hidden rounded-3xl shadow-2xl flex flex-col"
+        >
+          {activeViewerOutput.type === 'quiz' && (
+            <QuizViewer content={activeViewerOutput.content || '{}'} onClose={() => setActiveViewerOutput(null)} />
+          )}
+          {activeViewerOutput.type === 'flashcards' && (
+            <FlashcardsViewer
+              content={activeViewerOutput.content || '{}'}
+              onClose={() => setActiveViewerOutput(null)}
+            />
+          )}
+          {activeViewerOutput.type === 'study_guide' && (
+            <StudyGuideViewer
+              title={activeViewerOutput.title}
+              content={activeViewerOutput.content || ''}
+              onListen={handleListenFromViewer}
+              onClose={() => setActiveViewerOutput(null)}
+            />
+          )}
+          {activeViewerOutput.type === 'summary' && (
+            <SummaryViewer
+              title={activeViewerOutput.title}
+              content={activeViewerOutput.content || ''}
+              onListen={handleListenFromViewer}
+              onClose={() => setActiveViewerOutput(null)}
+            />
+          )}
+          {activeViewerOutput.type === 'mind_map' && (
+            <MindMapViewer
+              content={activeViewerOutput.content || '{}'}
+              onOpenSource={(srcId) => {
+                const found = sources.find((s) => s.id === srcId);
+                if (found && onOpenSourceViewer) onOpenSourceViewer(found);
+              }}
+              onClose={() => setActiveViewerOutput(null)}
+            />
+          )}
+          {activeViewerOutput.type === 'report' && (
+            <ReportViewer
+              title={activeViewerOutput.title}
+              content={activeViewerOutput.content || ''}
+              onListen={handleListenFromViewer}
+              onClose={() => setActiveViewerOutput(null)}
+            />
+          )}
+          {activeViewerOutput.type === 'voice' && (
+            <VoicePlayer
+              title={activeViewerOutput.title}
+              script={activeViewerOutput.script}
+              audioKeys={activeViewerOutput.audioKeys}
+              durationSeconds={activeViewerOutput.durationSeconds}
+              voiceConfig={activeViewerOutput.voiceConfig}
+              onClose={() => setActiveViewerOutput(null)}
+              onToggleMini={() => {
+                setMiniVoiceOutput(activeViewerOutput);
+                setActiveViewerOutput(null);
+              }}
+            />
+          )}
         </Dialog>
       )}
 
@@ -604,4 +850,3 @@ export function StudioPanel({
     </div>
   );
 }
-

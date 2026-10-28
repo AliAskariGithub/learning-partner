@@ -12,6 +12,7 @@ export interface DialogProps {
   description?: string;
   children: React.ReactNode;
   className?: string;
+  hideCloseButton?: boolean;
 }
 
 export function Dialog({
@@ -21,6 +22,7 @@ export function Dialog({
   description,
   children,
   className,
+  hideCloseButton = false,
 }: DialogProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -39,34 +41,36 @@ export function Dialog({
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={() => onOpenChange(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/75 backdrop-blur-md"
           />
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            initial={{ opacity: 0, scale: 0.97, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
+            exit={{ opacity: 0, scale: 0.97, y: 10 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
             data-lenis-prevent
             className={cn(
-              'relative z-50 w-full max-w-lg rounded-2xl border border-border bg-surface p-6 text-foreground shadow-2xl max-h-[85vh] overflow-y-auto',
+              'relative z-50 w-full max-w-lg rounded-3xl border border-border bg-surface p-6 text-foreground shadow-2xl max-h-[88vh] overflow-y-auto',
               className
             )}
           >
-            <button
-              onClick={() => onOpenChange(false)}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-muted-foreground hover:bg-surface-raised hover:text-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {!hideCloseButton && (
+              <button
+                onClick={() => onOpenChange(false)}
+                className="absolute right-4 top-4 rounded-xl p-1.5 text-muted-foreground hover:bg-surface-raised hover:text-foreground transition focus-visible:outline-none cursor-pointer z-20"
+                aria-label="Close dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
 
             {title && (
               <h2 className="font-display text-lg font-bold tracking-tight text-foreground pr-8">
@@ -77,7 +81,7 @@ export function Dialog({
               <p className="mt-1 text-sm text-muted-foreground">{description}</p>
             )}
 
-            <div className="mt-4">{children}</div>
+            {title ? <div className="mt-4">{children}</div> : children}
           </motion.div>
         </div>
       )}

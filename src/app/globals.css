@@ -180,3 +180,50 @@ html.lenis, html.lenis body {
 .lenis.lenis-scrolling iframe {
   pointer-events: none;
 }
+
+/* Directional Hover & Gliding Transitions */
+.hover-slide-ltr {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.hover-slide-ltr::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.18) 100%);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.hover-slide-ltr:hover::before {
+  transform: scaleX(1);
+}
+
+.hover-slide-rtl {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.hover-slide-rtl::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(270deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.18) 100%);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.hover-slide-rtl:hover::before {
+  transform: scaleX(1);
+}

@@ -33,6 +33,7 @@ export interface ProviderMeta {
   keyFormatHint: string;
   keyPlaceholder: string;
   keyUrl: string;
+  usageUrl: string;
   docsUrl: string;
   description: string;
   defaultModel: string;
@@ -47,6 +48,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keyFormatHint: 'sk-proj-... or sk-...',
     keyPlaceholder: 'sk-proj-xxxxxxxxxxxxxxxxxxxx',
     keyUrl: 'https://platform.openai.com/api-keys',
+    usageUrl: 'https://platform.openai.com/usage',
     docsUrl: 'https://platform.openai.com/docs',
     description: 'Industry-standard models with vision, voice, structured outputs, and embeddings.',
     defaultModel: 'gpt-4o',
@@ -59,6 +61,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keyFormatHint: 'sk-ant-api03-...',
     keyPlaceholder: 'sk-ant-api03-xxxxxxxxxxxxxxxxxxxx',
     keyUrl: 'https://console.anthropic.com/settings/keys',
+    usageUrl: 'https://console.anthropic.com/settings/cost',
     docsUrl: 'https://docs.anthropic.com',
     description: 'Exceptional reasoning, writing, coding, and large 200k context windows.',
     defaultModel: 'claude-3-5-sonnet-20241022',
@@ -71,6 +74,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keyFormatHint: 'AIzaSy...',
     keyPlaceholder: 'AIzaSyxxxxxxxxxxxxxxxxxxxxxxx',
     keyUrl: 'https://aistudio.google.com/app/apikey',
+    usageUrl: 'https://ai.dev/rate-limit',
     docsUrl: 'https://ai.google.dev/docs',
     description: 'Massive 1M-2M token context, multimodal audio/vision, fast streaming, and free tier.',
     defaultModel: 'gemini-3.8-flash',
@@ -83,6 +87,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keyFormatHint: 'gsk_...',
     keyPlaceholder: 'gsk_xxxxxxxxxxxxxxxxxxxxxxx',
     keyUrl: 'https://console.groq.com/keys',
+    usageUrl: 'https://console.groq.com/usage',
     docsUrl: 'https://console.groq.com/docs',
     description: 'Sub-second real-time inference on open weights models (Llama 3.3, Mixtral).',
     defaultModel: 'llama-3.3-70b-versatile',
@@ -95,6 +100,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keyFormatHint: 'sk-or-v1-...',
     keyPlaceholder: 'sk-or-v1-xxxxxxxxxxxxxxxxxxxx',
     keyUrl: 'https://openrouter.ai/keys',
+    usageUrl: 'https://openrouter.ai/activity',
     docsUrl: 'https://openrouter.ai/docs',
     description: 'Access hundreds of models from OpenAI, Anthropic, Meta, DeepSeek, and Mistral.',
     defaultModel: 'meta-llama/llama-3.3-70b-instruct',
@@ -107,6 +113,7 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     keyFormatHint: 'Any API key string or "not-needed"',
     keyPlaceholder: 'your-api-key',
     keyUrl: '',
+    usageUrl: '',
     docsUrl: '',
     description: 'Connect any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, Together, LocalAI).',
     defaultModel: 'default',
@@ -150,15 +157,31 @@ export const MODEL_CATALOG: ModelDefinition[] = [
     },
   },
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
     provider: 'google',
-    description: 'Previous-generation workhorse with 1M context and multimodal understanding.',
+    description: 'High-availability multimodal workhorse with 1M context and fast inference.',
     capabilities: {
       text: true,
       vision: true,
       audioInput: true,
       audioOutput: true,
+      structuredOutput: true,
+      toolUse: true,
+      embeddings: true,
+      contextWindow: 1048576,
+    },
+  },
+  {
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash Lite',
+    provider: 'google',
+    description: 'Ultra-fast lightweight model ideal for rapid summarization and high throughput.',
+    capabilities: {
+      text: true,
+      vision: true,
+      audioInput: false,
+      audioOutput: false,
       structuredOutput: true,
       toolUse: true,
       embeddings: true,

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button, Input, Textarea, Dialog, Badge } from '@/components/ui';
+import { Button, Input, Dialog, Tooltip } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
 import { Source } from '@/db/schema';
 import { SafeApiKey } from '@/app/app/api-key-actions';
@@ -13,14 +13,16 @@ import {
   GitFork,
   ScrollText,
   Mic,
-  Play,
   Volume2,
   AlertTriangle,
+  AlertCircle,
   Sparkles,
   FileText,
   Check,
+  X,
 } from 'lucide-react';
-import { TTS_VOICE_CATALOG, getVoicesForProvider, ProviderId } from '@/lib/ai/providers';
+import { TTS_VOICE_CATALOG, getVoicesForProvider, ProviderId, getModelDefinition } from '@/lib/ai/providers';
+import { cn } from '@/lib/utils';
 
 export interface StudioGenerateDialogProps {
   isOpen: boolean;
@@ -33,7 +35,7 @@ export interface StudioGenerateDialogProps {
     type: 'quiz' | 'flashcards' | 'study_guide' | 'summary' | 'mind_map' | 'report' | 'voice';
     sourceIds: string[];
     options: any;
-  }) => Promise<void>;
+  }) => Promise<void> | void;
   isGenerating?: boolean;
 }
 
@@ -49,7 +51,17 @@ export function StudioGenerateDialog({
 }: StudioGenerateDialogProps) {
   const { toast } = useToast();
 
-  // Source selection state (default to all enabled sources)
+  // Model capability check
+  const selectedModelDef = getModelDefinition(selectedModelId);
+  const requiredCapability: 'audioOutput' | 'structuredOutput' | 'text' =
+    type === 'voice'
+      ? 'audioOutput'
+      : type === 'quiz' || type === 'flashcards' || type === 'mind_map'
+      ? 'structuredOutput'
+      : 'text';
+  const isModelSupported = Boolean(selectedModelDef.capabilities[requiredCapability]);
+
+  // Source selection state (default to all enabled ready sources)
   const readySources = sources.filter((s) => s.status === 'ready');
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(
     readySources.filter((s) => s.enabled).map((s) => s.id)
@@ -69,7 +81,7 @@ export function StudioGenerateDialog({
   // Voice options
   const [voiceStyle, setVoiceStyle] = useState<'conversation' | 'narration'>('conversation');
   const [voiceFormat, setVoiceFormat] = useState<'deep_dive' | 'brief' | 'critique' | 'debate'>('deep_dive');
-  
+
   // Available TTS providers: user keys that support TTS, plus 'web_speech' free fallback
   const hasGeminiKey = userKeys.some((k) => k.provider === 'google' && k.status === 'active');
   const hasOpenAiKey = userKeys.some((k) => k.provider === 'openai' && k.status === 'active');
@@ -82,7 +94,7 @@ export function StudioGenerateDialog({
   const [speaker1Voice, setSpeaker1Voice] = useState(availableVoices[0]?.id || 'Puck');
   const [speaker2Voice, setSpeaker2Voice] = useState(availableVoices[1]?.id || 'Kore');
 
-  // Play audio sample preview using Web Speech API or tone
+  // Play audio sample preview using Web Speech API
   const playSamplePreview = (voiceName: string) => {
     if (typeof window === 'undefined') return;
     if (window.speechSynthesis) {
@@ -107,7 +119,16 @@ export function StudioGenerateDialog({
     }
   };
 
-  const handleStartGeneration = async () => {
+  const handleStartGeneration = () => {
+    if (!isModelSupported) {
+      toast({
+        title: 'Model Unsupported',
+        description: `${selectedModelDef.name} does not support ${currentMeta.shortTitle} generation. Please switch models.`,
+        variant: 'warning',
+      });
+      return;
+    }
+
     if (selectedSourceIds.length === 0) {
       toast({
         title: 'No Sources Selected',
@@ -117,7 +138,8 @@ export function StudioGenerateDialog({
       return;
     }
 
-    await onGenerate({
+    // Immediately trigger background generation
+    onGenerate({
       type,
       sourceIds: selectedSourceIds,
       options: {
@@ -136,42 +158,53 @@ export function StudioGenerateDialog({
       },
     });
 
+    // Close the dialog immediately
     onClose();
   };
 
-  const titles: Record<string, { title: string; desc: string; icon: React.ReactNode }> = {
+  const titles: Record<
+    string,
+    { title: string; shortTitle: string; desc: string; icon: React.ReactNode }
+  > = {
     quiz: {
       title: 'Generate Quiz',
+      shortTitle: 'Quiz',
       desc: 'Interactive multiple choice & conceptual questions testing understanding of your sources.',
       icon: <HelpCircle className="w-5 h-5 text-amber-400" />,
     },
     flashcards: {
       title: 'Generate Flashcards',
+      shortTitle: 'Flashcards',
       desc: 'Spaced recall cards with key definitions, terms, and active recall prompts.',
       icon: <Layers className="w-5 h-5 text-brand-400" />,
     },
     study_guide: {
       title: 'Generate Study Guide',
+      shortTitle: 'Study Guide',
       desc: 'Comprehensive structured serif curriculum with key takeaways, glossary, and review questions.',
       icon: <BookOpen className="w-5 h-5 text-emerald-400" />,
     },
     summary: {
-      title: 'Generate Summary (Briefing Doc)',
+      title: 'Generate Summary',
+      shortTitle: 'Summary',
       desc: 'Concise executive briefing with a one-paragraph overview, core takeaways, and citations.',
       icon: <AlignLeft className="w-5 h-5 text-cyan-400" />,
     },
     mind_map: {
       title: 'Generate Mind Map',
+      shortTitle: 'Mind Map',
       desc: 'Interactive, zoomable and collapsible concept graph connecting source themes.',
       icon: <GitFork className="w-5 h-5 text-brand-300" />,
     },
     report: {
       title: 'Generate Report',
+      shortTitle: 'Report',
       desc: 'Formal academic briefing or analytical essay with grounded inline citations.',
       icon: <ScrollText className="w-5 h-5 text-rose-400" />,
     },
     voice: {
-      title: 'Generate Voice Audio Overview',
+      title: 'Generate Voice Overview',
+      shortTitle: 'Voice Audio',
       desc: 'Two co-hosts discuss the material like NotebookLM, or a single narrator reads a spoken briefing.',
       icon: <Mic className="w-5 h-5 text-purple-400" />,
     },
@@ -180,63 +213,98 @@ export function StudioGenerateDialog({
   const currentMeta = titles[type] || titles.quiz;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <div className="p-6 md:p-8 max-w-xl w-full bg-[#1f1f1f] text-[#f4f4f2] rounded-3xl border border-[#303030] shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#303030]">
-          <div className="p-2.5 rounded-2xl bg-[#262626] border border-[#383838]">
-            {currentMeta.icon}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      hideCloseButton
+      className="w-[95vw] max-w-lg md:max-w-xl max-h-[85vh] p-0 border-[#303030] bg-[#1f1f1f] overflow-hidden rounded-3xl shadow-2xl flex flex-col"
+    >
+      <div className="flex flex-col h-full max-h-[85vh] text-[#f4f4f2] overflow-hidden">
+        {/* Header - Fixed & Pinned */}
+        <div className="px-6 py-4.5 border-b border-[#303030] bg-[#1a1a1a] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-2xl bg-[#262626] border border-[#383838] shrink-0">
+              {currentMeta.icon}
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-display font-bold text-base text-[#f4f4f2] truncate">
+                {currentMeta.title}
+              </h3>
+              <p className="text-xs text-[#9a9a94] font-serif truncate mt-0.5">
+                {currentMeta.desc}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-display font-bold text-lg text-[#f4f4f2]">
-              {currentMeta.title}
-            </h3>
-            <p className="text-xs text-[#9a9a94] font-serif mt-0.5">
-              {currentMeta.desc}
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#282828] transition shrink-0 ml-3 cursor-pointer"
+            aria-label="Close dialog"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        <div className="space-y-6">
+        {/* Form Body - Scrollable with clean single scrollbar */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 scrollbar-thin scrollbar-thumb-[#303030] scrollbar-track-transparent">
+          {/* Unsupported Model Warning Banner */}
+          {!isModelSupported && (
+            <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-display font-bold text-xs text-rose-300">
+                  {selectedModelDef.name} Does Not Support {currentMeta.shortTitle}
+                </p>
+                <p className="text-[11px] text-rose-300/80 font-serif mt-0.5 leading-relaxed">
+                  The currently selected model lacks {requiredCapability} support. Please switch to a compatible model (such as Gemini 2.5 Flash or GPT-4o) in the notebook header.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Source Selector Section */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94]">
+              <label className="text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
                 Included Sources ({selectedSourceIds.length}/{readySources.length})
               </label>
               <button
                 type="button"
                 onClick={toggleAllSources}
-                className="text-xs text-brand-400 hover:text-brand-300 font-display font-medium"
+                className="text-xs text-brand-400 hover:text-brand-300 font-display font-medium cursor-pointer"
               >
                 {selectedSourceIds.length === readySources.length ? 'Deselect All' : 'Select All'}
               </button>
             </div>
 
             {readySources.length === 0 ? (
-              <p className="text-xs text-amber-400/90 font-serif bg-amber-950/20 p-3 rounded-xl border border-amber-500/20">
+              <p className="text-xs text-amber-400/90 font-serif bg-amber-950/20 p-3 rounded-2xl border border-amber-500/20">
                 No processed sources found. Upload sources first.
               </p>
             ) : (
-              <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 rounded-2xl bg-[#191919] border border-[#303030]">
+              <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 rounded-2xl bg-[#141414] border border-[#2c2c2c] scrollbar-thin scrollbar-thumb-[#303030]">
                 {readySources.map((source) => {
                   const isChecked = selectedSourceIds.includes(source.id);
                   return (
                     <div
                       key={source.id}
                       onClick={() => toggleSourceSelection(source.id)}
-                      className={`flex items-center gap-2.5 p-2 rounded-xl cursor-pointer text-xs transition-colors ${
-                        isChecked ? 'bg-[#262626] text-[#f4f4f2]' : 'text-[#7a7a74] hover:bg-[#202020]'
-                      }`}
+                      className={cn(
+                        'flex items-center gap-2.5 p-2 rounded-xl cursor-pointer text-xs transition-colors border',
+                        isChecked
+                          ? 'bg-[#242424] text-[#f4f4f2] border-[#383838]'
+                          : 'bg-transparent text-[#8a8a84] border-transparent hover:bg-[#1a1a1a] hover:text-[#d0d0cc]'
+                      )}
                     >
                       <div
-                        className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                        className={cn(
+                          'w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors',
                           isChecked
                             ? 'bg-brand-500 border-brand-500 text-white'
                             : 'border-[#404040] bg-[#1a1a1a]'
-                        }`}
+                        )}
                       >
-                        {isChecked && <Check className="w-3 h-3" />}
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
                       <FileText className="w-3.5 h-3.5 text-[#9a9a94] shrink-0" />
                       <span className="truncate flex-1 font-sans">{source.title}</span>
@@ -247,90 +315,156 @@ export function StudioGenerateDialog({
             )}
           </div>
 
-          {/* Type-Specific Options */}
+          {/* Type-Specific Options with Non-Truncating Segmented Controls */}
           {type === 'quiz' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
+              {/* Difficulty Level Segmented Control */}
               <div>
-                <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-2">
                   Difficulty Level
                 </label>
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as any)}
-                  className="w-full bg-[#191919] border border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
-                >
-                  <option value="easy">Easy (Definitions &amp; Facts)</option>
-                  <option value="medium">Medium (Application &amp; Concepts)</option>
-                  <option value="hard">Hard (Synthesis &amp; Critical Analysis)</option>
-                </select>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#141414] rounded-2xl border border-[#303030]">
+                  {[
+                    { id: 'easy', label: 'Easy', desc: 'Facts & Recall' },
+                    { id: 'medium', label: 'Medium', desc: 'Concepts' },
+                    { id: 'hard', label: 'Hard', desc: 'Critical Analysis' },
+                  ].map((lvl) => (
+                    <button
+                      type="button"
+                      key={lvl.id}
+                      onClick={() => setDifficulty(lvl.id as any)}
+                      className={cn(
+                        'py-2 px-2 rounded-xl text-center transition-all cursor-pointer',
+                        difficulty === lvl.id
+                          ? 'bg-[#282828] text-brand-300 font-bold border border-brand-500/50 shadow-sm'
+                          : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#1c1c1c] border border-transparent'
+                      )}
+                    >
+                      <div className="text-xs font-display">{lvl.label}</div>
+                      <div className="text-[10px] font-serif text-[#7a7a74]">{lvl.desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* Question Count Segmented Control */}
               <div>
-                <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-2">
                   Question Count
                 </label>
-                <select
-                  value={itemCount}
-                  onChange={(e) => setItemCount(Number(e.target.value))}
-                  className="w-full bg-[#191919] border border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
-                >
-                  <option value={3}>3 Questions</option>
-                  <option value={5}>5 Questions (Recommended)</option>
-                  <option value={10}>10 Questions</option>
-                </select>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#141414] rounded-2xl border border-[#303030]">
+                  {[
+                    { count: 3, label: '3 Questions', desc: 'Quick check' },
+                    { count: 5, label: '5 Questions', desc: 'Recommended' },
+                    { count: 10, label: '10 Questions', desc: 'Comprehensive' },
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      key={item.count}
+                      onClick={() => setItemCount(item.count)}
+                      className={cn(
+                        'py-2 px-2 rounded-xl text-center transition-all cursor-pointer',
+                        itemCount === item.count
+                          ? 'bg-[#282828] text-brand-300 font-bold border border-brand-500/50 shadow-sm'
+                          : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#1c1c1c] border border-transparent'
+                      )}
+                    >
+                      <div className="text-xs font-display">{item.label}</div>
+                      <div className="text-[10px] font-serif text-[#7a7a74]">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {type === 'flashcards' && (
             <div>
-              <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+              <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-2">
                 Deck Size
               </label>
-              <select
-                value={itemCount}
-                onChange={(e) => setItemCount(Number(e.target.value))}
-                className="w-full bg-[#191919] border border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
-              >
-                <option value={5}>5 Cards (Quick Review)</option>
-                <option value={8}>8 Cards (Standard)</option>
-                <option value={15}>15 Cards (Deep Recall)</option>
-              </select>
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#141414] rounded-2xl border border-[#303030]">
+                {[
+                  { count: 5, label: '5 Cards', desc: 'Quick Review' },
+                  { count: 8, label: '8 Cards', desc: 'Standard' },
+                  { count: 15, label: '15 Cards', desc: 'Deep Recall' },
+                ].map((item) => (
+                  <button
+                    type="button"
+                    key={item.count}
+                    onClick={() => setItemCount(item.count)}
+                    className={cn(
+                      'py-2 px-2 rounded-xl text-center transition-all cursor-pointer',
+                      itemCount === item.count
+                        ? 'bg-[#282828] text-brand-300 font-bold border border-brand-500/50 shadow-sm'
+                        : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#1c1c1c] border border-transparent'
+                    )}
+                  >
+                    <div className="text-xs font-display">{item.label}</div>
+                    <div className="text-[10px] font-serif text-[#7a7a74]">{item.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {(type === 'study_guide' || type === 'summary' || type === 'report') && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-2">
                   Length / Depth
                 </label>
-                <select
-                  value={length}
-                  onChange={(e) => setLength(e.target.value as any)}
-                  className="w-full bg-[#191919] border border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
-                >
-                  <option value="short">Short (Quick Overview)</option>
-                  <option value="medium">Medium (Standard In-depth)</option>
-                  <option value="long">Long (Comprehensive)</option>
-                </select>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#141414] rounded-2xl border border-[#303030]">
+                  {[
+                    { id: 'short', label: 'Short', desc: 'Quick overview' },
+                    { id: 'medium', label: 'Medium', desc: 'Standard in-depth' },
+                    { id: 'long', label: 'Long', desc: 'Comprehensive' },
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => setLength(item.id as any)}
+                      className={cn(
+                        'py-2 px-2 rounded-xl text-center transition-all cursor-pointer',
+                        length === item.id
+                          ? 'bg-[#282828] text-brand-300 font-bold border border-brand-500/50 shadow-sm'
+                          : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#1c1c1c] border border-transparent'
+                      )}
+                    >
+                      <div className="text-xs font-display">{item.label}</div>
+                      <div className="text-[10px] font-serif text-[#7a7a74]">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {type === 'report' && (
                 <div>
-                  <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                  <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-2">
                     Report Style
                   </label>
-                  <select
-                    value={reportFormat}
-                    onChange={(e) => setReportFormat(e.target.value as any)}
-                    className="w-full bg-[#191919] border border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
-                  >
-                    <option value="briefing">Executive Briefing</option>
-                    <option value="essay">Academic Essay</option>
-                    <option value="blog_post">Educational Blog Post</option>
-                    <option value="custom">Custom Format</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-[#141414] rounded-2xl border border-[#303030]">
+                    {[
+                      { id: 'briefing', label: 'Executive Briefing' },
+                      { id: 'essay', label: 'Academic Essay' },
+                      { id: 'blog_post', label: 'Educational Post' },
+                      { id: 'custom', label: 'Custom Format' },
+                    ].map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => setReportFormat(item.id as any)}
+                        className={cn(
+                          'py-2 px-2 rounded-xl text-center transition-all cursor-pointer text-xs font-display',
+                          reportFormat === item.id
+                            ? 'bg-[#282828] text-brand-300 font-bold border border-brand-500/50 shadow-sm'
+                            : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#1c1c1c] border border-transparent'
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -338,36 +472,36 @@ export function StudioGenerateDialog({
 
           {/* Voice-Specific Options */}
           {type === 'voice' && (
-            <div className="space-y-4 p-4 rounded-2xl bg-[#191919] border border-[#303030]">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4 p-4 rounded-2xl bg-[#141414] border border-[#303030]">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                  <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
                     Audio Style
                   </label>
                   <select
                     value={voiceStyle}
                     onChange={(e) => setVoiceStyle(e.target.value as any)}
-                    className="w-full bg-[#262626] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                    className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                   >
                     <option value="conversation">Conversation (2 Hosts)</option>
-                    <option value="narration">Narration (1 Voice-Over)</option>
+                    <option value="narration">Narration (1 Voice)</option>
                   </select>
                 </div>
 
                 {voiceStyle === 'conversation' && (
                   <div>
-                    <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
-                      Conversation Format
+                    <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                      Format
                     </label>
                     <select
                       value={voiceFormat}
                       onChange={(e) => setVoiceFormat(e.target.value as any)}
-                      className="w-full bg-[#262626] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                      className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                     >
-                      <option value="deep_dive">Deep Dive (Detailed)</option>
-                      <option value="brief">Brief (Quick overview)</option>
-                      <option value="critique">Critique (Constructive)</option>
-                      <option value="debate">Debate (Contrasting views)</option>
+                      <option value="deep_dive">Deep Dive</option>
+                      <option value="brief">Brief</option>
+                      <option value="critique">Critique</option>
+                      <option value="debate">Debate</option>
                     </select>
                   </div>
                 )}
@@ -375,7 +509,7 @@ export function StudioGenerateDialog({
 
               {/* Voice Provider Selector */}
               <div>
-                <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
                   Voice Provider
                 </label>
                 <select
@@ -387,30 +521,25 @@ export function StudioGenerateDialog({
                     setSpeaker1Voice(voices[0]?.id || 'Puck');
                     setSpeaker2Voice(voices[1]?.id || 'Kore');
                   }}
-                  className="w-full bg-[#262626] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                  className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                 >
                   {hasGeminiKey && <option value="google">Google Gemini TTS (Puck, Kore, Charon)</option>}
                   {hasOpenAiKey && <option value="openai">OpenAI TTS (Alloy, Echo, Nova)</option>}
-                  <option value="web_speech">Basic Voice (Free · Browser Speech Synthesis)</option>
+                  <option value="web_speech">Basic Voice (Free · Browser Speech)</option>
                 </select>
-                {voiceProvider === 'web_speech' && (
-                  <p className="text-[11px] text-[#9a9a94] font-serif mt-1">
-                    Free fallback: Runs client-side using browser speech synthesis. No API key needed.
-                  </p>
-                )}
               </div>
 
               {/* Host Voices Selection with Play Sample Button */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94]">
+                    <label className="text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
                       {voiceStyle === 'narration' ? 'Narrator Voice' : 'Host 1 (Alex)'}
                     </label>
                     <button
                       type="button"
                       onClick={() => playSamplePreview(speaker1Voice)}
-                      className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display"
+                      className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer"
                     >
                       <Volume2 className="w-3 h-3" />
                       Preview
@@ -419,7 +548,7 @@ export function StudioGenerateDialog({
                   <select
                     value={speaker1Voice}
                     onChange={(e) => setSpeaker1Voice(e.target.value)}
-                    className="w-full bg-[#262626] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                    className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                   >
                     {availableVoices.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -432,13 +561,13 @@ export function StudioGenerateDialog({
                 {voiceStyle === 'conversation' && (
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94]">
+                      <label className="text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
                         Host 2 (Jordan)
                       </label>
                       <button
                         type="button"
                         onClick={() => playSamplePreview(speaker2Voice)}
-                        className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display"
+                        className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer"
                       >
                         <Volume2 className="w-3 h-3" />
                         Preview
@@ -447,7 +576,7 @@ export function StudioGenerateDialog({
                     <select
                       value={speaker2Voice}
                       onChange={(e) => setSpeaker2Voice(e.target.value)}
-                      className="w-full bg-[#262626] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                      className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                     >
                       {availableVoices.map((v) => (
                         <option key={v.id} value={v.id}>
@@ -459,12 +588,11 @@ export function StudioGenerateDialog({
                 )}
               </div>
 
-              {/* Length Warning */}
               {length === 'long' && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 text-amber-300 text-xs">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <p className="font-serif leading-tight">
-                    Notice: Long audio generation (~30 turns) takes 30–60 seconds to synthesize. You can continue chatting in the notebook while it generates.
+                    Long audio overview will generate in the background while you continue working.
                   </p>
                 </div>
               )}
@@ -472,60 +600,64 @@ export function StudioGenerateDialog({
           )}
 
           {/* Optional Focus Topic & Extra Instructions */}
-          <div className="space-y-3">
+          <div className="space-y-3 pt-1 border-t border-[#2c2c2c]">
             <div>
-              <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+              <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
                 Optional Focus Topic
               </label>
               <Input
                 value={focusTopic}
                 onChange={(e) => setFocusTopic(e.target.value)}
                 placeholder="e.g. Chapter 4 neural networks, or Key Takeaways"
-                className="text-xs"
+                className="text-xs bg-[#141414] border-[#303030]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+              <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
                 Optional Instructions / Tone
               </label>
               <Input
                 value={extraInstructions}
                 onChange={(e) => setExtraInstructions(e.target.value)}
                 placeholder="e.g. Explain it like I'm a beginner, or Focus on practical formulas"
-                className="text-xs"
+                className="text-xs bg-[#141414] border-[#303030]"
               />
             </div>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-[#303030]">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={isGenerating}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleStartGeneration}
-            disabled={isGenerating || selectedSourceIds.length === 0}
-            className="text-xs font-display font-semibold min-w-[120px]"
-          >
-            {isGenerating ? (
-              <span className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Generating...
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                Generate Output
-              </span>
-            )}
-          </Button>
+        {/* Footer Actions - ALWAYS Pinned, 100% Visible, Never Clipped! */}
+        <div className="px-6 py-4 border-t border-[#303030] bg-[#161616] flex items-center justify-between shrink-0">
+          <div className="text-[11px] font-mono text-[#9a9a94]">
+            {selectedSourceIds.length} {selectedSourceIds.length === 1 ? 'source' : 'sources'} selected
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={isGenerating}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleStartGeneration}
+              disabled={!isModelSupported || isGenerating || selectedSourceIds.length === 0}
+              className="text-xs font-display font-semibold min-w-[140px] shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {!isModelSupported ? (
+                <span className="flex items-center gap-1.5 text-rose-300">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Model Unsupported
+                </span>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                  Generate {currentMeta.shortTitle}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </Dialog>
   );
 }
-

@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useModelCapabilities, CapabilityFeature } from '@/hooks/useModelCapabilities';
-import { Info, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CapabilityGateProps {
   feature: CapabilityFeature;
@@ -30,19 +31,19 @@ export function CapabilityGate({
   const [tooltipVisible, setTooltipVisible] = useState(false);
 
   if (isSupported) {
-    return <div className={`inline-flex items-center ${className}`}>{children}</div>;
+    return <div className={cn('w-full h-full', className)}>{children}</div>;
   }
 
   return (
     <div
-      className={`relative inline-flex items-center group ${className}`}
+      className={cn('relative group w-full h-full', className)}
       onMouseEnter={() => setTooltipVisible(true)}
       onMouseLeave={() => setTooltipVisible(false)}
       onFocus={() => setTooltipVisible(true)}
       onBlur={() => setTooltipVisible(false)}
     >
       {/* Disabled target element */}
-      <div className="opacity-40 grayscale cursor-not-allowed pointer-events-none select-none">
+      <div className="w-full h-full cursor-not-allowed select-none">
         {children}
       </div>
 
@@ -55,10 +56,10 @@ export function CapabilityGate({
           } left-1/2 -translate-x-1/2 z-50 w-64 p-2.5 rounded-xl bg-[#262626] border border-[#3a3a3a] text-[#f4f4f2] text-xs shadow-2xl backdrop-blur-md pointer-events-none animate-in fade-in zoom-in-95 duration-150`}
         >
           <div className="flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-display font-semibold text-[11px] text-[#f4f4f2] mb-0.5">
-                Capability Unavailable
+                Model Does Not Support This
               </p>
               <p className="text-[11px] text-[#9a9a94] font-serif leading-tight">
                 {disabledReason}
@@ -78,4 +79,3 @@ export function CapabilityGate({
     </div>
   );
 }
-

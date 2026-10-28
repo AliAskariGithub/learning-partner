@@ -144,7 +144,7 @@ export function SettingsForm({
     toast({
       title: 'Voice Provider Saved',
       description: `Default voice overview provider set to ${provider === 'web_speech' ? 'Basic Voice (Web Speech)' : provider.toUpperCase()}.`,
-      variant: 'brand',
+      variant: 'success',
     });
   };
 
@@ -190,7 +190,7 @@ export function SettingsForm({
           toast({
             title: 'Photo Selected',
             description: 'Preview updated. Click "Save Changes" to save to your profile.',
-            variant: 'brand',
+            variant: 'success',
           });
         }
       };
@@ -215,7 +215,7 @@ export function SettingsForm({
         toast({
           title: 'Settings Saved',
           description: 'Your profile and study preferences have been updated.',
-          variant: 'brand',
+          variant: 'success',
         });
         router.refresh();
       }
@@ -248,7 +248,7 @@ export function SettingsForm({
         toast({
           title: 'Export Complete',
           description: 'All your notebooks, sources, notes, and outputs downloaded.',
-          variant: 'brand',
+          variant: 'success',
         });
       } else {
         toast({ title: 'Export Failed', description: res.error, variant: 'error' });
@@ -294,24 +294,24 @@ export function SettingsForm({
     <form onSubmit={handleSaveSettings} className="space-y-6">
       {/* 5 Distinct Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-5 w-full bg-[#262626] border border-[#303030] p-1 rounded-2xl mb-6">
-          <TabsTrigger value="profile" className="text-xs font-display flex items-center gap-1.5">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full bg-[#191919] border border-[#303030] p-1 rounded-2xl mb-6 h-auto sm:h-12 gap-1">
+          <TabsTrigger value="profile">
             <UserIcon className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="instructions" className="text-xs font-display flex items-center gap-1.5">
+          <TabsTrigger value="instructions">
             <Sliders className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Custom Instructions</span>
           </TabsTrigger>
-          <TabsTrigger value="apikeys" className="text-xs font-display flex items-center gap-1.5">
+          <TabsTrigger value="apikeys">
             <Key className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">API Keys</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="text-xs font-display flex items-center gap-1.5">
+          <TabsTrigger value="appearance">
             <Palette className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Appearance</span>
           </TabsTrigger>
-          <TabsTrigger value="data" className="text-xs font-display flex items-center gap-1.5">
+          <TabsTrigger value="data">
             <Database className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Data &amp; Privacy</span>
           </TabsTrigger>
@@ -473,7 +473,7 @@ export function SettingsForm({
                         toast({
                           title: 'Template Applied',
                           description: `Set instructions to "${ex.title}". Click Save Changes to save.`,
-                          variant: 'brand',
+                          variant: 'success',
                         });
                       }}
                       className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 cursor-pointer transition-all flex flex-col justify-between group"

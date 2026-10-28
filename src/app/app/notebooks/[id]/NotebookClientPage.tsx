@@ -202,7 +202,7 @@ export function NotebookClientPage({
       toast({
         title: 'Retrying Ingestion',
         description: 'Processing source in background...',
-        variant: 'brand',
+        variant: 'success',
       });
     } catch (err: any) {
       toast({ title: 'Retry failed', description: err.message, variant: 'error' });
@@ -384,7 +384,7 @@ export function NotebookClientPage({
       toast({
         title: 'Citation Source',
         description: `${citation.sourceTitle}${citation.pageNumber ? ` (Page ${citation.pageNumber})` : ''}`,
-        variant: 'brand',
+        variant: 'success',
       });
     }
   };
@@ -400,7 +400,7 @@ export function NotebookClientPage({
       toast({
         title: 'Saved to Notebook Notes',
         description: 'Insight added to project memory.',
-        variant: 'brand',
+        variant: 'success',
       });
     } catch (err: any) {
       toast({ title: 'Error saving note', description: err.message, variant: 'error' });
@@ -432,7 +432,7 @@ export function NotebookClientPage({
 
       toast({
         title: assistantMsg ? 'User prompt and response deleted' : 'Message deleted',
-        variant: 'brand',
+        variant: 'success',
       });
     } catch (err: any) {
       toast({ title: 'Error deleting message', description: err.message, variant: 'error' });
@@ -447,7 +447,7 @@ export function NotebookClientPage({
       if (!messageId.startsWith('temp-')) {
         await updateMessage(messageId, newContent);
       }
-      toast({ title: 'Message updated', variant: 'brand' });
+      toast({ title: 'Message updated', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error updating message', description: err.message, variant: 'error' });
     }

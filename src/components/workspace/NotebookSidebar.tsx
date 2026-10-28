@@ -28,7 +28,7 @@ import {
   Command,
   Check,
 } from 'lucide-react';
-import { Button, Input, Dialog } from '@/components/ui';
+import { Button, Input, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
 import { Notebook } from '@/db/schema';
 import { authClient } from '@/lib/auth/client';
@@ -81,9 +81,11 @@ export function NotebookSidebar({
   const { toast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [hoveredNotebookId, setHoveredNotebookId] = useState<string | null>(null);
 
   // User Popover Menu State
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [hoveredUserMenuItem, setHoveredUserMenuItem] = useState<string | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Language Picker Dialog State
@@ -349,6 +351,7 @@ export function NotebookSidebar({
               <div
                 className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 scrollbar-thin scrollbar-thumb-border overscroll-contain"
                 data-lenis-prevent
+                onMouseLeave={() => setHoveredNotebookId(null)}
               >
                 {/* 1. Pinned Notebooks */}
                 {pinnedNotebooks.length > 0 && (
@@ -358,55 +361,74 @@ export function NotebookSidebar({
                       <span>Pinned Notebooks</span>
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1 relative">
                       {pinnedNotebooks.map((nb) => {
                         const isActive = activeNotebookId === nb.id;
                         return (
                           <div
                             key={nb.id}
-                            onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                            className={`group flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
-                              isActive
-                                ? 'bg-surface-raised text-foreground font-semibold border border-brand-500/30'
-                                : 'text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground'
-                            }`}
+                            className="relative"
+                            onMouseEnter={() => setHoveredNotebookId(nb.id)}
                           >
-                            <div className="flex items-center gap-2 min-w-0 pr-1">
-                              <BookOpen className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
-                              <span className="truncate font-serif">{nb.title}</span>
-                            </div>
+                            <GlidingHighlight
+                              activeId={isActive ? nb.id : null}
+                              hoverId={hoveredNotebookId}
+                              itemId={nb.id}
+                              layoutId="notebooks-sidebar-glide"
+                              className={
+                                isActive
+                                  ? 'bg-brand-500/15 border border-brand-500/40'
+                                  : 'bg-[#262626] border border-[#383838]'
+                              }
+                            />
+                            <div
+                              onClick={() => router.push(`/app/notebooks/${nb.id}`)}
+                              className={`group relative z-10 flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                                isActive
+                                  ? 'text-brand-300 font-semibold'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 pr-1">
+                                <BookOpen className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
+                                <span className="truncate font-serif">{nb.title}</span>
+                              </div>
 
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => handleTogglePin(nb, e)}
-                                className="p-1 text-muted-foreground hover:text-brand-400 transition cursor-pointer"
-                                title="Unpin notebook"
-                              >
-                                <Pin className="h-3 w-3 fill-brand-400/30" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setNotebookToRename(nb);
-                                  setRenamedTitle(nb.title);
-                                  setRenameDialogOpen(true);
-                                }}
-                                className="p-1 text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                title="Rename"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setNotebookToDelete(nb);
-                                  setDeleteDialogOpen(true);
-                                }}
-                                className="p-1 text-muted-foreground hover:text-error transition cursor-pointer"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Tooltip content="Unpin notebook" side="top">
+                                  <button
+                                    onClick={(e) => handleTogglePin(nb, e)}
+                                    className="p-1 text-muted-foreground hover:text-brand-400 transition cursor-pointer"
+                                  >
+                                    <Pin className="h-3 w-3 fill-brand-400/30" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Rename notebook" side="top">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setNotebookToRename(nb);
+                                      setRenamedTitle(nb.title);
+                                      setRenameDialogOpen(true);
+                                    }}
+                                    className="p-1 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Delete notebook" side="top">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setNotebookToDelete(nb);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                    className="p-1 text-muted-foreground hover:text-error transition cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </Tooltip>
+                              </div>
                             </div>
                           </div>
                         );
@@ -421,7 +443,7 @@ export function NotebookSidebar({
                     <span>Notebooks ({notebooks.length})</span>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1 relative">
                     {otherNotebooks.length === 0 && pinnedNotebooks.length === 0 ? (
                       <div className="px-3 py-6 text-center text-xs text-muted-foreground/80 font-serif">
                         No notebooks found.
@@ -432,49 +454,68 @@ export function NotebookSidebar({
                         return (
                           <div
                             key={nb.id}
-                            onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                            className={`group flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
-                              isActive
-                                ? 'bg-surface-raised text-foreground font-semibold border-l-2 border-brand-500'
-                                : 'text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground'
-                            }`}
+                            className="relative"
+                            onMouseEnter={() => setHoveredNotebookId(nb.id)}
                           >
-                            <div className="flex items-center gap-2 min-w-0 pr-1">
-                              <Folder className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
-                              <span className="truncate font-serif">{nb.title}</span>
-                            </div>
+                            <GlidingHighlight
+                              activeId={isActive ? nb.id : null}
+                              hoverId={hoveredNotebookId}
+                              itemId={nb.id}
+                              layoutId="notebooks-sidebar-glide"
+                              className={
+                                isActive
+                                  ? 'bg-brand-500/15 border border-brand-500/40'
+                                  : 'bg-[#262626] border border-[#383838]'
+                              }
+                            />
+                            <div
+                              onClick={() => router.push(`/app/notebooks/${nb.id}`)}
+                              className={`group relative z-10 flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                                isActive
+                                  ? 'text-brand-300 font-semibold'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 pr-1">
+                                <Folder className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
+                                <span className="truncate font-serif">{nb.title}</span>
+                              </div>
 
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => handleTogglePin(nb, e)}
-                                className="p-1 text-muted-foreground hover:text-brand-400 transition cursor-pointer"
-                                title="Pin to top"
-                              >
-                                <Pin className="h-3 w-3" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setNotebookToRename(nb);
-                                  setRenamedTitle(nb.title);
-                                  setRenameDialogOpen(true);
-                                }}
-                                className="p-1 text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                title="Rename"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setNotebookToDelete(nb);
-                                  setDeleteDialogOpen(true);
-                                }}
-                                className="p-1 text-muted-foreground hover:text-error transition cursor-pointer"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Tooltip content="Pin to top" side="top">
+                                  <button
+                                    onClick={(e) => handleTogglePin(nb, e)}
+                                    className="p-1 text-muted-foreground hover:text-brand-400 transition cursor-pointer"
+                                  >
+                                    <Pin className="h-3 w-3" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Rename notebook" side="top">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setNotebookToRename(nb);
+                                      setRenamedTitle(nb.title);
+                                      setRenameDialogOpen(true);
+                                    }}
+                                    className="p-1 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip content="Delete notebook" side="top">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setNotebookToDelete(nb);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                    className="p-1 text-muted-foreground hover:text-error transition cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </Tooltip>
+                              </div>
                             </div>
                           </div>
                         );
@@ -521,94 +562,148 @@ export function NotebookSidebar({
                         </div>
                       </div>
 
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 relative" onMouseLeave={() => setHoveredUserMenuItem(null)}>
                         {/* 1. Settings - Takes directly to user profile */}
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            router.push('/settings');
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground hover:bg-[#191919] transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Settings className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                            <span className="font-display font-medium">Settings</span>
-                          </div>
-                          <span className="text-[10px] text-muted-foreground font-mono">Profile &amp; Keys</span>
-                        </button>
+                        <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('settings')}>
+                          <GlidingHighlight
+                            activeId={null}
+                            hoverId={hoveredUserMenuItem}
+                            itemId="settings"
+                            layoutId="user-popover-item"
+                            className="bg-[#191919] border border-[#383838]"
+                          />
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              router.push('/settings');
+                            }}
+                            className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Settings className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                              <span className="font-display font-medium">Settings</span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground font-mono">Profile &amp; Keys</span>
+                          </button>
+                        </div>
 
                         {/* 2. Language - Opens Language Selector Dialog */}
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            setLanguageDialogOpen(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground hover:bg-[#191919] transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Globe className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                            <span className="font-display font-medium">Language</span>
-                          </div>
-                          <span className="text-[10px] text-brand-400 font-medium">
-                            {activeLangObj?.native || 'English'}
-                          </span>
-                        </button>
+                        <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('language')}>
+                          <GlidingHighlight
+                            activeId={null}
+                            hoverId={hoveredUserMenuItem}
+                            itemId="language"
+                            layoutId="user-popover-item"
+                            className="bg-[#191919] border border-[#383838]"
+                          />
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              setLanguageDialogOpen(true);
+                            }}
+                            className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Globe className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                              <span className="font-display font-medium">Language</span>
+                            </div>
+                            <span className="text-[10px] text-brand-400 font-medium">
+                              {activeLangObj?.native || 'English'}
+                            </span>
+                          </button>
+                        </div>
 
                         {/* 3. Get API keys (Google AI Studio) */}
-                        <a
-                          href="https://aistudio.google.com/app/apikey"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setUserMenuOpen(false)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground hover:bg-[#191919] transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Key className="w-4 h-4 text-brand-400 group-hover:text-brand-300 transition-colors" />
-                            <span className="font-display font-medium">Get API keys</span>
-                          </div>
-                          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-brand-400 transition-colors" />
-                        </a>
+                        <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('api-keys')}>
+                          <GlidingHighlight
+                            activeId={null}
+                            hoverId={hoveredUserMenuItem}
+                            itemId="api-keys"
+                            layoutId="user-popover-item"
+                            className="bg-[#191919] border border-[#383838]"
+                          />
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Key className="w-4 h-4 text-brand-400 group-hover:text-brand-300 transition-colors" />
+                              <span className="font-display font-medium">Get API keys</span>
+                            </div>
+                            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-brand-400 transition-colors" />
+                          </a>
+                        </div>
 
                         {/* 4. Get Help & Shortcuts */}
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            setHelpDialogOpen(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground hover:bg-[#191919] transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <HelpCircle className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                            <span className="font-display font-medium">Help &amp; Shortcuts</span>
-                          </div>
-                        </button>
+                        <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('help')}>
+                          <GlidingHighlight
+                            activeId={null}
+                            hoverId={hoveredUserMenuItem}
+                            itemId="help"
+                            layoutId="user-popover-item"
+                            className="bg-[#191919] border border-[#383838]"
+                          />
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              setHelpDialogOpen(true);
+                            }}
+                            className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <HelpCircle className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                              <span className="font-display font-medium">Help &amp; Shortcuts</span>
+                            </div>
+                          </button>
+                        </div>
 
                         {/* 5. Learn more / About */}
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            setAboutDialogOpen(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground hover:bg-[#191919] transition-colors cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Info className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                            <span className="font-display font-medium">About Learning Partner</span>
-                          </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                        </button>
+                        <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('about')}>
+                          <GlidingHighlight
+                            activeId={null}
+                            hoverId={hoveredUserMenuItem}
+                            itemId="about"
+                            layoutId="user-popover-item"
+                            className="bg-[#191919] border border-[#383838]"
+                          />
+                          <button
+                            onClick={() => {
+                              setUserMenuOpen(false);
+                              setAboutDialogOpen(true);
+                            }}
+                            className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Info className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                              <span className="font-display font-medium">About Learning Partner</span>
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                        </div>
 
                         {/* Divider */}
                         <div className="my-1 border-t border-border/60" />
 
                         {/* 6. Log out */}
-                        <button
-                          onClick={handleSignOut}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[#f87171] hover:bg-red-950/30 transition-colors cursor-pointer group"
-                        >
-                          <LogOut className="w-4 h-4 text-[#f87171] group-hover:translate-x-0.5 transition-transform" />
-                          <span className="font-display font-medium">Log out</span>
-                        </button>
+                        <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('logout')}>
+                          <GlidingHighlight
+                            activeId={null}
+                            hoverId={hoveredUserMenuItem}
+                            itemId="logout"
+                            layoutId="user-popover-item"
+                            className="bg-red-950/40 border border-red-500/30"
+                          />
+                          <button
+                            onClick={handleSignOut}
+                            className="relative z-10 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[#f87171] transition-colors cursor-pointer group"
+                          >
+                            <LogOut className="w-4 h-4 text-[#f87171] group-hover:translate-x-0.5 transition-transform" />
+                            <span className="font-display font-medium">Log out</span>
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -647,13 +742,14 @@ export function NotebookSidebar({
                   </button>
 
                   {/* Collapse Sidebar Button on the Right */}
-                  <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-raised transition cursor-pointer shrink-0"
-                    title="Collapse sidebar"
-                  >
-                    <PanelLeftClose className="h-4 w-4" />
-                  </button>
+                  <Tooltip content="Collapse sidebar" side="top">
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-raised transition cursor-pointer shrink-0"
+                    >
+                      <PanelLeftClose className="h-4 w-4" />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             </div>

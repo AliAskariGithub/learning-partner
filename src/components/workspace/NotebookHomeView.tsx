@@ -93,7 +93,7 @@ export function NotebookHomeView({
     if (!title.trim() || title === notebook.title) return;
     try {
       await updateNotebook(notebook.id, { title: title.trim() });
-      toast({ title: 'Title Updated', description: title.trim(), variant: 'brand' });
+      toast({ title: 'Title Updated', description: title.trim(), variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
     }
@@ -105,7 +105,7 @@ export function NotebookHomeView({
     if (description === notebook.description) return;
     try {
       await updateNotebook(notebook.id, { description: description.trim() || undefined });
-      toast({ title: 'Description Updated', variant: 'brand' });
+      toast({ title: 'Description Updated', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'error' });
     }
@@ -119,7 +119,7 @@ export function NotebookHomeView({
       await updateNotebook(notebook.id, { pinned: next });
       toast({
         title: next ? 'Notebook Pinned' : 'Notebook Unpinned',
-        variant: 'brand',
+        variant: 'success',
       });
     } catch (err: any) {
       console.error(err);
@@ -363,7 +363,7 @@ export function NotebookHomeView({
                       toast({
                         title: 'Prompt Grounding',
                         description: `Grounded in ${enabledSourcesCount} sources. (Phase 3 AI wiring)`,
-                        variant: 'brand',
+                        variant: 'success',
                       });
                       setPrompt('');
                     }}

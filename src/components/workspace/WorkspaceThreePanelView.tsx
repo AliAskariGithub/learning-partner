@@ -34,7 +34,7 @@ import {
   Lock,
   AlertTriangle,
 } from 'lucide-react';
-import { Button, Input, Textarea, Badge, Dialog, Tooltip } from '@/components/ui';
+import { Button, Input, Textarea, Badge, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
 import { Notebook, Source, Note, Conversation, Message, Citation, StudioOutput } from '@/db/schema';
 import { STORAGE_LIMITS } from '@/config/limits';
@@ -135,6 +135,174 @@ interface WorkspaceThreePanelViewProps {
   onRefreshOutputs?: () => void;
 }
 
+
+// ---------------------------------------------------------------------------
+// Isolated Subcomponents with local hover state (prevents full-workspace re-render)
+// ---------------------------------------------------------------------------
+const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
+  studioTab,
+  setStudioTab,
+  sourcesCount,
+  enabledCount,
+}: {
+  studioTab: 'context' | 'studio';
+  setStudioTab: (tab: 'context' | 'studio') => void;
+  sourcesCount: number;
+  enabledCount: number;
+}) {
+  const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+
+  return (
+    <div
+      onMouseLeave={() => setHoveredTab(null)}
+      className="relative flex items-center bg-[#191919] p-0.5 rounded-xl border border-[#303030]"
+    >
+      <Tooltip content="Notebook instructions, memory & sources" side="bottom">
+        <div
+          className="relative"
+          onMouseEnter={() => setHoveredTab('context')}
+        >
+          <GlidingHighlight
+            activeId={studioTab}
+            hoverId={hoveredTab}
+            itemId="context"
+            layoutId="right-panel-tab"
+            className={studioTab === 'context' ? 'bg-[#262626] border border-[#383838]' : 'bg-[#222222]'}
+          />
+          <button
+            onClick={() => setStudioTab('context')}
+            className={`relative z-10 px-3 py-1.5 text-xs font-display font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+              studioTab === 'context' ? 'text-[#f4f4f2]' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-brand-400" />
+            <span>Context</span>
+            {sourcesCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
+                {enabledCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </Tooltip>
+
+      <Tooltip content="Synthesizers: Quiz, Flashcards, Voice overview & more" side="bottom">
+        <div
+          className="relative"
+          onMouseEnter={() => setHoveredTab('studio')}
+        >
+          <GlidingHighlight
+            activeId={studioTab}
+            hoverId={hoveredTab}
+            itemId="studio"
+            layoutId="right-panel-tab"
+            className={studioTab === 'studio' ? 'bg-[#262626] border border-[#383838]' : 'bg-[#222222]'}
+          />
+          <button
+            onClick={() => setStudioTab('studio')}
+            className={`relative z-10 px-3 py-1.5 text-xs font-display font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+              studioTab === 'studio' ? 'text-[#f4f4f2]' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-brand-400" />
+            <span>Studio</span>
+          </button>
+        </div>
+      </Tooltip>
+    </div>
+  );
+});
+
+const ModePillSwitcher = React.memo(function ModePillSwitcher({
+  selectedMode = 'chat',
+  onSelectMode,
+  selectedModelId,
+}: {
+  selectedMode?: 'chat' | 'learn' | 'quiz';
+  onSelectMode?: (mode: 'chat' | 'learn' | 'quiz') => void;
+  selectedModelId: string;
+}) {
+  const [hoveredMode, setHoveredMode] = useState<string | null>(null);
+
+  return (
+    <div
+      onMouseLeave={() => setHoveredMode(null)}
+      className="relative flex items-center bg-[#191919] p-0.5 rounded-xl border border-[#303030]"
+    >
+      <Tooltip content="Freeform chat with grounded citations" side="top">
+        <div
+          className="relative"
+          onMouseEnter={() => setHoveredMode('chat')}
+        >
+          <GlidingHighlight
+            activeId={selectedMode}
+            hoverId={hoveredMode}
+            itemId="chat"
+            layoutId="input-mode-pill"
+          />
+          <button
+            type="button"
+            onClick={() => onSelectMode?.('chat')}
+            className={`relative z-10 px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
+              selectedMode === 'chat' ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+            }`}
+          >
+            Chat
+          </button>
+        </div>
+      </Tooltip>
+
+      <Tooltip content="Step-by-step interactive tutoring" side="top">
+        <div
+          className="relative"
+          onMouseEnter={() => setHoveredMode('learn')}
+        >
+          <GlidingHighlight
+            activeId={selectedMode}
+            hoverId={hoveredMode}
+            itemId="learn"
+            layoutId="input-mode-pill"
+          />
+          <button
+            type="button"
+            onClick={() => onSelectMode?.('learn')}
+            className={`relative z-10 px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
+              selectedMode === 'learn' ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+            }`}
+          >
+            Learn
+          </button>
+        </div>
+      </Tooltip>
+
+      <CapabilityGate feature="structuredOutput" modelId={selectedModelId}>
+        <Tooltip content="Knowledge check & instant quiz cards" side="top">
+          <div
+            className="relative"
+            onMouseEnter={() => setHoveredMode('quiz')}
+          >
+            <GlidingHighlight
+              activeId={selectedMode}
+              hoverId={hoveredMode}
+              itemId="quiz"
+              layoutId="input-mode-pill"
+            />
+            <button
+              type="button"
+              onClick={() => onSelectMode?.('quiz')}
+              className={`relative z-10 px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
+                selectedMode === 'quiz' ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+              }`}
+            >
+              Quiz
+            </button>
+          </div>
+        </Tooltip>
+      </CapabilityGate>
+    </div>
+  );
+});
+
 export function WorkspaceThreePanelView({
   notebook,
   sources,
@@ -167,7 +335,7 @@ export function WorkspaceThreePanelView({
   onStopStreaming,
   onSaveNoteFromMessage,
   onCitationClick,
-  selectedModelId = 'gemini-2.5-flash',
+  selectedModelId = 'gemini-3.8-flash',
   onSelectModelId,
   selectedMode = 'chat',
   onSelectMode,
@@ -248,7 +416,7 @@ export function WorkspaceThreePanelView({
   const handleCopyMessage = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedMessageId(id);
-    toast({ title: 'Copied to clipboard', variant: 'brand' });
+    toast({ title: 'Copied to clipboard', variant: 'success' });
     setTimeout(() => setCopiedMessageId(null), 2000);
   };
 
@@ -290,7 +458,7 @@ export function WorkspaceThreePanelView({
       toast({
         title: 'Instructions Saved',
         description: 'Notebook study instructions updated.',
-        variant: 'brand',
+        variant: 'success',
       });
     } catch (err: any) {
       toast({ title: 'Error saving instructions', description: err.message, variant: 'error' });
@@ -308,7 +476,7 @@ export function WorkspaceThreePanelView({
       setNewNoteTitle('');
       setNewNoteContent('');
       setIsAddingNote(false);
-      toast({ title: 'Memory Note Added', variant: 'brand' });
+      toast({ title: 'Memory Note Added', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error saving note', description: err.message, variant: 'error' });
     } finally {
@@ -323,7 +491,7 @@ export function WorkspaceThreePanelView({
     try {
       await updateNote(editingNote.id, editNoteTitle.trim(), editNoteContent.trim());
       setEditingNote(null);
-      toast({ title: 'Memory Note Updated', variant: 'brand' });
+      toast({ title: 'Memory Note Updated', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error updating note', description: err.message, variant: 'error' });
     } finally {
@@ -335,7 +503,7 @@ export function WorkspaceThreePanelView({
   const handleDeleteNote = async (noteId: string) => {
     try {
       await deleteNote(noteId);
-      toast({ title: 'Memory Note Deleted', variant: 'brand' });
+      toast({ title: 'Memory Note Deleted', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Error deleting note', description: err.message, variant: 'error' });
     }
@@ -347,7 +515,7 @@ export function WorkspaceThreePanelView({
     try {
       await onRenameSource(renamingSource, newSourceTitle.trim());
       setRenamingSource(null);
-      toast({ title: 'Source Renamed', description: newSourceTitle.trim(), variant: 'brand' });
+      toast({ title: 'Source Renamed', description: newSourceTitle.trim(), variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Rename failed', description: err.message, variant: 'error' });
     } finally {
@@ -361,7 +529,7 @@ export function WorkspaceThreePanelView({
     try {
       await onDeleteSource(deletingSource.id);
       setDeletingSource(null);
-      toast({ title: 'Source Deleted', variant: 'brand' });
+      toast({ title: 'Source Deleted', variant: 'success' });
     } catch (err: any) {
       toast({ title: 'Delete failed', description: err.message, variant: 'error' });
     } finally {
@@ -447,46 +615,23 @@ export function WorkspaceThreePanelView({
       <div className="flex flex-col h-full bg-[#1f1f1f] border-l border-[#303030] text-[#f4f4f2] min-h-0 overflow-hidden" data-lenis-prevent>
         {/* Header with Segmented Tab Control: Matches h-14 border-b border-[#303030] across all 3 panels */}
         <div className="h-14 px-3.5 border-b border-[#303030] flex items-center justify-between gap-2 bg-[#1f1f1f]/95 backdrop-blur-sm shrink-0">
-          {/* Segmented Switcher */}
-          <div className="flex items-center bg-[#191919] p-0.5 rounded-xl border border-[#303030]">
-            <button
-              onClick={() => setStudioTab('context')}
-              className={`px-3 py-1.5 text-xs font-display font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                studioTab === 'context'
-                  ? 'bg-[#262626] text-[#f4f4f2] shadow-sm border border-[#303030]'
-                  : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-brand-400" />
-              <span>Context</span>
-              {sources.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
-                  {enabledCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setStudioTab('studio')}
-              className={`px-3 py-1.5 text-xs font-display font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                studioTab === 'studio'
-                  ? 'bg-[#262626] text-[#f4f4f2] shadow-sm border border-[#303030]'
-                  : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-brand-400" />
-              <span>Studio</span>
-            </button>
-          </div>
+          <RightPanelTabSwitcher
+            studioTab={studioTab}
+            setStudioTab={setStudioTab}
+            sourcesCount={sources.length}
+            enabledCount={enabledCount}
+          />
 
           <div className="flex items-center gap-1">
             {!isMobileOrTablet && (
-              <button
-                onClick={() => setStudioPanelOpen(false)}
-                className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
-                title="Collapse sidebar"
-              >
+              <Tooltip content="Collapse right panel" side="bottom">
+                <button
+                  onClick={() => setStudioPanelOpen(false)}
+                  className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
+                >
                 <PanelRightClose className="w-4 h-4" />
-              </button>
+                </button>
+              </Tooltip>
             )}
             {isMobileOrTablet && (
               <button
@@ -511,13 +656,14 @@ export function WorkspaceThreePanelView({
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-display font-bold text-[#f4f4f2]">Instructions</span>
-                  <button
-                    onClick={() => setEditInstructionsOpen(true)}
-                    className="p-1.5 rounded-lg text-[#9a9a94] hover:text-brand-400 hover:bg-[#191919] transition-colors cursor-pointer"
-                    title="Edit instructions"
-                  >
+                  <Tooltip content="Edit notebook instructions" side="top">
+                    <button
+                      onClick={() => setEditInstructionsOpen(true)}
+                      className="p-1.5 rounded-lg text-[#9a9a94] hover:text-brand-400 hover:bg-[#191919] transition-colors cursor-pointer"
+                    >
                     <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                    </button>
+                  </Tooltip>
                 </div>
                 <p className="text-xs text-[#9a9a94] font-serif leading-relaxed line-clamp-3">
                   {instructionsText ||
@@ -587,13 +733,14 @@ export function WorkspaceThreePanelView({
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={onOpenAddSource}
-                    className="w-6 h-6 rounded-lg bg-[#191919] text-brand-400 hover:bg-brand-600 hover:text-white border border-[#303030] flex items-center justify-center transition cursor-pointer shadow-sm"
-                    title="Add source to context"
-                  >
+                  <Tooltip content="Add source to context" side="top">
+                    <button
+                      onClick={onOpenAddSource}
+                      className="w-6 h-6 rounded-lg bg-[#191919] text-brand-400 hover:bg-brand-600 hover:text-white border border-[#303030] flex items-center justify-center transition cursor-pointer shadow-sm"
+                    >
                     <Plus className="w-3.5 h-3.5" />
-                  </button>
+                    </button>
+                  </Tooltip>
                 </div>
 
                 {/* Real Sources List or Exact Image 2 Empty Card */}
@@ -1345,55 +1492,21 @@ export function WorkspaceThreePanelView({
           <AIPromptInputTools>
             <div className="flex items-center gap-2">
               {/* Add Source Fast Button */}
-              <button
-                type="button"
-                onClick={onOpenAddSource}
-                className="p-1.5 rounded-xl bg-[#191919] hover:bg-[#303030] text-[#9a9a94] hover:text-brand-400 border border-[#303030] transition-colors cursor-pointer"
-                title="Add Source (PDF, Doc, Link, Text)"
-              >
+              <Tooltip content="Add Source (PDF, Doc, Link, Text)" side="top">
+                <button
+                  type="button"
+                  onClick={onOpenAddSource}
+                  className="p-1.5 rounded-xl bg-[#191919] hover:bg-[#303030] text-[#9a9a94] hover:text-brand-400 border border-[#303030] transition-colors cursor-pointer"
+                >
                 <Paperclip className="w-4 h-4" />
-              </button>
-
-              {/* Mode Toggle Pills: Chat / Learn / Quiz */}
-              <div className="flex items-center bg-[#191919] p-0.5 rounded-xl border border-[#303030]">
-                <button
-                  type="button"
-                  onClick={() => onSelectMode?.('chat')}
-                  className={`px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-                    selectedMode === 'chat'
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-                  }`}
-                >
-                  Chat
                 </button>
-                <button
-                  type="button"
-                  onClick={() => onSelectMode?.('learn')}
-                  className={`px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-                    selectedMode === 'learn'
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-                  }`}
-                >
-                  Learn
-                </button>
+              </Tooltip>
 
-                {/* Quiz Mode wrapped in CapabilityGate for structured output */}
-                <CapabilityGate feature="structuredOutput" modelId={selectedModelId}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectMode?.('quiz')}
-                    className={`px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-                      selectedMode === 'quiz'
-                        ? 'bg-brand-600 text-white shadow-sm'
-                        : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-                    }`}
-                  >
-                    Quiz
-                  </button>
-                </CapabilityGate>
-              </div>
+              <ModePillSwitcher
+                selectedMode={selectedMode}
+                onSelectMode={onSelectMode}
+                selectedModelId={selectedModelId}
+              />
 
               {/* Model Selector Dropdown with connected keys */}
               <ModelSwitcher
@@ -1414,13 +1527,14 @@ export function WorkspaceThreePanelView({
             <div className="flex items-center gap-1.5">
               {/* Mic Input wrapped with CapabilityGate */}
               <CapabilityGate feature="audioInput" modelId={selectedModelId}>
-                <button
-                  type="button"
-                  className="p-2 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919] transition-colors cursor-pointer"
-                  title="Voice input"
-                >
-                  <Mic className="w-4 h-4" />
-                </button>
+                <Tooltip content="Voice input (speech-to-text)" side="top">
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919] transition-colors cursor-pointer"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </button>
+                </Tooltip>
               </CapabilityGate>
 
               {/* Send / Stop Button */}

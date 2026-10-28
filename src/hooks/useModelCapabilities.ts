@@ -32,17 +32,19 @@ export function useModelCapabilities(modelId: string): UseModelCapabilitiesResul
 
     switch (feature) {
       case 'vision':
-        return `${modelDef.name} doesn't support image inputs. Choose another model (e.g., GPT-4o, Gemini 2.5 Flash, or Claude 3.5 Sonnet) to upload images.`;
+        return `${modelDef.name} does not support image inputs. Choose a vision-capable model (e.g. Gemini 2.5 Flash, GPT-4o, or Claude 3.5 Sonnet).`;
       case 'audioInput':
-        return `${modelDef.name} doesn't support audio. Choose another model or API key to use microphone input.`;
+        return `${modelDef.name} does not support voice input. Choose a model with microphone audio capabilities.`;
       case 'audioOutput':
-        return `The selected API key doesn't support voice generation. Add a key from a provider with text-to-speech (Google Gemini or OpenAI), or use Basic voice.`;
+        return `${modelDef.name} does not support voice synthesis. Choose a provider with text-to-speech (Google Gemini or OpenAI).`;
       case 'structuredOutput':
-        return `${modelDef.name} doesn't support structured JSON schema output. This tool requires a structured output model.`;
+        return `${modelDef.name} does not support structured JSON generation. This tool requires a model with structured output capabilities.`;
+      case 'text':
+        return `${modelDef.name} does not support text generation.`;
       case 'toolUse':
-        return `${modelDef.name} doesn't support tool calling or web execution.`;
+        return `${modelDef.name} does not support tool calling or web execution.`;
       default:
-        return `This feature is not supported by ${modelDef.name}. Choose another model or API key to use it.`;
+        return `This feature is not supported by ${modelDef.name}. Please select another model in the model switcher.`;
     }
   };
 
@@ -54,4 +56,3 @@ export function useModelCapabilities(modelId: string): UseModelCapabilitiesResul
     getDisabledReason,
   };
 }
-

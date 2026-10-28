@@ -324,7 +324,7 @@ export function AppShell({
         description: isPinned
           ? 'Conversation moved back to all conversations.'
           : 'Conversation is now pinned at the top.',
-        variant: 'brand',
+        variant: 'success',
       });
       return next;
     });
@@ -465,7 +465,7 @@ export function AppShell({
       toast({
         title: 'Response Generated',
         description: hasSources ? `Cited ${citationRefs?.length} uploaded sources.` : 'Synthesized response.',
-        variant: 'brand',
+        variant: 'success',
       });
     } else {
       // Create new conversation
@@ -504,7 +504,7 @@ export function AppShell({
       toast({
         title: 'New Conversation Created',
         description: newTitle,
-        variant: 'brand',
+        variant: 'success',
       });
     }
   };
@@ -925,7 +925,7 @@ export function AppShell({
                                       title: `Citation [${citeId}] Grounded`,
                                       description:
                                         matchedSource?.title || 'Referenced in active sources.',
-                                      variant: 'brand',
+                                      variant: 'success',
                                     });
                                   }}
                                   className="citation-chip cursor-pointer"

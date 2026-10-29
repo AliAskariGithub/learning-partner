@@ -40,7 +40,7 @@ export function Tooltip({
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const gap = 6;
+    const gap = 8;
 
     let top = 0;
     let left = 0;
@@ -122,26 +122,30 @@ export function Tooltip({
         createPortal(
           <AnimatePresence>
             {visible && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.94 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.94 }}
-                transition={{ duration: 0.12, ease: 'easeOut' }}
-                role="tooltip"
+              <div
                 style={{
                   position: 'fixed',
                   top: coords.top,
                   left: coords.left,
                   transform: getTransform(),
                   zIndex: 999999,
+                  pointerEvents: 'none',
                 }}
-                className={cn(
-                  'pointer-events-none select-none max-w-[280px] rounded-lg border border-[#383838] bg-[#1e1e1e]/98 text-[#f4f4f2] px-2.5 py-1 text-[11px] font-display font-medium shadow-2xl backdrop-blur-md leading-snug break-words',
-                  className
-                )}
               >
-                {content}
-              </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.94, y: side === 'top' ? 3 : side === 'bottom' ? -3 : 0 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
+                  role="tooltip"
+                  className={cn(
+                    'select-none max-w-[280px] rounded-lg border border-[#383838] bg-[#1e1e1e]/98 text-[#f4f4f2] px-2.5 py-1 text-[11px] font-display font-medium shadow-2xl backdrop-blur-md leading-snug break-words',
+                    className
+                  )}
+                >
+                  {content}
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>,
           document.body

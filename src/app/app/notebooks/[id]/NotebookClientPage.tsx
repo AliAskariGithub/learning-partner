@@ -16,6 +16,7 @@ import {
   getConversations,
   getConversationMessages,
   deleteConversation,
+  updateConversationTitle,
   saveNoteFromMessage,
   deleteMessage,
   updateMessage,
@@ -25,6 +26,7 @@ import {
   renameSource,
   deleteSource,
   retrySource,
+  getNotebookNotes,
 } from '@/app/app/notebook-actions';
 import { UnverifiedBanner } from '@/components/auth/UnverifiedBanner';
 
@@ -45,6 +47,7 @@ interface NotebookClientPageProps {
   allNotebooks: Notebook[];
   initialUserKeys?: SafeApiKey[];
   initialConversations?: Conversation[];
+  initialActiveConversationId?: string | null;
   initialMessages?: Message[];
   initialOutputs?: StudioOutput[];
 }
@@ -58,6 +61,7 @@ export function NotebookClientPage({
   allNotebooks,
   initialUserKeys = [],
   initialConversations = [],
+  initialActiveConversationId,
   initialMessages = [],
   initialOutputs = [],
 }: NotebookClientPageProps) {
@@ -93,9 +97,12 @@ export function NotebookClientPage({
   // Chat & Conversation State
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    initialConversations[0]?.id || null
+    initialActiveConversationId !== undefined
+      ? initialActiveConversationId
+      : (initialConversations[0]?.id || null)
   );
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
@@ -211,38 +218,102 @@ export function NotebookClientPage({
   };
 
   // Chat Handlers
-  const handleSelectConversation = async (convId: string) => {
+  const handleSelectConversation = useCallback(async (convId: string) => {
     setActiveConversationId(convId);
+
+    // Sync URL search param ?chat=<convId> without full reload
+    try {
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('chat') !== convId) {
+          url.searchParams.set('chat', convId);
+          window.history.pushState({ chatId: convId }, '', url.toString());
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to update URL search params:', e);
+    }
+
     const conv = conversations.find((c) => c.id === convId);
     if (conv) {
       setSelectedModelId(conv.model);
       setSelectedMode(conv.mode as 'chat' | 'learn' | 'quiz');
     }
+
+    setIsLoadingMessages(true);
     try {
-      const msgs = await getConversationMessages(convId);
+      const msgs = await getConversationMessages(convId, user.id);
       setMessages(msgs);
     } catch (err: any) {
+      console.error('Failed to load conversation messages:', err);
       toast({ title: 'Error loading conversation', description: err.message, variant: 'error' });
+    } finally {
+      setIsLoadingMessages(false);
     }
-  };
+  }, [conversations, toast, user.id]);
 
-  const handleNewConversation = () => {
+  const handleNewConversation = useCallback(() => {
     setActiveConversationId(null);
     setMessages([]);
     setStreamingContent('');
     setStreamingCitations([]);
-  };
+    try {
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('chat')) {
+          url.searchParams.delete('chat');
+          window.history.pushState({}, '', url.toString());
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  // Listen for browser Back/Forward (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const url = new URL(window.location.href);
+        const chatId = url.searchParams.get('chat');
+        if (chatId) {
+          if (chatId !== activeConversationId) {
+            handleSelectConversation(chatId);
+          }
+        } else if (activeConversationId) {
+          handleNewConversation();
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeConversationId, handleSelectConversation, handleNewConversation]);
 
   const handleDeleteConversation = async (convId: string) => {
     try {
       await deleteConversation(convId, notebook.id);
       setConversations((prev) => prev.filter((c) => c.id !== convId));
       if (activeConversationId === convId) {
-        handleNewConversation();
+        const remaining = conversations.filter((c) => c.id !== convId);
+        if (remaining.length > 0) {
+          handleSelectConversation(remaining[0].id);
+        } else {
+          handleNewConversation();
+        }
       }
       toast({ title: 'Conversation deleted', variant: 'neutral' });
     } catch (err: any) {
       toast({ title: 'Error deleting conversation', description: err.message, variant: 'error' });
+    }
+  };
+
+  const handleRenameConversation = async (convId: string, title: string) => {
+    try {
+      await updateConversationTitle(convId, title);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, title } : c))
+      );
+      toast({ title: 'Chat renamed', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Failed to rename chat', description: err.message, variant: 'error' });
     }
   };
 
@@ -304,6 +375,13 @@ export function NotebookClientPage({
 
       if (convIdHeader && convIdHeader !== activeConversationId) {
         setActiveConversationId(convIdHeader);
+        try {
+          if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('chat', convIdHeader);
+            window.history.replaceState({ chatId: convIdHeader }, '', url.toString());
+          }
+        } catch (e) {}
         getConversations(notebook.id).then(setConversations).catch(() => {});
       }
 
@@ -337,6 +415,7 @@ export function NotebookClientPage({
       setMessages((prev) => [...prev, assistantMsg]);
       setStreamingContent('');
       getConversations(notebook.id).then(setConversations).catch(() => {});
+      getNotebookNotes(notebook.id).then(setNotes).catch(() => {});
     } catch (err: any) {
       if (err.name === 'AbortError') {
         if (streamingContent.trim()) {
@@ -490,7 +569,7 @@ export function NotebookClientPage({
       <UnverifiedBanner email={user.email || ''} isVerified={Boolean(user.emailVerified)} />
 
       <div className="flex flex-1 w-full overflow-hidden min-h-0">
-        {/* Notebooks Sidebar (pinned first, list, add, rename, delete) */}
+        {/* Notebooks Sidebar (pinned first, list, add, rename, delete, and chats) */}
         <NotebookSidebar
           notebooks={allNotebooks}
           activeNotebookId={notebook.id}
@@ -501,6 +580,10 @@ export function NotebookClientPage({
           userEmail={user.email || ''}
           userAvatarUrl={profile?.avatarUrl || null}
           initialLanguage={profile?.preferredLanguage || 'en'}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onSelectConversation={handleSelectConversation}
+          onNewConversation={handleNewConversation}
         />
 
         {/* Main Content Workspace Area */}
@@ -529,7 +612,9 @@ export function NotebookClientPage({
           onSelectConversation={handleSelectConversation}
           onNewConversation={handleNewConversation}
           onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
           messages={messages}
+          isLoadingMessages={isLoadingMessages}
           onSendMessage={handleSendMessage}
           onDeleteMessage={handleDeleteMessage}
           onEditMessage={handleEditMessage}

@@ -220,6 +220,8 @@ export const outputs = pgTable(
     notebookId: uuid('notebook_id')
       .notNull()
       .references(() => notebooks.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id')
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull(),
     type: text('type', {
       enum: ['quiz', 'flashcards', 'study_guide', 'summary', 'mind_map', 'report', 'voice'],
@@ -243,6 +245,7 @@ export const outputs = pgTable(
   },
   (table) => [
     index('outputs_notebook_id_idx').on(table.notebookId),
+    index('outputs_conversation_id_idx').on(table.conversationId),
     index('outputs_user_id_idx').on(table.userId),
     index('outputs_type_idx').on(table.type),
     index('outputs_status_idx').on(table.status),

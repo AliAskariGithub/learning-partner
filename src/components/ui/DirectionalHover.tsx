@@ -28,7 +28,7 @@ export function GlidingHighlight({
     return (
       <motion.div
         layoutId={`${layoutId}-active`}
-        className={cn('absolute inset-0 rounded-xl bg-brand-600 shadow-md', className)}
+        className={cn('absolute inset-0 rounded-xl bg-brand-600 shadow-md pointer-events-none', className)}
         transition={{ type: 'spring', stiffness: 500, damping: 35 }}
       />
     );
@@ -39,7 +39,7 @@ export function GlidingHighlight({
       <motion.div
         layoutId={`${layoutId}-hover`}
         className={cn(
-          'absolute inset-0 rounded-xl bg-[#262626] border border-[#383838] shadow-sm',
+          'absolute inset-0 rounded-xl bg-[#262626] border border-[#383838] shadow-sm pointer-events-none',
           className
         )}
         transition={{ type: 'spring', stiffness: 500, damping: 35 }}

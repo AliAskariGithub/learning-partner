@@ -10,12 +10,15 @@ export const instant = false;
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ chat?: string }>;
 }
 
-export default async function NotebookDetailPage({ params }: PageProps) {
+export default async function NotebookDetailPage({ params, searchParams }: PageProps) {
   const user = await requireUser();
   const profile = await getOrCreateProfile(user);
   const { id: notebookId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const requestedChatId = resolvedSearchParams?.chat;
 
   const [details, allNotebooks, userKeys, convs, outputs] = await Promise.all([
     getNotebookDetails(notebookId),
@@ -30,8 +33,9 @@ export default async function NotebookDetailPage({ params }: PageProps) {
     redirect('/app');
   }
 
-  const latestConv = convs[0] || null;
-  const initialMessages = latestConv ? await getConversationMessages(latestConv.id) : [];
+  // Find target conversation: requestedChatId if valid, else latest conv
+  const targetConv = (requestedChatId && convs.find((c) => c.id === requestedChatId)) || convs[0] || null;
+  const initialMessages = targetConv ? await getConversationMessages(targetConv.id) : [];
 
   return (
     <NotebookClientPage
@@ -43,6 +47,7 @@ export default async function NotebookDetailPage({ params }: PageProps) {
       allNotebooks={allNotebooks}
       initialUserKeys={userKeys}
       initialConversations={convs}
+      initialActiveConversationId={targetConv?.id || null}
       initialMessages={initialMessages}
       initialOutputs={outputs}
     />

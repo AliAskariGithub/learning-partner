@@ -66,6 +66,8 @@ export interface StudioPanelProps {
   selectedModelId: string;
   userKeys?: SafeApiKey[];
   onOpenSourceViewer?: (source: Source) => void;
+  activeConversationId?: string | null;
+  activeConversationTitle?: string | null;
 }
 
 export function StudioPanel({
@@ -76,6 +78,8 @@ export function StudioPanel({
   selectedModelId,
   userKeys = [],
   onOpenSourceViewer,
+  activeConversationId,
+  activeConversationTitle,
 }: StudioPanelProps) {
   const { toast } = useToast();
 
@@ -85,6 +89,14 @@ export function StudioPanel({
   useEffect(() => {
     setLocalOutputs(outputs);
   }, [outputs]);
+
+  // Scoped outputs for the active chat / conversation
+  const chatOutputs = React.useMemo(() => {
+    if (!activeConversationId) return localOutputs;
+    return localOutputs.filter(
+      (o) => o.conversationId === activeConversationId || !o.conversationId
+    );
+  }, [localOutputs, activeConversationId]);
 
   // Active generation dialog
   const [generateDialogType, setGenerateDialogType] = useState<
@@ -108,6 +120,8 @@ export function StudioPanel({
 
   // Hover state for directional gliding highlight across studio tiles
   const [hoveredTileId, setHoveredTileId] = useState<string | null>(null);
+  // Hover state for directional gliding highlight across generated outputs
+  const [hoveredOutputId, setHoveredOutputId] = useState<string | null>(null);
 
   // Active model definition and capabilities
   const activeModelDef = getModelDefinition(selectedModelId);
@@ -209,6 +223,7 @@ export function StudioPanel({
       content: null,
       sourceIds: params.sourceIds,
       model: selectedModelId,
+      conversationId: activeConversationId || null,
       status: 'generating',
       errorMessage: null,
       createdAt: new Date(),
@@ -231,6 +246,7 @@ export function StudioPanel({
     // 5. Trigger generation in background
     generateStudioOutput({
       notebookId: notebook.id,
+      conversationId: activeConversationId || null,
       type: params.type,
       sourceIds: params.sourceIds,
       modelId: selectedModelId,
@@ -419,35 +435,12 @@ export function StudioPanel({
           {studioTiles.map((tile) => {
             const isSupported = Boolean(activeModelDef.capabilities[tile.capability]);
 
-            const tileCard = (
+            const tileElement = (
               <div
+                key={tile.id}
+                className="relative h-full"
                 onMouseEnter={() => isSupported && setHoveredTileId(tile.id)}
-                onClick={() => {
-                  if (!isSupported) {
-                    toast({
-                      title: 'Model Unsupported',
-                      description: `${activeModelDef.name} does not support ${tile.title} generation. Please switch to a supported model.`,
-                      variant: 'warning',
-                    });
-                    return;
-                  }
-                  handleTileClick(tile.id);
-                }}
-                className={`group relative p-3 rounded-2xl overflow-hidden transition-all duration-150 flex flex-col justify-between min-h-[108px] w-full text-left h-full ${
-                  isSupported
-                    ? 'cursor-pointer active:scale-[0.99]'
-                    : 'cursor-not-allowed opacity-45 grayscale-[40%]'
-                }`}
               >
-                {/* Default static card background */}
-                <div
-                  className={`absolute inset-0 rounded-2xl border transition-colors ${
-                    isSupported
-                      ? 'bg-[#262626] border-[#303030]'
-                      : 'bg-[#181818] border-dashed border-[#3a3a3a]'
-                  }`}
-                />
-
                 {/* Gliding directional highlight across studio synthesizers */}
                 {isSupported && (
                   <GlidingHighlight
@@ -455,50 +448,69 @@ export function StudioPanel({
                     hoverId={hoveredTileId}
                     itemId={tile.id}
                     layoutId="studio-synthesizers-glide"
-                    className="rounded-2xl bg-[#2c2c2c] border border-brand-500/60 shadow-lg shadow-brand-500/10"
+                    className="rounded-2xl bg-[#2a2a2a] border border-brand-500/60 shadow-lg shadow-brand-500/15 pointer-events-none"
                   />
                 )}
 
-                <div className="relative z-10 flex items-start justify-between w-full gap-1">
-                  <div
-                    className={`p-2 rounded-xl bg-[#191919] border border-[#303030] transition-transform duration-150 shrink-0 ${
-                      isSupported ? 'group-hover:scale-105' : 'opacity-60'
-                    }`}
-                  >
-                    {tile.icon}
-                  </div>
-                  {isSupported ? (
-                    <span className="text-[9px] font-display font-medium px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] group-hover:text-[#f4f4f2] border border-[#303030] shrink-0">
-                      {tile.badge}
-                    </span>
-                  ) : (
-                    <span
-                      className="text-[9px] font-mono font-medium px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1 shrink-0 max-w-[80px] truncate"
-                      title="Model Unsupported"
+                <div
+                  onClick={() => {
+                    if (!isSupported) {
+                      toast({
+                        title: 'Model Unsupported',
+                        description: `${activeModelDef.name} does not support ${tile.title} generation. Please switch to a supported model.`,
+                        variant: 'warning',
+                      });
+                      return;
+                    }
+                    handleTileClick(tile.id);
+                  }}
+                  className={`group relative z-10 p-3 rounded-2xl border transition-colors flex flex-col justify-between min-h-[108px] w-full text-left h-full ${
+                    isSupported
+                      ? 'bg-[#262626]/85 border-[#303030] hover:border-transparent cursor-pointer active:scale-[0.99]'
+                      : 'bg-[#181818] border-dashed border-[#3a3a3a] cursor-not-allowed opacity-45 grayscale-[40%]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between w-full gap-1">
+                    <div
+                      className={`p-2 rounded-xl bg-[#191919] border border-[#303030] transition-transform duration-150 shrink-0 ${
+                        isSupported ? 'group-hover:scale-105' : 'opacity-60'
+                      }`}
                     >
-                      <AlertCircle className="w-2.5 h-2.5 shrink-0" />
-                      <span className="truncate">Unsupported</span>
-                    </span>
-                  )}
-                </div>
+                      {tile.icon}
+                    </div>
+                    {isSupported ? (
+                      <span className="text-[9px] font-display font-medium px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] group-hover:text-[#f4f4f2] border border-[#303030] shrink-0">
+                        {tile.badge}
+                      </span>
+                    ) : (
+                      <span
+                        className="text-[9px] font-mono font-medium px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1 shrink-0 max-w-[80px] truncate"
+                        title="Model Unsupported"
+                      >
+                        <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                        <span className="truncate">Unsupported</span>
+                      </span>
+                    )}
+                  </div>
 
-                <div className="relative z-10 mt-2">
-                  <h3
-                    className={`text-xs font-display font-bold transition-colors ${
-                      isSupported ? 'text-[#f4f4f2] group-hover:text-brand-300' : 'text-[#7a7a74]'
-                    }`}
-                  >
-                    {tile.title}
-                  </h3>
-                  {isSupported ? (
-                    <p className="text-[10px] text-[#9a9a94] font-serif line-clamp-2 mt-0.5 leading-snug">
-                      {tile.desc}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-rose-400/90 font-serif line-clamp-2 mt-0.5 leading-snug">
-                      {activeModelDef.name} does not support this.
-                    </p>
-                  )}
+                  <div className="mt-2">
+                    <h3
+                      className={`text-xs font-display font-bold transition-colors ${
+                        isSupported ? 'text-[#f4f4f2] group-hover:text-brand-300' : 'text-[#7a7a74]'
+                      }`}
+                    >
+                      {tile.title}
+                    </h3>
+                    {isSupported ? (
+                      <p className="text-[10px] text-[#9a9a94] font-serif line-clamp-2 mt-0.5 leading-snug">
+                        {tile.desc}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-rose-400/90 font-serif line-clamp-2 mt-0.5 leading-snug">
+                        {activeModelDef.name} does not support this.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -509,14 +521,14 @@ export function StudioPanel({
                   key={tile.id}
                   content={`${activeModelDef.name} does not support ${tile.title} generation. Select a model with ${tile.capability} support in the model switcher.`}
                 >
-                  <div className="w-full h-full">{tileCard}</div>
+                  <div className="w-full h-full">{tileElement}</div>
                 </Tooltip>
               );
             }
 
             return (
               <div key={tile.id} className="w-full h-full">
-                {tileCard}
+                {tileElement}
               </div>
             );
           })}
@@ -529,12 +541,12 @@ export function StudioPanel({
           <p className="text-[11px] uppercase tracking-wider font-display font-bold text-[#9a9a94]">
             Generated Outputs
           </p>
-          <span className="text-[10px] text-[#9a9a94] font-mono">
-            {localOutputs.length} {localOutputs.length === 1 ? 'item' : 'items'}
+          <span className="text-[10px] text-[#9a9a94] font-mono shrink-0">
+            {chatOutputs.length} {chatOutputs.length === 1 ? 'item' : 'items'}
           </span>
         </div>
 
-        {localOutputs.length === 0 ? (
+        {chatOutputs.length === 0 ? (
           <div className="py-8 text-center px-4 rounded-2xl bg-[#262626]/50 border border-dashed border-[#303030]">
             <Sparkles className="w-6 h-6 text-[#9a9a94] mx-auto mb-2 opacity-40" />
             <p className="text-xs font-display font-semibold text-[#f4f4f2]">No outputs generated yet</p>
@@ -543,8 +555,11 @@ export function StudioPanel({
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {localOutputs.map((out) => {
+          <div
+            className="space-y-2 relative"
+            onMouseLeave={() => setHoveredOutputId(null)}
+          >
+            {chatOutputs.map((out) => {
               const isMenuOpen = openMenuOutputId === out.id;
               const sourceCount = Array.isArray(out.sourceIds) ? out.sourceIds.length : 0;
               const isGeneratingItem = out.status === 'generating';
@@ -554,14 +569,26 @@ export function StudioPanel({
               return (
                 <div
                   key={out.id}
-                  className={`group relative p-3 rounded-2xl border transition-all flex items-start justify-between gap-3 shadow-sm ${
-                    isGeneratingItem
-                      ? 'bg-[#25221b]/80 border-amber-500/40 shadow-amber-500/5'
-                      : isFailedItem
-                      ? 'bg-[#261f20]/80 border-rose-500/40'
-                      : 'bg-[#262626] border-[#303030] hover:border-brand-500/40'
-                  }`}
+                  className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
+                  onMouseEnter={() => setHoveredOutputId(out.id)}
                 >
+                  <GlidingHighlight
+                    activeId={activeViewerOutput?.id === out.id ? out.id : null}
+                    hoverId={hoveredOutputId}
+                    itemId={out.id}
+                    layoutId="studio-generated-outputs-glide"
+                    className="rounded-2xl bg-[#2a2a2a] border border-brand-500/50 shadow-md shadow-brand-500/10 pointer-events-none"
+                  />
+
+                  <div
+                    className={`group relative ${isMenuOpen ? 'z-40' : 'z-10'} p-3 rounded-2xl border transition-colors flex items-start justify-between gap-3 shadow-sm ${
+                      isGeneratingItem
+                        ? 'bg-[#25221b]/80 border-amber-500/40 shadow-amber-500/5'
+                        : isFailedItem
+                        ? 'bg-[#261f20]/80 border-rose-500/40'
+                        : 'bg-[#262626]/85 border-[#303030] hover:border-transparent'
+                    }`}
+                  >
                   {/* Left Icon & Title */}
                   <div
                     onClick={() => {
@@ -711,8 +738,9 @@ export function StudioPanel({
                     )}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
           </div>
         )}
       </div>

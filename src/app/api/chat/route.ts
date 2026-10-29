@@ -262,6 +262,20 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // Auto-save key conversation context to notebook shared memory
+          try {
+            const memoryTitle = message.slice(0, 42).replace(/[*_#]/g, '').trim();
+            const memoryContent = `Q: ${message.trim()}\nA: ${text.slice(0, 360).trim()}...`;
+            await db.insert(notes).values({
+              notebookId,
+              userId,
+              title: memoryTitle || 'Chat Context Takeaway',
+              content: memoryContent,
+            });
+          } catch (memErr) {
+            console.warn('Auto memory save warning:', memErr);
+          }
+
           // Trigger background chunk backfill for any un-embedded chunks
           backfillChunkEmbeddings(notebookId, userId).catch(() => {});
         } catch (dbErr) {

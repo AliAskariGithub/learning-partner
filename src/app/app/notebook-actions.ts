@@ -237,3 +237,13 @@ export async function getSourceChunks(sourceId: string) {
     .where(and(eq(sourceChunks.sourceId, sourceId), eq(sourceChunks.userId, user.id)))
     .orderBy(sourceChunks.chunkIndex);
 }
+
+// 14. Fetch all notes (Memory) for a notebook
+export async function getNotebookNotes(notebookId: string) {
+  const user = await requireUser();
+  return db
+    .select()
+    .from(notes)
+    .where(and(eq(notes.notebookId, notebookId), eq(notes.userId, user.id)))
+    .orderBy(desc(notes.createdAt));
+}

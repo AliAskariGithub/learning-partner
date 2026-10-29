@@ -1,6 +1,6 @@
 'use server';
 
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, or, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { outputs, StudioOutput, sources, sourceChunks, notebooks } from '@/db/schema';
 import { requireUser } from '@/lib/auth/session';
@@ -16,6 +16,7 @@ import { checkRateLimit } from '@/lib/ratelimit';
 
 export interface GenerateStudioOutputParams {
   notebookId: string;
+  conversationId?: string | null;
   type: 'quiz' | 'flashcards' | 'study_guide' | 'summary' | 'mind_map' | 'report' | 'voice';
   title?: string;
   sourceIds?: string[];
@@ -30,8 +31,26 @@ export interface GenerateStudioOutputParams {
 /**
  * Fetches all outputs for a given notebook, scoped strictly by authenticated user.
  */
-export async function getNotebookOutputs(notebookId: string): Promise<StudioOutput[]> {
+export async function getNotebookOutputs(
+  notebookId: string,
+  conversationId?: string | null
+): Promise<StudioOutput[]> {
   const user = await requireUser();
+
+  if (conversationId) {
+    const rows = await db
+      .select()
+      .from(outputs)
+      .where(
+        and(
+          eq(outputs.notebookId, notebookId),
+          eq(outputs.userId, user.id),
+          or(eq(outputs.conversationId, conversationId), isNull(outputs.conversationId))
+        )
+      )
+      .orderBy(desc(outputs.createdAt));
+    return rows;
+  }
 
   const rows = await db
     .select()
@@ -283,6 +302,7 @@ export async function generateStudioOutput(
       .insert(outputs)
       .values({
         notebookId,
+        conversationId: params.conversationId || null,
         userId: user.id,
         type,
         title: defaultTitle,
@@ -566,6 +586,7 @@ export async function regenerateStudioOutput(
 
     return generateStudioOutput({
       notebookId: row.notebookId,
+      conversationId: row.conversationId,
       type: row.type as any,
       title: row.title,
       sourceIds: (row.sourceIds as string[]) || undefined,

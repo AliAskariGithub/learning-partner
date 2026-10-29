@@ -33,6 +33,9 @@ import {
   ChevronDown,
   Lock,
   AlertTriangle,
+  Activity,
+  Zap,
+  X,
 } from 'lucide-react';
 import { Button, Input, Textarea, Badge, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
@@ -48,6 +51,7 @@ import {
 import { ModelSwitcher } from '@/components/ai/ModelSwitcher';
 import { CapabilityGate } from '@/components/ai/CapabilityGate';
 import { MessageContent as MessageMarkdown } from '@/components/chat/MessageContent';
+import { getModelDefinition } from '@/lib/ai/providers';
 import {
   Message as AIMessage,
   MessageContent as AIMessageContent,
@@ -75,6 +79,7 @@ import {
   Bookmark,
   RotateCcw,
   MessageSquare,
+  GraduationCap,
   Square as StopSquare,
 } from 'lucide-react';
 
@@ -116,6 +121,7 @@ interface WorkspaceThreePanelViewProps {
   onSelectConversation?: (id: string) => void;
   onNewConversation?: () => void;
   onDeleteConversation?: (id: string) => void;
+  onRenameConversation?: (id: string, newTitle: string) => Promise<void>;
   messages?: Message[];
   onSendMessage?: (content: string, modelId: string, mode: 'chat' | 'learn' | 'quiz') => Promise<void>;
   isStreaming?: boolean;
@@ -133,6 +139,7 @@ interface WorkspaceThreePanelViewProps {
   onSelectMode?: (mode: 'chat' | 'learn' | 'quiz') => void;
   outputs?: StudioOutput[];
   onRefreshOutputs?: () => void;
+  isLoadingMessages?: boolean;
 }
 
 
@@ -213,7 +220,7 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
   );
 });
 
-const ModePillSwitcher = React.memo(function ModePillSwitcher({
+const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
   selectedMode = 'chat',
   onSelectMode,
   selectedModelId,
@@ -222,83 +229,166 @@ const ModePillSwitcher = React.memo(function ModePillSwitcher({
   onSelectMode?: (mode: 'chat' | 'learn' | 'quiz') => void;
   selectedModelId: string;
 }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [hoveredMode, setHoveredMode] = useState<string | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
+  const activeModelDef = React.useMemo(() => getModelDefinition(selectedModelId), [selectedModelId]);
+  const supportsStructuredOutput = activeModelDef?.capabilities?.structuredOutput ?? true;
+
+  const modes: Array<{
+    id: 'chat' | 'learn' | 'quiz';
+    label: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    disabled?: boolean;
+    disabledReason?: string;
+  }> = [
+    {
+      id: 'chat',
+      label: 'Chat',
+      description: 'Freeform chat with grounded citations',
+      icon: MessageSquare,
+    },
+    {
+      id: 'learn',
+      label: 'Learn',
+      description: 'Step-by-step interactive tutoring',
+      icon: GraduationCap,
+    },
+    {
+      id: 'quiz',
+      label: 'Quiz',
+      description: 'Knowledge check & instant quiz cards',
+      icon: HelpCircle,
+      disabled: !supportsStructuredOutput,
+      disabledReason: 'Requires structured output',
+    },
+  ];
+
+  const currentModeObj = modes.find((m) => m.id === selectedMode) || modes[0];
+  const CurrentIcon = currentModeObj.icon;
 
   return (
-    <div
-      onMouseLeave={() => setHoveredMode(null)}
-      className="relative flex items-center bg-[#191919] p-0.5 rounded-xl border border-[#303030]"
-    >
-      <Tooltip content="Freeform chat with grounded citations" side="top">
-        <div
-          className="relative"
-          onMouseEnter={() => setHoveredMode('chat')}
+    <div className="relative inline-block" ref={containerRef}>
+      {/* Mode Trigger Button */}
+      <Tooltip content="Change assistant mode">
+        <button
+          type="button"
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display font-medium text-[#f4f4f2] bg-[#262626] hover:bg-[#303030] border border-[#3a3a3a] transition-all cursor-pointer shadow-sm"
+          aria-haspopup="listbox"
+          aria-expanded={dropdownOpen}
         >
-          <GlidingHighlight
-            activeId={selectedMode}
-            hoverId={hoveredMode}
-            itemId="chat"
-            layoutId="input-mode-pill"
-          />
-          <button
-            type="button"
-            onClick={() => onSelectMode?.('chat')}
-            className={`relative z-10 px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-              selectedMode === 'chat' ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+          <CurrentIcon className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+          <span className="text-[#9a9a94] text-[11px] hidden xs:inline">Mode:</span>
+          <span className="capitalize font-semibold text-[#f4f4f2]">{currentModeObj.label}</span>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-[#9a9a94] transition-transform duration-200 ${
+              dropdownOpen ? 'rotate-180' : ''
             }`}
-          >
-            Chat
-          </button>
-        </div>
+          />
+        </button>
       </Tooltip>
 
-      <Tooltip content="Step-by-step interactive tutoring" side="top">
+      {/* Mode Dropdown Popover */}
+      {dropdownOpen && (
         <div
-          className="relative"
-          onMouseEnter={() => setHoveredMode('learn')}
+          className="absolute left-0 bottom-full mb-2 w-64 rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-2xl p-2 z-50 text-xs text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          onMouseLeave={() => setHoveredMode(null)}
         >
-          <GlidingHighlight
-            activeId={selectedMode}
-            hoverId={hoveredMode}
-            itemId="learn"
-            layoutId="input-mode-pill"
-          />
-          <button
-            type="button"
-            onClick={() => onSelectMode?.('learn')}
-            className={`relative z-10 px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-              selectedMode === 'learn' ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-            }`}
-          >
-            Learn
-          </button>
-        </div>
-      </Tooltip>
-
-      <CapabilityGate feature="structuredOutput" modelId={selectedModelId}>
-        <Tooltip content="Knowledge check & instant quiz cards" side="top">
-          <div
-            className="relative"
-            onMouseEnter={() => setHoveredMode('quiz')}
-          >
-            <GlidingHighlight
-              activeId={selectedMode}
-              hoverId={hoveredMode}
-              itemId="quiz"
-              layoutId="input-mode-pill"
-            />
-            <button
-              type="button"
-              onClick={() => onSelectMode?.('quiz')}
-              className={`relative z-10 px-3 py-1 text-[11px] font-display font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
-                selectedMode === 'quiz' ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-              }`}
-            >
-              Quiz
-            </button>
+          <div className="px-2 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
+            Select Mode
           </div>
-        </Tooltip>
-      </CapabilityGate>
+
+          <div className="space-y-1 my-1">
+            {modes.map((mode) => {
+              const isSelected = selectedMode === mode.id;
+              const Icon = mode.icon;
+
+              return (
+                <div
+                  key={mode.id}
+                  className="relative"
+                  onMouseEnter={() => !mode.disabled && setHoveredMode(mode.id)}
+                >
+                  <GlidingHighlight
+                    activeId={isSelected ? mode.id : null}
+                    hoverId={hoveredMode}
+                    itemId={mode.id}
+                    layoutId="mode-dropdown-glide"
+                    className={
+                      isSelected
+                        ? 'bg-brand-500/20 border border-brand-500/40'
+                        : 'bg-[#262626] border border-[#383838]'
+                    }
+                  />
+                  <button
+                    type="button"
+                    disabled={mode.disabled}
+                    onClick={() => {
+                      if (!mode.disabled) {
+                        onSelectMode?.(mode.id);
+                        setDropdownOpen(false);
+                      }
+                    }}
+                    className={`relative z-10 w-full flex items-center justify-between p-2 rounded-xl text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'text-brand-300 font-semibold'
+                        : mode.disabled
+                        ? 'opacity-40 cursor-not-allowed text-[#9a9a94]'
+                        : 'text-[#f4f4f2]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                      <div
+                        className={`p-1.5 rounded-lg shrink-0 ${
+                          isSelected
+                            ? 'bg-brand-500/25 text-brand-300'
+                            : 'bg-[#191919] text-[#9a9a94]'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-display font-medium text-xs">
+                            {mode.label}
+                          </span>
+                          {isSelected && (
+                            <Check className="w-3 h-3 text-brand-400 shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-[10px] text-[#9a9a94] truncate">
+                          {mode.description}
+                        </p>
+                      </div>
+                    </div>
+                    {mode.disabled && (
+                      <span className="text-[9px] text-amber-400/90 font-mono shrink-0 ml-1">
+                        Unsupported
+                      </span>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 });
@@ -324,7 +414,9 @@ export function WorkspaceThreePanelView({
   onSelectConversation,
   onNewConversation,
   onDeleteConversation,
+  onRenameConversation,
   messages = [],
+  isLoadingMessages = false,
   onSendMessage,
   onDeleteMessage,
   onEditMessage,
@@ -356,6 +448,59 @@ export function WorkspaceThreePanelView({
   // Studio Right Sidebar Active Tab: 'context' (Claude card) | 'studio' (Synthesize)
   const [studioTab, setStudioTab] = useState<'context' | 'studio'>('studio');
 
+  // Active conversation resolved for all subpanels
+  const activeConversation = conversations.find((c) => c.id === activeConversationId);
+
+  // Subheader Chat Title Editing State
+  const [isEditingChatTitle, setIsEditingChatTitle] = useState(false);
+  const [currentChatTitleDraft, setCurrentChatTitleDraft] = useState('');
+
+  // Sync draft title when activeConversation changes
+  React.useEffect(() => {
+    if (activeConversation) {
+      setCurrentChatTitleDraft(activeConversation.title);
+    }
+  }, [activeConversation?.id, activeConversation?.title]);
+
+  const handleSaveChatTitle = async () => {
+    const trimmed = currentChatTitleDraft.trim();
+    if (trimmed && activeConversation && onRenameConversation && trimmed !== activeConversation.title) {
+      await onRenameConversation(activeConversation.id, trimmed);
+    }
+    setIsEditingChatTitle(false);
+  };
+
+  // Context Window & Token Calculations
+  const activeModelDef = React.useMemo(() => getModelDefinition(selectedModelId), [selectedModelId]);
+  const contextWindowLimit = activeModelDef?.capabilities?.contextWindow || 1048576;
+
+  const sourcesTokens = React.useMemo(() => {
+    return sources
+      .filter((s) => s.enabled)
+      .reduce((acc, s) => acc + Math.round((s.wordCount || 0) * 1.33), 0);
+  }, [sources]);
+
+  const chatTokens = React.useMemo(() => {
+    return messages.reduce((acc, m) => acc + Math.round((m.content?.length || 0) / 4), 0);
+  }, [messages]);
+
+  const memoryTokens = React.useMemo(() => {
+    return notes.reduce((acc, n) => acc + Math.round(((n.title?.length || 0) + (n.content?.length || 0)) / 4), 0);
+  }, [notes]);
+
+  const totalUsedTokens = sourcesTokens + chatTokens + memoryTokens;
+  const usedPercentage = Math.min(100, (totalUsedTokens / contextWindowLimit) * 100);
+
+  const formatTokens = (tokens: number): string => {
+    if (tokens >= 1_000_000) {
+      return (tokens / 1_000_000).toFixed(1) + 'M';
+    }
+    if (tokens >= 1_000) {
+      return (tokens / 1_000).toFixed(tokens >= 10_000 ? 0 : 1) + 'k';
+    }
+    return tokens.toString();
+  };
+
   // Instructions Edit Modal
   const [editInstructionsOpen, setEditInstructionsOpen] = useState(false);
   const [instructionsText, setInstructionsText] = useState(
@@ -364,18 +509,8 @@ export function WorkspaceThreePanelView({
   );
   const [savingInstructions, setSavingInstructions] = useState(false);
 
-  // Memory (Saved Notes) Modal
+  // Read-Only Memory Modal
   const [viewMemoryOpen, setViewMemoryOpen] = useState(false);
-  const [newNoteTitle, setNewNoteTitle] = useState('');
-  const [newNoteContent, setNewNoteContent] = useState('');
-  const [isAddingNote, setIsAddingNote] = useState(false);
-  const [savingNote, setSavingNote] = useState(false);
-
-  // Edit Note State
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [editNoteTitle, setEditNoteTitle] = useState('');
-  const [editNoteContent, setEditNoteContent] = useState('');
-  const [savingEditNote, setSavingEditNote] = useState(false);
 
   // Source Rename Modal
   const [renamingSource, setRenamingSource] = useState<Source | null>(null);
@@ -467,47 +602,7 @@ export function WorkspaceThreePanelView({
     }
   };
 
-  // Handle Create Note
-  const handleCreateNote = async () => {
-    if (!newNoteTitle.trim() || !newNoteContent.trim()) return;
-    setSavingNote(true);
-    try {
-      await createNote(notebook.id, newNoteTitle.trim(), newNoteContent.trim());
-      setNewNoteTitle('');
-      setNewNoteContent('');
-      setIsAddingNote(false);
-      toast({ title: 'Memory Note Added', variant: 'success' });
-    } catch (err: any) {
-      toast({ title: 'Error saving note', description: err.message, variant: 'error' });
-    } finally {
-      setSavingNote(false);
-    }
-  };
 
-  // Handle Edit Note
-  const handleSaveEditNote = async () => {
-    if (!editingNote || !editNoteTitle.trim() || !editNoteContent.trim()) return;
-    setSavingEditNote(true);
-    try {
-      await updateNote(editingNote.id, editNoteTitle.trim(), editNoteContent.trim());
-      setEditingNote(null);
-      toast({ title: 'Memory Note Updated', variant: 'success' });
-    } catch (err: any) {
-      toast({ title: 'Error updating note', description: err.message, variant: 'error' });
-    } finally {
-      setSavingEditNote(false);
-    }
-  };
-
-  // Handle Delete Note
-  const handleDeleteNote = async (noteId: string) => {
-    try {
-      await deleteNote(noteId);
-      toast({ title: 'Memory Note Deleted', variant: 'success' });
-    } catch (err: any) {
-      toast({ title: 'Error deleting note', description: err.message, variant: 'error' });
-    }
-  };
 
   const handleConfirmRename = async () => {
     if (!renamingSource || !newSourceTitle.trim()) return;
@@ -692,7 +787,7 @@ export function WorkspaceThreePanelView({
                   </button>
                 </div>
                 <p className="text-xs text-[#9a9a94] font-serif leading-relaxed">
-                  View and manage what your study partner remembers from your chats.
+                  View what your study partner automatically remembers and carries across all chats.
                 </p>
 
                 {notes.length > 0 && (
@@ -889,6 +984,8 @@ export function WorkspaceThreePanelView({
             selectedModelId={selectedModelId}
             userKeys={userKeys}
             onOpenSourceViewer={onOpenSourceViewer}
+            activeConversationId={activeConversationId}
+            activeConversationTitle={activeConversation?.title}
           />
         )}
       </div>
@@ -898,7 +995,6 @@ export function WorkspaceThreePanelView({
   // ----------------------------------------------------
   // CENTRE PANEL: CHAT AREA (Claude Warm Charcoal #191919)
   // ----------------------------------------------------
-  const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
   const renderCentreContent = () => (
     <div className="flex flex-col h-full w-full min-w-0 bg-[#191919] relative overflow-hidden text-[#f4f4f2]">
@@ -917,9 +1013,69 @@ export function WorkspaceThreePanelView({
           )}
 
           <div className="flex items-center gap-2.5">
-            <span className="text-sm font-serif italic text-[#f4f4f2] truncate max-w-[240px]">
-              {activeConversation?.title || notebook.title}
-            </span>
+            {/* Active Chat Title with Inline Click-to-Rename */}
+            {isEditingChatTitle ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveChatTitle();
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={currentChatTitleDraft}
+                  onChange={(e) => setCurrentChatTitleDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsEditingChatTitle(false);
+                      setCurrentChatTitleDraft(activeConversation?.title || '');
+                    }
+                  }}
+                  autoFocus
+                  className="bg-[#141414] border border-brand-500/50 rounded-lg px-2.5 py-1 text-sm text-[#f4f4f2] outline-none font-serif min-w-[160px] max-w-[280px] focus:ring-1 focus:ring-brand-500/50"
+                />
+                <button
+                  type="submit"
+                  className="p-1 rounded-md text-brand-400 hover:text-brand-300 hover:bg-[#262626] transition cursor-pointer"
+                  title="Save title"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingChatTitle(false);
+                    setCurrentChatTitleDraft(activeConversation?.title || '');
+                  }}
+                  className="p-1 rounded-md text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] transition cursor-pointer"
+                  title="Cancel"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeConversation) {
+                    setCurrentChatTitleDraft(activeConversation.title);
+                    setIsEditingChatTitle(true);
+                  }
+                }}
+                className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-xl hover:bg-[#262626] text-[#f4f4f2] transition-colors cursor-pointer text-left border border-transparent hover:border-[#383838]"
+                title={activeConversation ? 'Click to rename this chat' : undefined}
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                <span className="text-sm font-serif italic truncate max-w-[200px] sm:max-w-[280px] font-medium">
+                  {activeConversation?.title || (activeConversationId ? 'Chat' : notebook.title)}
+                </span>
+                {activeConversation && onRenameConversation && (
+                  <Pencil className="w-3 h-3 text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                )}
+              </button>
+            )}
+
             <span className="text-xs text-[#9a9a94]">•</span>
             <button
               onClick={() => {
@@ -946,8 +1102,86 @@ export function WorkspaceThreePanelView({
           </div>
         </div>
 
-        {/* Right Sidebar Trigger */}
+        {/* Right Sidebar Trigger & Context Window Meter */}
         <div className="flex items-center gap-2">
+          {/* Context Window Limit Meter (Image 2 Green Box) */}
+          <Tooltip
+            content={
+              <div className="p-1 space-y-1.5 text-left min-w-[220px]">
+                <div className="flex items-center justify-between border-b border-[#303030] pb-1">
+                  <span className="font-display font-bold text-xs text-[#f4f4f2]">Context Window</span>
+                  <span className="text-[10px] text-brand-300 font-mono font-semibold">
+                    {activeModelDef.name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-[#9a9a94]">
+                  <span>Total Used:</span>
+                  <span className="font-mono text-[#f4f4f2] font-semibold">
+                    {totalUsedTokens.toLocaleString()} / {contextWindowLimit.toLocaleString()} ({usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1' : usedPercentage.toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-[#303030] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-400'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(3, usedPercentage))}%` }}
+                  />
+                </div>
+                <div className="pt-1 border-t border-[#303030] space-y-1 text-[10.5px]">
+                  <div className="flex items-center justify-between text-[#9a9a94]">
+                    <span className="flex items-center gap-1.5">
+                      <BookOpen className="w-3 h-3 text-brand-400" /> Sources ({enabledCount} active)
+                    </span>
+                    <span className="font-mono text-[#f4f4f2]">{sourcesTokens.toLocaleString()} tokens</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#9a9a94]">
+                    <span className="flex items-center gap-1.5">
+                      <MessageSquare className="w-3 h-3 text-cyan-400" /> Current Chat ({messages.length} msgs)
+                    </span>
+                    <span className="font-mono text-[#f4f4f2]">{chatTokens.toLocaleString()} tokens</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#9a9a94]">
+                    <span className="flex items-center gap-1.5">
+                      <Brain className="w-3 h-3 text-emerald-400" /> Shared Memory ({notes.length} notes)
+                    </span>
+                    <span className="font-mono text-[#f4f4f2]">{memoryTokens.toLocaleString()} tokens</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#9a9a94] pt-0.5 border-t border-[#262626]">
+                    <span className="flex items-center gap-1.5">
+                      <Zap className="w-3 h-3 text-brand-300" /> Remaining
+                    </span>
+                    <span className="font-mono text-emerald-400">
+                      {Math.max(0, contextWindowLimit - totalUsedTokens).toLocaleString()} tokens free
+                    </span>
+                  </div>
+                </div>
+              </div>
+            }
+            side="bottom"
+          >
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-[#262626] border border-[#303030] hover:border-brand-500/40 transition-colors cursor-pointer text-xs">
+              <Activity className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+              <div className="hidden sm:flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] leading-tight">
+                  <span className="text-[#f4f4f2] font-semibold">{formatTokens(totalUsedTokens)}</span>
+                  <span className="text-[#9a9a94]">/</span>
+                  <span className="text-[#9a9a94]">{formatTokens(contextWindowLimit)}</span>
+                </div>
+                <div className="w-16 h-1 bg-[#191919] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-400'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(4, usedPercentage))}%` }}
+                  />
+                </div>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-[#191919] text-brand-300 border border-[#303030]">
+                {usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1%' : `${usedPercentage.toFixed(1)}%`}
+              </span>
+            </div>
+          </Tooltip>
           {/* Tablet right drawer trigger */}
           <button
             onClick={() => setTabletDrawerOpen(true)}
@@ -978,7 +1212,13 @@ export function WorkspaceThreePanelView({
         className="flex-1 min-h-0 min-w-0 w-full overflow-y-auto p-4 md:p-6 flex flex-col scrollbar-thin scrollbar-thumb-[#303030] overscroll-contain"
         data-lenis-prevent
       >
-        {messages.length === 0 && !isStreaming ? (
+        {isLoadingMessages ? (
+          /* Loading conversation messages */
+          <div className="max-w-xl w-full mx-auto my-auto py-16 text-center space-y-3">
+            <div className="w-8 h-8 border-2 border-brand-500/30 border-t-brand-400 rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-[#9a9a94] font-serif">Loading conversation...</p>
+          </div>
+        ) : messages.length === 0 && !isStreaming ? (
           /* Empty State: Greeting, Prompt suggestions, and Recents List */
           <div className="max-w-xl w-full mx-auto my-auto py-6 text-center space-y-4">
             {/* Brand-Accented Brain Badge */}
@@ -1081,36 +1321,58 @@ export function WorkspaceThreePanelView({
                   </span>
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-[#303030]">
-                  {conversations.slice(0, 5).map((conv) => (
-                    <div
-                      key={conv.id}
-                      onClick={() => onSelectConversation?.(conv.id)}
-                      className="group flex items-center justify-between p-2.5 rounded-xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2a2a2a] cursor-pointer transition"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <MessageSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-                        <span className="text-xs font-display font-medium text-[#f4f4f2] truncate">
-                          {conv.title}
-                        </span>
-                        <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-[#191919] text-[#9a9a94] font-mono border border-[#303030]">
-                          {conv.mode}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                  {conversations.slice(0, 5).map((conv) => {
+                    const isChatActive = conv.id === activeConversationId;
+                    return (
+                      <div
+                        key={conv.id}
+                        className={`group flex items-center justify-between p-2 rounded-xl transition ${
+                          isChatActive
+                            ? 'bg-brand-500/15 border border-brand-500/40 text-[#f4f4f2]'
+                            : 'bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2a2a2a]'
+                        }`}
+                      >
                         <button
                           type="button"
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            onDeleteConversation?.(conv.id);
+                            onSelectConversation?.(conv.id);
                           }}
-                          className="p-1 text-[#9a9a94] hover:text-red-400 transition"
-                          title="Delete chat"
+                          className="flex items-center gap-2 min-w-0 flex-1 text-left bg-transparent border-0 outline-none cursor-pointer py-0.5"
+                          title={`Switch to "${conv.title}"`}
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isChatActive ? 'text-brand-400' : 'text-brand-400/80'}`} />
+                          <span className={`text-xs font-display font-medium truncate ${isChatActive ? 'text-brand-200 font-semibold' : 'text-[#f4f4f2]'}`}>
+                            {conv.title}
+                          </span>
+                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-[#191919] text-[#9a9a94] font-mono border border-[#303030] shrink-0">
+                            {conv.mode}
+                          </span>
+                          {isChatActive && (
+                            <Check className="w-3.5 h-3.5 text-brand-400 shrink-0 ml-auto mr-1" />
+                          )}
                         </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                          {onDeleteConversation && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Delete chat "${conv.title}"?`)) {
+                                  onDeleteConversation(conv.id);
+                                }
+                              }}
+                              className="p-1 text-[#9a9a94] hover:text-red-400 rounded hover:bg-[#303030] transition cursor-pointer"
+                              title="Delete chat"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1474,6 +1736,11 @@ export function WorkspaceThreePanelView({
             value={chatPrompt}
             onChange={(e) => setChatPrompt(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === 'Escape' && isStreaming && onStopStreaming) {
+                e.preventDefault();
+                onStopStreaming();
+                return;
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSendAction();
@@ -1502,7 +1769,7 @@ export function WorkspaceThreePanelView({
                 </button>
               </Tooltip>
 
-              <ModePillSwitcher
+              <ModeDropdownSwitcher
                 selectedMode={selectedMode}
                 onSelectMode={onSelectMode}
                 selectedModelId={selectedModelId}
@@ -1539,14 +1806,17 @@ export function WorkspaceThreePanelView({
 
               {/* Send / Stop Button */}
               {isStreaming ? (
-                <button
-                  type="button"
-                  onClick={onStopStreaming}
-                  className="h-8 w-8 rounded-xl bg-red-600 text-white hover:bg-red-500 shadow-md shadow-red-600/30 flex items-center justify-center cursor-pointer transition"
-                  title="Stop generating"
-                >
-                  <StopSquare className="w-3.5 h-3.5 fill-current" />
-                </button>
+                <Tooltip content="Stop generating (Esc)" side="top">
+                  <button
+                    type="button"
+                    onClick={onStopStreaming}
+                    className="h-8 w-8 rounded-full bg-[#2a2a2a] hover:bg-[#333333] border border-[#383838] flex items-center justify-center cursor-pointer transition-colors shadow-sm"
+                    title="Stop generating"
+                    aria-label="Stop generating response"
+                  >
+                    <span className="w-3 h-3 rounded-[2px] bg-[#ef4444]" />
+                  </button>
+                </Tooltip>
               ) : (
                 <div className="relative group">
                   <Button
@@ -1728,136 +1998,59 @@ export function WorkspaceThreePanelView({
         </div>
       </Dialog>
 
-      {/* 2. View / Manage Memory (Saved Notes) Modal */}
+      {/* 2. Read-Only Memory Modal */}
       <Dialog
         open={viewMemoryOpen}
         onOpenChange={setViewMemoryOpen}
-        title="Study Memory"
-        description="View and manage key notes and takeaways that guide memory across sessions."
+        title="Notebook Memory"
+        description="Key takeaways, context, and insights across all chats in this notebook are automatically stored here and carried into future conversations."
         className="max-w-2xl"
       >
         <div className="space-y-4 pt-2">
-          {/* Header Action: Add Note */}
+          {/* Header Action / Badge: Read-Only */}
           <div className="flex items-center justify-between pb-2 border-b border-[#303030]">
-            <span className="text-xs text-[#9a9a94] font-mono">{notes.length} saved memories</span>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setIsAddingNote(!isAddingNote)}
-              className="text-xs text-brand-400 hover:text-brand-300"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              {isAddingNote ? 'Cancel' : 'Add Memory'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[#9a9a94] font-mono">{notes.length} saved memories</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium">
+                <Lock className="w-2.5 h-2.5" /> Read-Only · Auto-Saved
+              </span>
+            </div>
+            <span className="text-[11px] text-[#9a9a94] font-serif">
+              Shared across all notebook chats
+            </span>
           </div>
 
-          {/* Inline Add Note Form */}
-          {isAddingNote && (
-            <div className="p-3.5 rounded-2xl bg-[#191919] border border-[#303030] space-y-3">
-              <Input
-                placeholder="Title (e.g. Core Thesis, Formulas)"
-                value={newNoteTitle}
-                onChange={(e) => setNewNoteTitle(e.target.value)}
-                autoFocus
-                className="bg-[#262626] border-[#303030]"
-              />
-              <Textarea
-                placeholder="Key memory content or concepts..."
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                rows={3}
-                className="bg-[#262626] border-[#303030]"
-              />
-              <div className="flex justify-end gap-2">
-                <Button
-                  size="sm"
-                  variant="primary"
-                  disabled={savingNote || !newNoteTitle.trim() || !newNoteContent.trim()}
-                  onClick={handleCreateNote}
-                >
-                  {savingNote ? 'Saving...' : 'Save to Memory'}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Notes List */}
-          <div className="max-h-80 overflow-y-auto space-y-2 pr-1 scrollbar-thin scrollbar-thumb-[#303030]">
-            {notes.length === 0 && !isAddingNote ? (
-              <div className="py-8 text-center text-[#9a9a94] text-xs font-serif">
-                No memories saved yet. Click &quot;Add Memory&quot; to guide the study partner.
+          {/* Notes List (Strictly Read-Only: No Add, No Edit, No Delete) */}
+          <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-[#303030]">
+            {notes.length === 0 ? (
+              <div className="py-12 text-center text-[#9a9a94] text-xs font-serif space-y-2">
+                <Brain className="w-8 h-8 text-[#9a9a94] mx-auto opacity-40" />
+                <p className="text-[#f4f4f2] font-semibold">No memories stored yet</p>
+                <p className="max-w-md mx-auto text-[#9a9a94]">
+                  As you chat with your learning partner, key insights and context are automatically extracted and remembered here.
+                </p>
               </div>
             ) : (
               notes.map((note) => (
                 <div
                   key={note.id}
-                  className="p-3 rounded-2xl bg-[#191919] border border-[#303030] hover:border-brand-500/40 transition group"
+                  className="p-3.5 rounded-2xl bg-[#191919] border border-[#303030] hover:border-brand-500/40 transition group"
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-xs font-display font-bold text-[#f4f4f2]">{note.title}</h4>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => {
-                          setEditingNote(note);
-                          setEditNoteTitle(note.title);
-                          setEditNoteContent(note.content);
-                        }}
-                        className="p-1 text-[#9a9a94] hover:text-[#f4f4f2] transition-colors cursor-pointer"
-                        title="Edit note"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteNote(note.id)}
-                        className="p-1 text-[#9a9a94] hover:text-red-400 transition-colors cursor-pointer"
-                        title="Delete note"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-brand-400" />
+                      <h4 className="text-xs font-display font-bold text-[#f4f4f2]">{note.title}</h4>
                     </div>
+                    <span className="text-[10px] text-[#9a9a94] font-mono">
+                      Auto-saved
+                    </span>
                   </div>
-                  <p className="text-xs text-[#9a9a94] font-serif leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-[#9a9a94] font-serif leading-relaxed whitespace-pre-wrap pl-4 border-l border-[#303030]">
                     {note.content}
                   </p>
                 </div>
               ))
             )}
-          </div>
-        </div>
-      </Dialog>
-
-      {/* 3. Edit Note Modal */}
-      <Dialog
-        open={!!editingNote}
-        onOpenChange={(open) => !open && setEditingNote(null)}
-        title="Edit Memory Note"
-        description="Update this saved memory note."
-      >
-        <div className="space-y-4 pt-2">
-          <Input
-            value={editNoteTitle}
-            onChange={(e) => setEditNoteTitle(e.target.value)}
-            placeholder="Title"
-            className="bg-[#191919] border-[#303030]"
-          />
-          <Textarea
-            value={editNoteContent}
-            onChange={(e) => setEditNoteContent(e.target.value)}
-            rows={4}
-            placeholder="Content"
-            className="bg-[#191919] border-[#303030]"
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setEditingNote(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              disabled={savingEditNote || !editNoteTitle.trim() || !editNoteContent.trim()}
-              onClick={handleSaveEditNote}
-            >
-              {savingEditNote ? 'Saving...' : 'Update Note'}
-            </Button>
           </div>
         </div>
       </Dialog>

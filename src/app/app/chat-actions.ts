@@ -30,29 +30,35 @@ export async function getConversations(notebookId: string): Promise<Conversation
     .orderBy(desc(conversations.createdAt));
 }
 
-export async function getConversationMessages(conversationId: string): Promise<Message[]> {
-  const session = await getSession();
-  if (!session?.user?.id) return [];
+export async function getConversationMessages(conversationId: string, clientUserId?: string): Promise<Message[]> {
+  try {
+    const session = await getSession();
+    const effectiveUserId = session?.user?.id || clientUserId;
+    if (!effectiveUserId) return [];
 
-  // Verify conversation belongs to user
-  const [conv] = await db
-    .select()
-    .from(conversations)
-    .where(
-      and(
-        eq(conversations.id, conversationId),
-        eq(conversations.userId, session.user.id)
+    // Verify conversation belongs to user
+    const [conv] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, effectiveUserId)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  if (!conv) return [];
+    if (!conv) return [];
 
-  return db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conversationId))
-    .orderBy(asc(messages.createdAt));
+    return db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.createdAt));
+  } catch (err) {
+    console.error('getConversationMessages error:', err);
+    return [];
+  }
 }
 
 export async function createConversation(params: {

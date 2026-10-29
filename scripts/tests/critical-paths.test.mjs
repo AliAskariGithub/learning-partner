@@ -206,3 +206,84 @@ describe('Critical Path: Sliding Window Rate Limiter', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// 6. MULTI-CHAT STUDIO OUTPUT SCOPING
+// ---------------------------------------------------------------------------
+describe('Critical Path: Multi-Chat Studio Output Scoping', () => {
+  const mockOutputs = [
+    { id: '1', title: 'English Quiz', conversationId: 'conv-english' },
+    { id: '2', title: 'Urdu Summary', conversationId: 'conv-urdu' },
+    { id: '3', title: 'Maths Mind Map', conversationId: 'conv-maths' },
+    { id: '4', title: 'Global Notebook Notes', conversationId: null },
+  ];
+
+  function filterOutputsForChat(outputs, activeConversationId) {
+    if (!activeConversationId) return outputs;
+    return outputs.filter(
+      (o) => o.conversationId === activeConversationId || !o.conversationId
+    );
+  }
+
+  test('filters outputs strictly by active conversation while including legacy notebook outputs', () => {
+    const englishOutputs = filterOutputsForChat(mockOutputs, 'conv-english');
+    assert.equal(englishOutputs.length, 2);
+    assert.deepEqual(englishOutputs.map(o => o.id), ['1', '4']);
+
+    const urduOutputs = filterOutputsForChat(mockOutputs, 'conv-urdu');
+    assert.equal(urduOutputs.length, 2);
+    assert.deepEqual(urduOutputs.map(o => o.id), ['2', '4']);
+
+    const mathsOutputs = filterOutputsForChat(mockOutputs, 'conv-maths');
+    assert.equal(mathsOutputs.length, 2);
+    assert.deepEqual(mathsOutputs.map(o => o.id), ['3', '4']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. CONTEXT WINDOW & TOKEN CONSUMPTION CALCULATION
+// ---------------------------------------------------------------------------
+describe('Critical Path: Context Window & Token Consumption', () => {
+  function calculateTokenMetrics({ sources, messages, notes, contextLimit }) {
+    const sourcesTokens = sources
+      .filter((s) => s.enabled)
+      .reduce((acc, s) => acc + Math.round((s.wordCount || 0) * 1.33), 0);
+
+    const chatTokens = messages.reduce(
+      (acc, m) => acc + Math.round((m.content?.length || 0) / 4),
+      0
+    );
+
+    const memoryTokens = notes.reduce(
+      (acc, n) => acc + Math.round(((n.title?.length || 0) + (n.content?.length || 0)) / 4),
+      0
+    );
+
+    const totalUsed = sourcesTokens + chatTokens + memoryTokens;
+    const percentage = Math.min(100, (totalUsed / contextLimit) * 100);
+
+    return { sourcesTokens, chatTokens, memoryTokens, totalUsed, percentage };
+  }
+
+  test('accurately calculates token allocations and context limit utilization', () => {
+    const metrics = calculateTokenMetrics({
+      sources: [
+        { enabled: true, wordCount: 1000 },
+        { enabled: false, wordCount: 5000 },
+      ],
+      messages: [
+        { content: 'Hello this is user' }, // 18 chars -> ~5 tokens
+        { content: 'Assistant response with detail' }, // 30 chars -> ~8 tokens
+      ],
+      notes: [
+        { title: 'Takeaway', content: 'Important formula' }, // 8 + 17 = 25 chars -> ~6 tokens
+      ],
+      contextLimit: 1000000,
+    });
+
+    assert.equal(metrics.sourcesTokens, 1330);
+    assert.equal(metrics.chatTokens, 13);
+    assert.equal(metrics.memoryTokens, 6);
+    assert.equal(metrics.totalUsed, 1349);
+    assert.ok(metrics.percentage < 1);
+  });
+});

@@ -27,10 +27,11 @@ import {
   Sparkles,
   Command,
   Check,
+  MessageSquare,
 } from 'lucide-react';
 import { Button, Input, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
-import { Notebook } from '@/db/schema';
+import { Notebook, Conversation } from '@/db/schema';
 import { authClient } from '@/lib/auth/client';
 import {
   createNotebook,
@@ -49,6 +50,10 @@ interface NotebookSidebarProps {
   userEmail?: string;
   userAvatarUrl?: string | null;
   initialLanguage?: string;
+  conversations?: Conversation[];
+  activeConversationId?: string | null;
+  onSelectConversation?: (conversationId: string) => void;
+  onNewConversation?: () => void;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -76,6 +81,10 @@ export function NotebookSidebar({
   userEmail,
   userAvatarUrl,
   initialLanguage = 'en',
+  conversations = [],
+  activeConversationId,
+  onSelectConversation,
+  onNewConversation,
 }: NotebookSidebarProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -121,6 +130,25 @@ export function NotebookSidebar({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notebookToDelete, setNotebookToDelete] = useState<Notebook | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Notebook 3-dot actions dropdown state
+  const [openMenuNotebookId, setOpenMenuNotebookId] = useState<string | null>(null);
+  const notebookMenuRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close notebook menu popover
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notebookMenuRef.current && !notebookMenuRef.current.contains(event.target as Node)) {
+        setOpenMenuNotebookId(null);
+      }
+    }
+    if (openMenuNotebookId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openMenuNotebookId]);
 
   // Click outside to close user menu popover
   useEffect(() => {
@@ -290,9 +318,139 @@ export function NotebookSidebar({
     }
   };
 
+  const renderNotebookMenu = (nb: Notebook) => {
+    const isMenuOpen = openMenuNotebookId === nb.id;
+
+    return (
+      <div
+        className="relative shrink-0"
+        ref={isMenuOpen ? notebookMenuRef : null}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuNotebookId(isMenuOpen ? null : nb.id);
+          }}
+          className={`p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#303030] transition-all cursor-pointer ${
+            isMenuOpen ? 'opacity-100 bg-[#303030] text-foreground' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          title="Notebook actions"
+        >
+          <MoreVertical className="w-3.5 h-3.5" />
+        </button>
+
+        {isMenuOpen && (
+          <div className="absolute right-0 top-full mt-1 w-36 rounded-2xl bg-[#1c1c1c] border border-[#383838] shadow-2xl shadow-black/80 py-1.5 px-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenMenuNotebookId(null);
+                setNotebookToRename(nb);
+                setRenamedTitle(nb.title);
+                setRenameDialogOpen(true);
+              }}
+              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5 text-[#9a9a94]" />
+              Rename
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenMenuNotebookId(null);
+                handleTogglePin(nb, e);
+              }}
+              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+            >
+              <Pin className={`w-3.5 h-3.5 ${nb.pinned ? 'fill-brand-400 text-brand-400' : 'text-[#9a9a94]'}`} />
+              {nb.pinned ? 'Unpin' : 'Pin to top'}
+            </button>
+
+            <div className="h-px bg-[#303030] my-1" />
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenMenuNotebookId(null);
+                setNotebookToDelete(nb);
+                setDeleteDialogOpen(true);
+              }}
+              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-rose-400 hover:bg-rose-950/25 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const activeLangObj = SUPPORTED_LANGUAGES.find(
     (l) => l.code === currentLanguage || l.name.toLowerCase() === currentLanguage?.toLowerCase()
   );
+
+  const renderNotebookChatsSublist = (nbId: string) => {
+    if (activeNotebookId !== nbId || !conversations || conversations.length === 0) return null;
+    return (
+      <div className="pl-3.5 pr-1 py-1 space-y-0.5 border-l border-brand-500/30 ml-4 my-1 relative z-20">
+        <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-display font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <span>Chats ({conversations.length})</span>
+          {onNewConversation && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onNewConversation();
+              }}
+              className="text-brand-400 hover:text-brand-300 font-semibold inline-flex items-center gap-0.5 cursor-pointer lowercase first-letter:uppercase"
+              title="Start new chat"
+            >
+              <Plus className="w-2.5 h-2.5" /> new
+            </button>
+          )}
+        </div>
+        {conversations.map((c) => {
+          const isChatActive = c.id === activeConversationId;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onSelectConversation) {
+                  onSelectConversation(c.id);
+                }
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-sans transition-all text-left cursor-pointer group/chat ${
+                isChatActive
+                  ? 'bg-brand-500/25 text-brand-200 font-medium border border-brand-500/50 shadow-sm'
+                  : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent'
+              }`}
+              title={c.title}
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isChatActive ? 'text-brand-400' : 'text-[#71717a] group-hover/chat:text-[#9a9a94]'}`} />
+                <span className="truncate">{c.title}</span>
+              </div>
+              {isChatActive && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0 ml-1" />}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -364,12 +522,13 @@ export function NotebookSidebar({
                     <div className="space-y-1 relative">
                       {pinnedNotebooks.map((nb) => {
                         const isActive = activeNotebookId === nb.id;
+                        const isMenuOpen = openMenuNotebookId === nb.id;
                         return (
-                          <div
-                            key={nb.id}
-                            className="relative"
-                            onMouseEnter={() => setHoveredNotebookId(nb.id)}
-                          >
+                          <div key={nb.id} className={`space-y-0.5 relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}>
+                            <div
+                              className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
+                              onMouseEnter={() => setHoveredNotebookId(nb.id)}
+                            >
                             <GlidingHighlight
                               activeId={isActive ? nb.id : null}
                               hoverId={hoveredNotebookId}
@@ -383,7 +542,9 @@ export function NotebookSidebar({
                             />
                             <div
                               onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                              className={`group relative z-10 flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                              className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                                isMenuOpen ? 'z-40' : 'z-10'
+                              } ${
                                 isActive
                                   ? 'text-brand-300 font-semibold'
                                   : 'text-muted-foreground hover:text-foreground'
@@ -394,42 +555,10 @@ export function NotebookSidebar({
                                 <span className="truncate font-serif">{nb.title}</span>
                               </div>
 
-                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Tooltip content="Unpin notebook" side="top">
-                                  <button
-                                    onClick={(e) => handleTogglePin(nb, e)}
-                                    className="p-1 text-muted-foreground hover:text-brand-400 transition cursor-pointer"
-                                  >
-                                    <Pin className="h-3 w-3 fill-brand-400/30" />
-                                  </button>
-                                </Tooltip>
-                                <Tooltip content="Rename notebook" side="top">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setNotebookToRename(nb);
-                                      setRenamedTitle(nb.title);
-                                      setRenameDialogOpen(true);
-                                    }}
-                                    className="p-1 text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
-                                </Tooltip>
-                                <Tooltip content="Delete notebook" side="top">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setNotebookToDelete(nb);
-                                      setDeleteDialogOpen(true);
-                                    }}
-                                    className="p-1 text-muted-foreground hover:text-error transition cursor-pointer"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                </Tooltip>
+                              {renderNotebookMenu(nb)}
                               </div>
                             </div>
+                            {renderNotebookChatsSublist(nb.id)}
                           </div>
                         );
                       })}
@@ -451,12 +580,13 @@ export function NotebookSidebar({
                     ) : (
                       otherNotebooks.map((nb) => {
                         const isActive = activeNotebookId === nb.id;
+                        const isMenuOpen = openMenuNotebookId === nb.id;
                         return (
-                          <div
-                            key={nb.id}
-                            className="relative"
-                            onMouseEnter={() => setHoveredNotebookId(nb.id)}
-                          >
+                          <div key={nb.id} className={`space-y-0.5 relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}>
+                            <div
+                              className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
+                              onMouseEnter={() => setHoveredNotebookId(nb.id)}
+                            >
                             <GlidingHighlight
                               activeId={isActive ? nb.id : null}
                               hoverId={hoveredNotebookId}
@@ -470,7 +600,9 @@ export function NotebookSidebar({
                             />
                             <div
                               onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                              className={`group relative z-10 flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                              className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                                isMenuOpen ? 'z-40' : 'z-10'
+                              } ${
                                 isActive
                                   ? 'text-brand-300 font-semibold'
                                   : 'text-muted-foreground hover:text-foreground'
@@ -481,42 +613,10 @@ export function NotebookSidebar({
                                 <span className="truncate font-serif">{nb.title}</span>
                               </div>
 
-                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Tooltip content="Pin to top" side="top">
-                                  <button
-                                    onClick={(e) => handleTogglePin(nb, e)}
-                                    className="p-1 text-muted-foreground hover:text-brand-400 transition cursor-pointer"
-                                  >
-                                    <Pin className="h-3 w-3" />
-                                  </button>
-                                </Tooltip>
-                                <Tooltip content="Rename notebook" side="top">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setNotebookToRename(nb);
-                                      setRenamedTitle(nb.title);
-                                      setRenameDialogOpen(true);
-                                    }}
-                                    className="p-1 text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
-                                </Tooltip>
-                                <Tooltip content="Delete notebook" side="top">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setNotebookToDelete(nb);
-                                      setDeleteDialogOpen(true);
-                                    }}
-                                    className="p-1 text-muted-foreground hover:text-error transition cursor-pointer"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                </Tooltip>
+                              {renderNotebookMenu(nb)}
                               </div>
                             </div>
+                            {renderNotebookChatsSublist(nb.id)}
                           </div>
                         );
                       })

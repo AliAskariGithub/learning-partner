@@ -18,10 +18,21 @@ export async function GET(
   const errorParam = searchParams.get('error');
   const errorDesc = searchParams.get('error_description');
 
-  const hostHeader = req.headers.get('x-forwarded-host') || req.headers.get('host') || req.nextUrl.host;
-  const proto = req.headers.get('x-forwarded-proto') || req.nextUrl.protocol.replace(':', '');
-  const appBase = process.env.NEXT_PUBLIC_APP_URL || `${proto}://${hostHeader}`;
-  let redirectTarget = `${appBase.replace(/\/+$/, '')}/app`;
+  const hostHeader = req.headers.get('x-forwarded-host') || req.headers.get('host') || req.nextUrl.host || 'localhost:3000';
+  const protoHeader = req.headers.get('x-forwarded-proto');
+
+  const isLocalOrLan =
+    hostHeader.includes('localhost') ||
+    hostHeader.includes('127.0.0.1') ||
+    hostHeader.startsWith('192.168.') ||
+    hostHeader.startsWith('10.') ||
+    hostHeader.startsWith('172.') ||
+    hostHeader.includes(':');
+
+  const isDev = process.env.NODE_ENV !== 'production';
+  const proto = protoHeader || (isDev || isLocalOrLan ? 'http' : req.nextUrl.protocol.replace(':', ''));
+  let appBase = (process.env.NEXT_PUBLIC_APP_URL || `${proto}://${hostHeader}`).replace(/\/+$/, '');
+  let redirectTarget = `${appBase}/app`;
 
   // Read stored OAuth state cookie
   const cookieStore = await cookies();
@@ -30,32 +41,40 @@ export async function GET(
   // Clean up state cookie immediately
   cookieStore.delete('lp_oauth_state');
 
+  const buildRedirectUrl = (target: string, paramName: string, paramValue: string) => {
+    const separator = target.includes('?') ? '&' : '?';
+    return `${target}${separator}${paramName}=${encodeURIComponent(paramValue)}`;
+  };
+
   if (errorParam) {
     console.error(`OAuth provider returned error: ${errorParam} - ${errorDesc}`);
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent(errorDesc || errorParam)}`
+      buildRedirectUrl(redirectTarget, 'connection_error', errorDesc || errorParam)
     );
   }
 
   if (!rawCookie) {
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent('OAuth session expired or state missing. Please try again.')}`
+      buildRedirectUrl(redirectTarget, 'connection_error', 'OAuth session expired or state missing. Please try again.')
     );
   }
 
-  let parsedCookie: { state: string; codeVerifier: string; provider: string; userId: string; returnUrl?: string };
+  let parsedCookie: { state: string; codeVerifier: string; provider: string; userId: string; returnUrl?: string; appBase?: string };
   try {
     parsedCookie = JSON.parse(rawCookie);
+    if (parsedCookie.appBase) {
+      appBase = parsedCookie.appBase.replace(/\/+$/, '');
+    }
     if (parsedCookie.returnUrl) {
       if (parsedCookie.returnUrl.startsWith('http')) {
         redirectTarget = parsedCookie.returnUrl;
       } else {
-        redirectTarget = `${appBase.replace(/\/+$/, '')}${parsedCookie.returnUrl.startsWith('/') ? '' : '/'}${parsedCookie.returnUrl}`;
+        redirectTarget = `${appBase}${parsedCookie.returnUrl.startsWith('/') ? '' : '/'}${parsedCookie.returnUrl}`;
       }
     }
   } catch {
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent('Corrupted OAuth state cookie.')}`
+      buildRedirectUrl(redirectTarget, 'connection_error', 'Corrupted OAuth state cookie.')
     );
   }
 
@@ -63,29 +82,29 @@ export async function GET(
   if (state) {
     if (!validateStateToken(parsedCookie.state, state)) {
       return NextResponse.redirect(
-        `${redirectTarget}?connection_error=${encodeURIComponent('Invalid OAuth state. Potential CSRF detected.')}`
+        buildRedirectUrl(redirectTarget, 'connection_error', 'Invalid OAuth state. Potential CSRF detected.')
       );
     }
   } else if (parsedCookie.provider !== 'openrouter') {
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent('Missing OAuth state token.')}`
+      buildRedirectUrl(redirectTarget, 'connection_error', 'Missing OAuth state token.')
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent('Missing authorization code.')}`
+      buildRedirectUrl(redirectTarget, 'connection_error', 'Missing authorization code.')
     );
   }
 
   const providerImpl = getConnectionProvider(parsedCookie.provider);
   if (!providerImpl || !providerImpl.handleCallback) {
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent(`Unsupported provider ${parsedCookie.provider}`)}`
+      buildRedirectUrl(redirectTarget, 'connection_error', `Unsupported provider ${parsedCookie.provider}`)
     );
   }
 
-  const redirectUri = `${appBase.replace(/\/+$/, '')}/api/connections/oauth/${parsedCookie.provider}/callback`;
+  const redirectUri = `${appBase}/api/connections/oauth/${parsedCookie.provider}/callback`;
 
   try {
     const callbackResult = await providerImpl.handleCallback({
@@ -123,12 +142,12 @@ export async function GET(
     });
 
     return NextResponse.redirect(
-      `${redirectTarget}?connected=${encodeURIComponent(parsedCookie.provider)}`
+      buildRedirectUrl(redirectTarget, 'connected', parsedCookie.provider)
     );
   } catch (err: any) {
     console.error('OAuth callback handling failed:', err);
     return NextResponse.redirect(
-      `${redirectTarget}?connection_error=${encodeURIComponent(err.message || 'OAuth token exchange failed.')}`
+      buildRedirectUrl(redirectTarget, 'connection_error', err.message || 'OAuth token exchange failed.')
     );
   }
 }

@@ -208,7 +208,8 @@ export async function testUnsavedCredentials(params: {
  */
 export async function getOAuthAuthorizationUrl(
   providerId: 'chatgpt' | 'openrouter',
-  returnUrl: string = '/app'
+  returnUrl: string = '/app',
+  clientOrigin?: string
 ): Promise<{
   url?: string;
   error?: string;
@@ -225,9 +226,33 @@ export async function getOAuthAuthorizationUrl(
 
   const headersList = await headers();
   const hostHeader = headersList.get('x-forwarded-host') || headersList.get('host') || 'localhost:3000';
-  const proto = headersList.get('x-forwarded-proto') || (hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1') ? 'http' : 'https');
-  const appBase = process.env.NEXT_PUBLIC_APP_URL || `${proto}://${hostHeader}`;
-  const redirectUri = `${appBase.replace(/\/+$/, '')}/api/connections/oauth/${providerId}/callback`;
+  const protoHeader = headersList.get('x-forwarded-proto');
+
+  const isLocalOrLan =
+    hostHeader.includes('localhost') ||
+    hostHeader.includes('127.0.0.1') ||
+    hostHeader.startsWith('192.168.') ||
+    hostHeader.startsWith('10.') ||
+    hostHeader.startsWith('172.') ||
+    hostHeader.includes(':');
+
+  const isDev = process.env.NODE_ENV !== 'production';
+  const defaultProto = isDev || isLocalOrLan ? 'http' : 'https';
+  const proto = protoHeader || defaultProto;
+
+  let appBase = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appBase && clientOrigin) {
+    try {
+      const parsed = new URL(clientOrigin);
+      appBase = parsed.origin;
+    } catch {}
+  }
+  if (!appBase) {
+    appBase = `${proto}://${hostHeader}`;
+  }
+  appBase = appBase.replace(/\/+$/, '');
+
+  const redirectUri = `${appBase}/api/connections/oauth/${providerId}/callback`;
 
   const pkce = generatePkcePair();
 
@@ -239,10 +264,10 @@ export async function getOAuthAuthorizationUrl(
     provider: providerId,
     userId: session.user.id,
     returnUrl,
+    appBase,
   });
 
-  const isLocal = hostHeader.includes('localhost') || hostHeader.includes('127.0.0.1');
-  const isSecure = process.env.NODE_ENV === 'production' && !isLocal;
+  const isSecure = process.env.NODE_ENV === 'production' && !isLocalOrLan && !appBase.startsWith('http://');
 
   cookieStore.set('lp_oauth_state', oauthStatePayload, {
     httpOnly: true,

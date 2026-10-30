@@ -51,6 +51,7 @@ import {
 } from '@/app/app/notebook-actions';
 import { ModelSwitcher } from '@/components/ai/ModelSwitcher';
 import { CapabilityGate } from '@/components/ai/CapabilityGate';
+import { useSpeechToText } from '@/hooks/useSpeechToText';
 import { MessageContent as MessageMarkdown } from '@/components/chat/MessageContent';
 import { getModelDefinition } from '@/lib/ai/providers';
 import {
@@ -545,6 +546,34 @@ export function WorkspaceThreePanelView({
 
   // Chat Input & Feedback State
   const [chatPrompt, setChatPrompt] = useState('');
+  const promptBeforeSpeechRef = React.useRef('');
+  const speechLang = React.useMemo(() => {
+    switch (language) {
+      case 'es': return 'es-ES';
+      case 'fr': return 'fr-FR';
+      case 'de': return 'de-DE';
+      case 'zh': return 'zh-CN';
+      case 'ja': return 'ja-JP';
+      case 'ar': return 'ar-SA';
+      default: return 'en-US';
+    }
+  }, [language]);
+
+  const { isListening: isVoiceListening, toggleListening: toggleVoiceListening } = useSpeechToText({
+    lang: speechLang,
+    onTranscript: (transcript) => {
+      const base = promptBeforeSpeechRef.current.trim();
+      setChatPrompt(base ? `${base} ${transcript}` : transcript);
+    },
+  });
+
+  const handleToggleVoice = () => {
+    if (!isVoiceListening) {
+      promptBeforeSpeechRef.current = chatPrompt;
+    }
+    toggleVoiceListening();
+  };
+
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [feedbackMap, setFeedbackMap] = useState<Record<string, 'up' | 'down'>>({});
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -1024,9 +1053,9 @@ export function WorkspaceThreePanelView({
   // ----------------------------------------------------
 
   const renderCentreContent = () => (
-    <div className="flex flex-col h-full w-full min-w-0 bg-[#191919] relative overflow-hidden text-[#f4f4f2]">
+    <div className="flex flex-col h-full w-full min-w-0 min-h-0 bg-[#191919] relative overflow-hidden text-[#f4f4f2]">
       {/* Workspace Subheader Nav: Matches h-14 border-b border-[#303030] across all 3 panels */}
-      <div className="h-14 border-b border-[#303030] px-3 sm:px-6 flex items-center justify-between bg-[#191919]/90 backdrop-blur-sm z-10 shrink-0">
+      <div className="h-14 shrink-0 border-b border-[#303030] px-3 sm:px-6 flex items-center justify-between bg-[#191919]/90 backdrop-blur-sm z-10">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Re-open Left Sidebar button if closed (or always toggleable on mobile) */}
           {onToggleSidebar && (
@@ -1190,7 +1219,7 @@ export function WorkspaceThreePanelView({
           {/* Tablet right drawer trigger */}
           <button
             onClick={() => setTabletDrawerOpen(true)}
-            className="lg:hidden flex items-center gap-1.5 text-xs text-[#9a9a94] hover:text-[#f4f4f2] p-1.5 rounded-lg hover:bg-[#262626] transition-colors cursor-pointer"
+            className="hidden md:flex lg:hidden items-center gap-1.5 text-xs text-[#9a9a94] hover:text-[#f4f4f2] p-1.5 rounded-lg hover:bg-[#262626] transition-colors cursor-pointer"
           >
             <Layers className="w-4 h-4 text-brand-400" />
             <span>Studio</span>
@@ -1710,7 +1739,7 @@ export function WorkspaceThreePanelView({
       </div>
 
       {/* Docked Large Rounded Input Card (Claude Warm Charcoal #262626) with shadcn AI-Elements */}
-      <div className="p-2.5 sm:p-4 md:px-8 pb-3 sm:pb-6 border-t border-[#303030] bg-gradient-to-t from-[#191919] via-[#191919] to-transparent">
+      <div className="shrink-0 p-2 sm:p-4 md:px-8 pb-2.5 sm:pb-4 border-t border-[#303030] bg-gradient-to-t from-[#191919] via-[#191919] to-transparent relative z-20">
         {/* Suggestion Chips */}
         {sources.length > 0 && (
           <div className="max-w-3xl w-full min-w-0 mx-auto mb-2.5 px-1">
@@ -1766,15 +1795,15 @@ export function WorkspaceThreePanelView({
 
           {/* Bottom Action Controls */}
           <AIPromptInputTools>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
               {/* Add Source Fast Button */}
               <Tooltip content={t('attach_source')} side="top">
                 <button
                   type="button"
                   onClick={onOpenAddSource}
-                  className="p-1.5 rounded-xl bg-[#191919] hover:bg-[#303030] text-[#9a9a94] hover:text-brand-400 border border-[#303030] transition-colors cursor-pointer"
+                  className="p-1.5 rounded-xl bg-[#191919] hover:bg-[#303030] text-[#9a9a94] hover:text-brand-400 border border-[#303030] transition-colors cursor-pointer shrink-0"
                 >
-                <Paperclip className="w-4 h-4" />
+                  <Paperclip className="w-4 h-4" />
                 </button>
               </Tooltip>
 
@@ -1793,7 +1822,7 @@ export function WorkspaceThreePanelView({
               />
 
               {/* Sources Count Badge */}
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-display text-[#9a9a94]">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-display text-[#9a9a94] shrink-0">
                 <BookOpen className="w-3 h-3" />
                 {enabledCount === 0
                   ? t('source_chip_none')
@@ -1804,18 +1833,25 @@ export function WorkspaceThreePanelView({
             </div>
 
             {/* Mic & Send Controls */}
-            <div className="flex items-center gap-1.5">
-              {/* Mic Input wrapped with CapabilityGate */}
-              <CapabilityGate feature="audioInput" modelId={selectedModelId}>
-                <Tooltip content={t('voice_input')} side="top">
-                  <button
-                    type="button"
-                    className="p-2 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919] transition-colors cursor-pointer"
-                  >
-                    <Mic className="w-4 h-4" />
-                  </button>
-                </Tooltip>
-              </CapabilityGate>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Speech-to-Text Mic Input */}
+              <Tooltip
+                content={isVoiceListening ? 'Listening to voice... Click to stop' : t('voice_input')}
+                side="top"
+              >
+                <button
+                  type="button"
+                  onClick={handleToggleVoice}
+                  className={`p-2 rounded-xl transition-all cursor-pointer ${
+                    isVoiceListening
+                      ? 'text-rose-400 bg-rose-500/20 border border-rose-500/40 shadow-lg shadow-rose-500/20 animate-pulse'
+                      : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919]'
+                  }`}
+                  aria-label={isVoiceListening ? 'Stop voice recording' : 'Start voice input'}
+                >
+                  <Mic className={`w-4 h-4 ${isVoiceListening ? 'text-rose-400' : ''}`} />
+                </button>
+              </Tooltip>
 
               {/* Send / Stop Button */}
               {isStreaming ? (
@@ -1927,14 +1963,14 @@ export function WorkspaceThreePanelView({
       {/* ---------------------------------------------------- */}
       {/* MOBILE LAYOUT (< md): Bottom Tabs                     */}
       {/* ---------------------------------------------------- */}
-      <div className="flex md:hidden flex-1 min-w-0 flex-col h-full overflow-hidden">
-        <div className="flex-1 min-w-0 h-full overflow-hidden">
+      <div className="flex md:hidden flex-1 min-w-0 min-h-0 flex-col h-full overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
           {mobileTab === 'chat' && renderCentreContent()}
           {mobileTab === 'context' && renderRightSidebarContent(true)}
           {mobileTab === 'studio' && renderRightSidebarContent(true)}
         </div>
 
-        <div className="h-14 border-t border-[#303030] bg-[#1f1f1f] flex items-center justify-around px-2 z-20 pb-[max(0.25rem,env(safe-area-inset-bottom))] box-content">
+        <div className="shrink-0 h-14 border-t border-[#303030] bg-[#1f1f1f] flex items-center justify-around px-2 z-20 pb-[max(0.25rem,env(safe-area-inset-bottom))] box-content">
           <button
             onClick={() => setMobileTab('chat')}
             className={`flex flex-col items-center gap-1 py-1 px-4 text-xs rounded-xl transition-colors ${

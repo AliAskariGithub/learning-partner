@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Button, Input, Textarea, Dialog, Badge } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
+import { useSpeechToText } from '@/hooks/useSpeechToText';
 import {
   updateNotebook,
   createNote,
@@ -64,6 +65,20 @@ export function NotebookHomeView({
 
   // Input Card State
   const [prompt, setPrompt] = useState('');
+  const promptBeforeSpeechRef = React.useRef('');
+  const { isListening: isVoiceListening, toggleListening: toggleVoiceListening } = useSpeechToText({
+    onTranscript: (transcript) => {
+      const base = promptBeforeSpeechRef.current.trim();
+      setPrompt(base ? `${base} ${transcript}` : transcript);
+    },
+  });
+
+  const handleToggleVoice = () => {
+    if (!isVoiceListening) {
+      promptBeforeSpeechRef.current = prompt;
+    }
+    toggleVoiceListening();
+  };
   const [mode, setMode] = useState<'chat' | 'learn' | 'quiz'>('chat');
   const [selectedModel, setSelectedModel] = useState('Gemini 1.5 Pro (BYO Key)');
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
@@ -344,11 +359,18 @@ export function NotebookHomeView({
                 </div>
 
                 <button
-                  onClick={() => toast({ title: 'Voice Input Active', variant: 'info' })}
-                  className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-surface-raised transition cursor-pointer border border-border/60 hover:border-border"
-                  title="Voice input"
+                  type="button"
+                  onClick={handleToggleVoice}
+                  className={`p-2 rounded-xl transition cursor-pointer border ${
+                    isVoiceListening
+                      ? 'text-rose-400 bg-rose-500/20 border-rose-500/40 shadow-lg shadow-rose-500/20 animate-pulse'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-surface-raised border-border/60 hover:border-border'
+                  }`}
+                  title={isVoiceListening ? 'Listening... Click to stop' : 'Voice input'}
+                  aria-label={isVoiceListening ? 'Stop voice input' : 'Start voice input'}
+
                 >
-                  <Mic className="h-4 w-4" />
+                  <Mic className={`h-4 w-4 ${isVoiceListening ? 'text-rose-400' : ''}`} />
                 </button>
 
                 {/* Send button with disabled state and tooltip if no API key */}

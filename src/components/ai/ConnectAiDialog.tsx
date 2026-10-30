@@ -63,6 +63,7 @@ export function ConnectAiDialog({
   const [connections, setConnections] = useState<SafeConnection[]>([]);
   const [loading, setLoading] = useState(false);
   const [secondaryExpanded, setSecondaryExpanded] = useState(false);
+  const [isConnectingOAuth, setIsConnectingOAuth] = useState<'openrouter' | 'chatgpt' | null>(null);
 
   // Gemini Setup Form State
   const [geminiKeyInput, setGeminiKeyInput] = useState('');
@@ -114,6 +115,9 @@ export function ConnectAiDialog({
       setGeminiFeedback(null);
       setSecondaryFeedback(null);
       setDiagnosticResult(null);
+      setIsConnectingOAuth(null);
+    } else {
+      setIsConnectingOAuth(null);
     }
   }, [open]);
 
@@ -335,18 +339,14 @@ export function ConnectAiDialog({
   };
 
   const handleConnectChatGPT = async () => {
+    if (!isChatGPTPlanEnabled) return;
     try {
-      const res = await getOAuthAuthorizationUrl('chatgpt', window.location.pathname);
-      if (res.url) {
-        window.location.href = res.url;
-      } else {
-        toast({
-          title: 'Connection Error',
-          description: res.error || 'Failed to start ChatGPT connection.',
-          variant: 'error',
-        });
-      }
+      setIsConnectingOAuth('chatgpt');
+      const currentUrl = window.location.pathname + window.location.search;
+      const authEndpoint = `/api/connections/oauth/chatgpt/authorize?returnUrl=${encodeURIComponent(currentUrl)}`;
+      window.location.assign(authEndpoint);
     } catch (e: any) {
+      setIsConnectingOAuth(null);
       toast({
         title: 'Error',
         description: e.message || 'Failed to initiate ChatGPT OAuth.',
@@ -357,17 +357,14 @@ export function ConnectAiDialog({
 
   const handleConnectOpenRouter = async () => {
     try {
-      const res = await getOAuthAuthorizationUrl('openrouter', window.location.pathname);
-      if (res.url) {
-        window.location.href = res.url;
-      } else {
-        toast({
-          title: 'Connection Error',
-          description: res.error || 'Failed to start OpenRouter connection.',
-          variant: 'error',
-        });
-      }
+      setIsConnectingOAuth('openrouter');
+      // Direct GET navigation via dedicated endpoint sets httpOnly cookies natively on the 302 response
+      // and completely eliminates mobile browser async popup/redirect blocks.
+      const currentUrl = window.location.pathname + window.location.search;
+      const authEndpoint = `/api/connections/oauth/openrouter/authorize?returnUrl=${encodeURIComponent(currentUrl)}`;
+      window.location.assign(authEndpoint);
     } catch (e: any) {
+      setIsConnectingOAuth(null);
       toast({
         title: 'Error',
         description: e.message || 'Failed to initiate OpenRouter OAuth.',
@@ -622,16 +619,25 @@ export function ConnectAiDialog({
             <Button
               type="button"
               variant="secondary"
-              disabled={!isChatGPTPlanEnabled}
+              disabled={!isChatGPTPlanEnabled || isConnectingOAuth === 'chatgpt'}
               onClick={handleConnectChatGPT}
-              className={`w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-2 py-2.5 rounded-xl shrink-0 mt-3 ${
+              className={`w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-2 py-2.5 rounded-xl shrink-0 mt-3 transition ${
                 !isChatGPTPlanEnabled
                   ? 'opacity-60 cursor-not-allowed bg-[#252525] border border-[#353535] text-[#888882]'
-                  : 'hover:border-cyan-500/50'
+                  : 'hover:border-cyan-500/50 cursor-pointer active:scale-[0.98]'
               }`}
             >
-              <Bot className="w-4 h-4 text-cyan-400" />
-              <span>{isChatGPTPlanEnabled ? 'Sign in with ChatGPT' : 'ChatGPT Plan Usage (Coming Soon)'}</span>
+              {isConnectingOAuth === 'chatgpt' ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Redirecting to OpenAI...</span>
+                </>
+              ) : (
+                <>
+                  <Bot className="w-4 h-4 text-cyan-400" />
+                  <span>{isChatGPTPlanEnabled ? 'Sign in with ChatGPT' : 'ChatGPT Plan Usage (Coming Soon)'}</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -751,17 +757,25 @@ export function ConnectAiDialog({
                         type="button"
                         size="sm"
                         variant="ghost"
+                        disabled={isConnectingOAuth === 'openrouter'}
                         onClick={handleConnectOpenRouter}
-                        className="text-[11px] border border-brand-500/30 text-brand-300 hover:bg-brand-500/10"
+                        className="text-[11px] border border-brand-500/30 text-brand-300 hover:bg-brand-500/10 active:scale-[0.98] transition cursor-pointer min-h-[36px] flex items-center justify-center gap-1.5 disabled:opacity-75"
                       >
-                        1-Click OAuth
+                        {isConnectingOAuth === 'openrouter' ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin text-brand-300" />
+                            <span>Opening...</span>
+                          </>
+                        ) : (
+                          <span>1-Click OAuth</span>
+                        )}
                       </Button>
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
                         onClick={() => setActiveSecondaryProvider('openrouter')}
-                        className="text-[11px] border border-[#333333] hover:border-brand-500"
+                        className="text-[11px] border border-[#333333] hover:border-brand-500 min-h-[36px] cursor-pointer"
                       >
                         Add Key
                       </Button>

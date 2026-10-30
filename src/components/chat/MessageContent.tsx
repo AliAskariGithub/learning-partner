@@ -22,27 +22,67 @@ export function MessageContent({
   onCitationClick,
   onNewQuiz,
 }: MessageContentProps) {
-  // If in quiz mode, check if the content parses as valid quiz JSON
+  // Check if content contains valid quiz JSON (in quiz mode or whenever AI returns quiz structures)
   const parsedQuiz = useMemo<QuizData | null>(() => {
-    if (mode !== 'quiz') return null;
-
     try {
-      // Clean potential markdown json fences
       let clean = content.trim();
-      if (clean.startsWith('```json')) {
-        clean = clean.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (clean.startsWith('```')) {
-        clean = clean.replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+      // 1. Direct JSON fence extraction
+      const fenceMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fenceMatch) {
+        clean = fenceMatch[1].trim();
       }
-      const data = JSON.parse(clean);
-      if (data && Array.isArray(data.questions) && data.questions.length > 0) {
-        return data as QuizData;
+
+      // 2. Try parsing directly
+      let data: any = null;
+      try {
+        data = JSON.parse(clean);
+      } catch {
+        // Find JSON object or array substring if wrapped in conversational text
+        const jsonStartObj = clean.indexOf('{');
+        const jsonEndObj = clean.lastIndexOf('}');
+        if (jsonStartObj !== -1 && jsonEndObj > jsonStartObj) {
+          try {
+            data = JSON.parse(clean.substring(jsonStartObj, jsonEndObj + 1));
+          } catch {}
+        }
+        if (!data) {
+          const jsonStartArr = clean.indexOf('[');
+          const jsonEndArr = clean.lastIndexOf(']');
+          if (jsonStartArr !== -1 && jsonEndArr > jsonStartArr) {
+            try {
+              data = JSON.parse(clean.substring(jsonStartArr, jsonEndArr + 1));
+            } catch {}
+          }
+        }
+      }
+
+      if (data) {
+        // Object format: { questions: [...] }
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          return data as QuizData;
+        }
+        // Direct array format: [ { question: "...", options: [...] } ]
+        if (Array.isArray(data) && data.length > 0 && (data[0].question || data[0].prompt)) {
+          return {
+            title: 'Knowledge Check Quiz',
+            questions: data.map((q: any, idx: number) => ({
+              id: q.id || `q_${idx + 1}`,
+              question: q.question || q.prompt || '',
+              options: Array.isArray(q.options) ? q.options : [],
+              correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+              explanation: q.explanation || '',
+              citationSnippet: q.citationSnippet || q.citationsSnippet || '',
+              sourceTitle: q.sourceTitle || '',
+            })),
+          };
+        }
       }
     } catch {
-      // Still streaming or not valid JSON yet
+      // Still streaming or not valid JSON
     }
     return null;
-  }, [content, mode]);
+  }, [content]);
 
   if (parsedQuiz) {
     return <InteractiveQuizCard quizData={parsedQuiz} onNewQuiz={onNewQuiz} />;

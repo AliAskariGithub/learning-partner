@@ -291,7 +291,7 @@ export function ModelSwitcher({
       {/* Dropdown Menu */}
       {dropdownOpen && (
         <div
-          className="absolute left-0 bottom-full mb-2 w-[calc(100vw-32px)] sm:w-80 max-w-[340px] rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-2xl p-2.5 z-50 text-xs text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-h-[55vh] sm:max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#303030]"
+          className="absolute left-0 max-sm:-left-20 bottom-full mb-2 w-[calc(100vw-32px)] sm:w-80 max-w-[340px] rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-2xl p-2.5 z-50 text-xs text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-h-[55vh] sm:max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#303030]"
           onMouseLeave={() => setHoveredModelId(null)}
         >
           {!hasAnyConnection ? (

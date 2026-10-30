@@ -36,6 +36,7 @@ import {
   Activity,
   Zap,
   X,
+  Bot,
 } from 'lucide-react';
 import { Button, Input, Textarea, Badge, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
@@ -751,8 +752,12 @@ export function WorkspaceThreePanelView({
             )}
             {isMobileOrTablet && (
               <button
-                onClick={() => setTabletDrawerOpen(false)}
+                onClick={() => {
+                  setTabletDrawerOpen(false);
+                  setMobileTab('chat');
+                }}
                 className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
+                title="Back to chat"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -1021,20 +1026,22 @@ export function WorkspaceThreePanelView({
   const renderCentreContent = () => (
     <div className="flex flex-col h-full w-full min-w-0 bg-[#191919] relative overflow-hidden text-[#f4f4f2]">
       {/* Workspace Subheader Nav: Matches h-14 border-b border-[#303030] across all 3 panels */}
-      <div className="h-14 border-b border-[#303030] px-6 flex items-center justify-between bg-[#191919]/90 backdrop-blur-sm z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          {/* Re-open Left Sidebar button if closed */}
-          {!sidebarOpen && onToggleSidebar && (
+      <div className="h-14 border-b border-[#303030] px-3 sm:px-6 flex items-center justify-between bg-[#191919]/90 backdrop-blur-sm z-10 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Re-open Left Sidebar button if closed (or always toggleable on mobile) */}
+          {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
-              className="p-1.5 rounded-lg text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-[#303030] transition-colors cursor-pointer mr-1"
-              title="Expand notebook sidebar"
+              className={`p-1.5 rounded-lg text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-[#303030] transition-colors cursor-pointer mr-1 shrink-0 ${
+                !sidebarOpen ? 'flex' : 'flex md:hidden'
+              }`}
+              title="Toggle sidebar"
             >
               <PanelLeftOpen className="w-4 h-4 text-brand-400" />
             </button>
           )}
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             {/* Active Chat Title with Inline Click-to-Rename */}
             {isEditingChatTitle ? (
               <form
@@ -1042,7 +1049,7 @@ export function WorkspaceThreePanelView({
                   e.preventDefault();
                   handleSaveChatTitle();
                 }}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 min-w-0"
               >
                 <input
                   type="text"
@@ -1055,11 +1062,11 @@ export function WorkspaceThreePanelView({
                     }
                   }}
                   autoFocus
-                  className="bg-[#141414] border border-brand-500/50 rounded-lg px-2.5 py-1 text-sm text-[#f4f4f2] outline-none font-serif min-w-[160px] max-w-[280px] focus:ring-1 focus:ring-brand-500/50"
+                  className="bg-[#141414] border border-brand-500/50 rounded-lg px-2.5 py-1 text-sm text-[#f4f4f2] outline-none font-serif w-[140px] xs:w-[180px] sm:w-[240px] max-w-[280px] focus:ring-1 focus:ring-brand-500/50"
                 />
                 <button
                   type="submit"
-                  className="p-1 rounded-md text-brand-400 hover:text-brand-300 hover:bg-[#262626] transition cursor-pointer"
+                  className="p-1 rounded-md text-brand-400 hover:text-brand-300 hover:bg-[#262626] transition cursor-pointer shrink-0"
                   title="Save title"
                 >
                   <Check className="w-3.5 h-3.5" />
@@ -1070,7 +1077,7 @@ export function WorkspaceThreePanelView({
                     setIsEditingChatTitle(false);
                     setCurrentChatTitleDraft(activeConversation?.title || '');
                   }}
-                  className="p-1 rounded-md text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] transition cursor-pointer"
+                  className="p-1 rounded-md text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] transition cursor-pointer shrink-0"
                   title="Cancel"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -1085,11 +1092,11 @@ export function WorkspaceThreePanelView({
                     setIsEditingChatTitle(true);
                   }
                 }}
-                className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-xl hover:bg-[#262626] text-[#f4f4f2] transition-colors cursor-pointer text-left border border-transparent hover:border-[#383838]"
+                className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-xl hover:bg-[#262626] text-[#f4f4f2] transition-colors cursor-pointer text-left border border-transparent hover:border-[#383838] min-w-0"
                 title={activeConversation ? 'Click to rename this chat' : undefined}
               >
                 <MessageSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-                <span className="text-sm font-serif italic truncate max-w-[200px] sm:max-w-[280px] font-medium">
+                <span className="text-sm font-serif italic truncate max-w-[120px] xs:max-w-[180px] sm:max-w-[280px] font-medium">
                   {activeConversation?.title || (activeConversationId ? 'Chat' : notebook.title)}
                 </span>
                 {activeConversation && onRenameConversation && (
@@ -1703,7 +1710,7 @@ export function WorkspaceThreePanelView({
       </div>
 
       {/* Docked Large Rounded Input Card (Claude Warm Charcoal #262626) with shadcn AI-Elements */}
-      <div className="p-4 md:px-8 pb-6 border-t border-[#303030] bg-gradient-to-t from-[#191919] via-[#191919] to-transparent">
+      <div className="p-2.5 sm:p-4 md:px-8 pb-3 sm:pb-6 border-t border-[#303030] bg-gradient-to-t from-[#191919] via-[#191919] to-transparent">
         {/* Suggestion Chips */}
         {sources.length > 0 && (
           <div className="max-w-3xl w-full min-w-0 mx-auto mb-2.5 px-1">
@@ -1746,7 +1753,7 @@ export function WorkspaceThreePanelView({
             }}
             placeholder={
               userKeys.length === 0
-                ? 'Connect an API key in the model switcher below to start chatting...'
+                ? 'Connect your AI (Gemini key or ChatGPT) to start chatting...'
                 : sources.length === 0
                 ? 'Add sources in Context sidebar, then ask questions...'
                 : selectedMode === 'learn'
@@ -1839,10 +1846,10 @@ export function WorkspaceThreePanelView({
                   {userKeys.length === 0 && (
                     <div
                       onClick={onOpenManageKeys || onOpenSettings}
-                      className="absolute right-0 bottom-full mb-2 hidden group-hover:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#191919] border border-[#303030] text-xs text-[#f4f4f2] shadow-2xl whitespace-nowrap cursor-pointer hover:border-brand-500/50"
+                      className="absolute right-0 bottom-full mb-2 hidden group-hover:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#191919] border border-[#303030] text-xs text-[#f4f4f2] shadow-2xl whitespace-nowrap cursor-pointer hover:border-purple-500/50"
                     >
-                      <Key className="w-3.5 h-3.5 text-brand-400" />
-                      <span>Add an API key to start chatting</span>
+                      <Bot className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Connect AI to start chatting</span>
                     </div>
                   )}
                 </div>
@@ -1927,7 +1934,7 @@ export function WorkspaceThreePanelView({
           {mobileTab === 'studio' && renderRightSidebarContent(true)}
         </div>
 
-        <div className="h-14 border-t border-[#303030] bg-[#1f1f1f] flex items-center justify-around px-2 z-20">
+        <div className="h-14 border-t border-[#303030] bg-[#1f1f1f] flex items-center justify-around px-2 z-20 pb-[max(0.25rem,env(safe-area-inset-bottom))] box-content">
           <button
             onClick={() => setMobileTab('chat')}
             className={`flex flex-col items-center gap-1 py-1 px-4 text-xs rounded-xl transition-colors ${

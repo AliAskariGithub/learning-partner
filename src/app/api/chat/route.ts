@@ -7,11 +7,12 @@ import {
   notes,
   conversations,
   messages,
+  connections,
 } from '@/db/schema';
 import { getSession } from '@/lib/auth/session';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { getModelDefinition, PROVIDER_REGISTRY } from '@/lib/ai/providers';
-import { getDecryptedKeyForProvider } from '@/app/app/api-key-actions';
+import { getCredentialsForRequest } from '@/lib/connections/resolver';
 import { createProviderModel } from '@/lib/ai/factory';
 import { retrieveNotebookContext, backfillChunkEmbeddings } from '@/lib/rag/retrieval';
 import { assembleSystemPrompt, ChatMode } from '@/lib/ai/prompts';
@@ -79,22 +80,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let keyInfo = await getDecryptedKeyForProvider(userId, modelDef.provider);
+    // 4b. Resolve credentials via single Phase 5 resolver
+    const creds = await getCredentialsForRequest(userId, modelDef.id);
 
-    // If no key found for selected provider, check if Google Gemini default is available
-    if (!keyInfo && process.env.GOOGLE_GENERATIVE_AI_API_KEY && modelDef.provider === 'google') {
-      keyInfo = {
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-        customBaseUrl: null,
-        keyId: 'env-default',
-      };
-    }
-
-    if (!keyInfo) {
+    if (!creds || !creds.apiKey) {
       const providerMeta = PROVIDER_REGISTRY[modelDef.provider];
       return new Response(
         JSON.stringify({
-          error: `No active API key found for ${providerMeta?.name || modelDef.provider}. Please add your key in the model switcher or Settings.`,
+          error: `No active AI connection found for ${providerMeta?.name || modelDef.provider}. Please connect your Gemini key or ChatGPT account.`,
           code: 'KEY_MISSING',
           provider: modelDef.provider,
         }),
@@ -215,14 +208,6 @@ export async function POST(req: NextRequest) {
       content: message.trim(),
     });
 
-    // 12. Create AI SDK Model Instance
-    const aiModel = createProviderModel({
-      provider: modelDef.provider,
-      apiKey: keyInfo.apiKey,
-      modelId: modelDef.id,
-      customBaseUrl: keyInfo.customBaseUrl,
-    });
-
     // Format chat history
     const chatHistory = [
       ...pastMessages.map((m) => ({
@@ -234,6 +219,43 @@ export async function POST(req: NextRequest) {
         content: message.trim(),
       },
     ];
+
+    // Browser Mode delegation for self-hosted localhost endpoints
+    if (creds.callMode === 'browser') {
+      return new Response(
+        JSON.stringify({
+          browserMode: true,
+          connectionId: creds.connectionId,
+          endpoint: creds.customBaseUrl || 'http://localhost:20128/v1',
+          modelId: modelDef.id,
+          systemPrompt,
+          chatHistory,
+          citations: retrieval.citations,
+          conversationId: activeConversationId,
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-browser-mode': 'true',
+            'x-conversation-id': activeConversationId || '',
+          },
+        }
+      );
+    }
+
+    // 12. Create AI SDK Model Instance
+    const effectiveProvider =
+      creds.provider === 'custom' || creds.provider === 'omniroute'
+        ? 'custom'
+        : modelDef.provider;
+
+    const aiModel = createProviderModel({
+      provider: effectiveProvider,
+      apiKey: creds.apiKey,
+      modelId: modelDef.id,
+      customBaseUrl: creds.customBaseUrl,
+    });
 
     // 13. Trigger streaming with maxRetries: 2
     const result = streamText({
@@ -309,6 +331,13 @@ export async function POST(req: NextRequest) {
       'An unexpected error occurred while communicating with the AI model.';
 
     if (
+      errorMessage.includes('usage_limit') ||
+      errorMessage.includes('subscription_sharing') ||
+      errorMessage.includes('cap')
+    ) {
+      errorMessage =
+        'Your ChatGPT plan allowance or weekly usage cap has been reached. You can check your cap in ChatGPT Settings or switch to a Gemini API key.';
+    } else if (
       errorMessage.includes('high demand') ||
       errorMessage.includes('overloaded') ||
       errorMessage.includes('503') ||
@@ -316,7 +345,11 @@ export async function POST(req: NextRequest) {
       errorMessage.includes('Failed after') ||
       errorMessage.includes('RESOURCE_EXHAUSTED')
     ) {
-      errorMessage = 'The AI model is currently experiencing unusually high demand. Please try again in a few moments or switch to another model.';
+      errorMessage =
+        'The AI model rate limit or capacity has been reached. If using a Google Gemini free-tier key, please wait a moment before sending another message, or switch models.';
+    } else if (errorMessage.includes('403') || errorMessage.includes('not_eligible')) {
+      errorMessage =
+        'Access denied: this model requires an eligible funded subscription (such as ChatGPT Plus or Pro) or a valid API key.';
     }
 
     return new Response(

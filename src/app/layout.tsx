@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { MotionProvider } from '@/components/motion-provider';
 import { ToastProvider } from '@/components/ui/toast';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
+import { CookieBanner } from '@/components/cookies/CookieBanner';
 import './globals.css';
 
 const displaySans = Bricolage_Grotesque({
@@ -42,7 +43,10 @@ export default function RootLayout({
         <LanguageProvider>
           <ThemeProvider>
             <ToastProvider>
-              <MotionProvider>{children}</MotionProvider>
+              <MotionProvider>
+                {children}
+                <CookieBanner />
+              </MotionProvider>
             </ToastProvider>
           </ThemeProvider>
         </LanguageProvider>

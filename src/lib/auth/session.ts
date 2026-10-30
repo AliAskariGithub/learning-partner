@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { auth } from './server';
 import { db } from '@/db';
 import { profiles } from '@/db/schema';
@@ -5,10 +6,18 @@ import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { neon } from '@neondatabase/serverless';
 
-export async function getSession() {
-  const { data: session } = await auth.getSession();
-  return session;
-}
+export const getSession = cache(async () => {
+  try {
+    const { data: session } = await auth.getSession();
+    return session;
+  } catch (err: any) {
+    if (err?.message?.includes('Cookies can only be modified')) {
+      console.warn('[getSession] Suppressed RSC cookie modification error');
+      return null;
+    }
+    throw err;
+  }
+});
 
 export async function isUserEmailVerified(userId: string): Promise<boolean> {
   try {
@@ -28,7 +37,7 @@ export async function isUserEmailVerified(userId: string): Promise<boolean> {
   return false;
 }
 
-export async function requireUser() {
+export const requireUser = cache(async () => {
   const session = await getSession();
   if (!session?.user) {
     redirect('/sign-in');
@@ -52,14 +61,14 @@ export async function requireUser() {
     ...session.user,
     emailVerified: verified,
   };
-}
+});
 
-export async function getOrCreateProfile(user: {
+export const getOrCreateProfile = cache(async (user: {
   id: string;
   name?: string | null;
   email?: string | null;
   image?: string | null;
-}) {
+}) => {
   const existing = await db
     .select()
     .from(profiles)
@@ -80,4 +89,4 @@ export async function getOrCreateProfile(user: {
     .returning();
 
   return created;
-}
+});

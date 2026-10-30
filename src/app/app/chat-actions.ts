@@ -212,4 +212,70 @@ export async function updateMessage(messageId: string, content: string) {
   return { success: true };
 }
 
+export async function saveBrowserChatMessage(params: {
+  conversationId: string;
+  notebookId: string;
+  content: string;
+  citations?: Citation[];
+  userPrompt?: string;
+}): Promise<Message> {
+  const session = await getSession();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+
+  const [saved] = await db
+    .insert(messages)
+    .values({
+      conversationId: params.conversationId,
+      role: 'assistant',
+      content: params.content,
+      citations: params.citations || null,
+    })
+    .returning();
+
+  // If there is userPrompt, save auto memory note
+  if (params.userPrompt) {
+    try {
+      const memoryTitle = params.userPrompt.slice(0, 42).replace(/[*_#]/g, '').trim();
+      const memoryContent = `Q: ${params.userPrompt.trim()}\nA: ${params.content.slice(0, 360).trim()}...`;
+      await db.insert(notes).values({
+        notebookId: params.notebookId,
+        conversationId: params.conversationId || null,
+        userId: session.user.id,
+        title: memoryTitle || 'Chat Context Takeaway',
+        content: memoryContent,
+      });
+    } catch (memErr) {
+      console.warn('Auto memory save error:', memErr);
+    }
+
+    // Check past messages count to update title if first turn
+    try {
+      const pastMsgs = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(eq(messages.conversationId, params.conversationId));
+
+      if (pastMsgs.length <= 2) {
+        const cleanTitle = params.userPrompt
+          .replace(/^(what is|who is|explain|summarize|how to)\s+/i, '')
+          .slice(0, 36)
+          .trim();
+        if (cleanTitle) {
+          await db
+            .update(conversations)
+            .set({
+              title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+              updatedAt: new Date(),
+            })
+            .where(eq(conversations.id, params.conversationId));
+        }
+      }
+    } catch {}
+  }
+
+  revalidatePath(`/app/notebooks/${params.notebookId}`);
+  return saved;
+}
+
+
 

@@ -42,9 +42,22 @@ import {
   Check,
   LogOut,
   Palette,
+  Bot,
+  Shield,
+  ShieldAlert,
+  Cookie,
 } from 'lucide-react';
-import { ManageApiKeysDialog } from '@/components/ai/ManageApiKeysDialog';
-import { getUserApiKeys, SafeApiKey } from '@/app/app/api-key-actions';
+import { ConnectAiDialog } from '@/components/ai/ConnectAiDialog';
+import {
+  getUserConnections,
+  disconnectConnection,
+  testConnection,
+  setDefaultConnection,
+  toggleAutoFallback,
+} from '@/app/app/connection-actions';
+import { SafeConnection } from '@/lib/connections/types';
+import { useConsent } from '@/hooks/useConsent';
+import { COOKIE_CATEGORIES, COOKIE_REGISTRY, CookieCategory } from '@/config/cookies';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English (English)' },
@@ -113,9 +126,13 @@ export function SettingsForm({
   // Voice Provider Preference State
   const [voiceProviderPreference, setVoiceProviderPreference] = useState<'google' | 'openai' | 'web_speech'>('google');
 
-  // BYOK API Keys State
+  // AI Connections State
   const [manageKeysOpen, setManageKeysOpen] = useState(false);
-  const [userApiKeysList, setUserApiKeysList] = useState<SafeApiKey[]>([]);
+  const [connectionsList, setConnectionsList] = useState<SafeConnection[]>([]);
+  const [testingConnId, setTestingConnId] = useState<string | null>(null);
+
+  // Consent Hook for Cookie Management
+  const { consent, updateConsent, withdrawConsent, isGpc } = useConsent();
 
   // Data Export & Deletion State
   const [isExporting, setIsExporting] = useState(false);
@@ -124,15 +141,36 @@ export function SettingsForm({
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
-    loadUserKeys();
+    loadUserConnections();
     const savedVoicePref = localStorage.getItem('lp_voice_provider') as any;
     if (savedVoicePref) setVoiceProviderPreference(savedVoicePref);
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const connected = params.get('connected');
+      const connError = params.get('connection_error');
+      if (connected) {
+        toast({
+          title: 'Connection Established',
+          description: `Successfully connected ${connected}.`,
+          variant: 'success',
+        });
+        window.history.replaceState({}, '', window.location.pathname);
+      } else if (connError) {
+        toast({
+          title: 'Connection Failed',
+          description: decodeURIComponent(connError),
+          variant: 'error',
+        });
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
   }, []);
 
-  const loadUserKeys = async () => {
+  const loadUserConnections = async () => {
     try {
-      const keys = await getUserApiKeys();
-      setUserApiKeysList(keys);
+      const conns = await getUserConnections();
+      setConnectionsList(conns);
     } catch {
       // Ignored in SSR
     }
@@ -267,8 +305,12 @@ export function SettingsForm({
     try {
       const res = await deleteAccountAndData();
       if (res.success) {
-        await authClient.signOut().catch(() => {});
-        window.location.href = '/';
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+          await authClient.signOut().catch(() => {});
+        } catch {}
+        window.location.href = '/sign-in';
       } else {
         toast({ title: 'Delete Failed', description: res.error, variant: 'error' });
         setIsDeletingAccount(false);
@@ -294,25 +336,28 @@ export function SettingsForm({
     <form onSubmit={handleSaveSettings} className="space-y-6">
       {/* 5 Distinct Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full bg-[#191919] border border-[#303030] p-1 rounded-2xl mb-6 h-auto sm:h-12 gap-1">
-          <TabsTrigger value="profile">
+        <TabsList className="flex overflow-x-auto no-scrollbar scrollbar-none w-full sm:grid sm:grid-cols-5 bg-[#191919] border border-[#303030] p-1.5 rounded-2xl mb-6 h-auto sm:h-12 gap-1.5 justify-start sm:justify-center">
+          <TabsTrigger value="profile" className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-0 text-xs rounded-xl whitespace-nowrap shrink-0 sm:shrink">
             <UserIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Profile</span>
+            <span>Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="instructions">
+          <TabsTrigger value="instructions" className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-0 text-xs rounded-xl whitespace-nowrap shrink-0 sm:shrink">
             <Sliders className="w-3.5 h-3.5" />
+            <span className="inline sm:hidden">Instructions</span>
             <span className="hidden sm:inline">Custom Instructions</span>
           </TabsTrigger>
-          <TabsTrigger value="apikeys">
-            <Key className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">API Keys</span>
+          <TabsTrigger value="apikeys" className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-0 text-xs rounded-xl whitespace-nowrap shrink-0 sm:shrink">
+            <Bot className="w-3.5 h-3.5" />
+            <span>AI Connections</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance">
+          <TabsTrigger value="appearance" className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-0 text-xs rounded-xl whitespace-nowrap shrink-0 sm:shrink">
             <Palette className="w-3.5 h-3.5" />
+            <span className="inline sm:hidden">Theme</span>
             <span className="hidden sm:inline">Appearance</span>
           </TabsTrigger>
-          <TabsTrigger value="data">
+          <TabsTrigger value="data" className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-0 text-xs rounded-xl whitespace-nowrap shrink-0 sm:shrink">
             <Database className="w-3.5 h-3.5" />
+            <span className="inline sm:hidden">Privacy</span>
             <span className="hidden sm:inline">Data &amp; Privacy</span>
           </TabsTrigger>
         </TabsList>
@@ -328,7 +373,7 @@ export function SettingsForm({
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Avatar Photo Section */}
-              <div className="flex items-center gap-4 pb-4 border-b border-[#303030]">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 pb-4 border-b border-[#303030]">
                 <div className="relative group shrink-0">
                   {avatarUrl ? (
                     <img
@@ -351,7 +396,7 @@ export function SettingsForm({
                   </button>
                 </div>
 
-                <div>
+                <div className="flex flex-col items-center sm:items-start">
                   <p className="font-display font-bold text-sm text-[#f4f4f2]">
                     {displayName || 'Study Scholar'}
                   </p>
@@ -497,15 +542,15 @@ export function SettingsForm({
           </Card>
         </TabsContent>
 
-        {/* TAB 3: API KEYS & VOICE PROVIDER */}
+        {/* TAB 3: AI CONNECTIONS & VOICE PROVIDER */}
         <TabsContent value="apikeys">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <CardTitle>AI Provider Keys &amp; Voice Provider</CardTitle>
+                  <CardTitle>AI Connections &amp; Providers</CardTitle>
                   <CardDescription>
-                    Bring Your Own Key (BYOK) with AES-256-GCM zero-retention encryption.
+                    Unified AI connection architecture. Primary Gemini &amp; ChatGPT Plan usage, plus secondary providers.
                   </CardDescription>
                 </div>
                 <Button
@@ -513,10 +558,10 @@ export function SettingsForm({
                   variant="primary"
                   size="sm"
                   onClick={() => setManageKeysOpen(true)}
-                  className="text-xs"
+                  className="text-xs shrink-0 inline-flex items-center justify-center gap-1.5 w-full sm:w-auto"
                 >
-                  <Key className="w-3.5 h-3.5 mr-1.5" />
-                  Manage Keys
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Connect AI
                 </Button>
               </div>
             </CardHeader>
@@ -572,38 +617,200 @@ export function SettingsForm({
                 </div>
               </div>
 
-              {/* Active User Keys Summary */}
+              {/* Active Connections List with Semantic Badges & Actions */}
               <div>
                 <p className="text-xs font-display font-semibold uppercase tracking-wider text-[#9a9a94] mb-2">
-                  Configured Keys ({userApiKeysList.length})
+                  Active Connections ({connectionsList.length})
                 </p>
-                {userApiKeysList.length === 0 ? (
-                  <div className="p-6 text-center rounded-2xl bg-[#191919] border border-dashed border-[#303030]">
-                    <Key className="w-6 h-6 text-[#9a9a94] mx-auto mb-2 opacity-40" />
-                    <p className="text-xs font-display text-[#f4f4f2]">No personal API keys added yet</p>
-                    <p className="text-[11px] text-[#9a9a94] font-serif mt-1">
-                      Click &quot;Manage Keys&quot; to connect Google Gemini, OpenAI, Claude, Groq, or OpenRouter.
+                {connectionsList.length === 0 ? (
+                  <div className="p-8 text-center rounded-2xl bg-[#191919] border border-dashed border-[#303030] space-y-2">
+                    <Bot className="w-8 h-8 text-[#9a9a94] mx-auto opacity-40" />
+                    <p className="text-xs font-display font-bold text-[#f4f4f2]">No AI connections configured yet</p>
+                    <p className="text-[11px] text-[#9a9a94] font-serif max-w-sm mx-auto">
+                      Click &quot;Connect AI&quot; to set up your Google Gemini key, sign in with ChatGPT, or connect Anthropic Claude, OpenAI, OpenRouter, or Custom Configuration.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {userApiKeysList.map((k) => (
-                      <div
-                        key={k.id}
-                        className="flex items-center justify-between p-3 rounded-xl bg-[#191919] border border-[#303030] text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-display font-bold capitalize text-[#f4f4f2]">{k.provider}</span>
-                          <span className="font-mono text-[11px] text-[#9a9a94]">{k.label}</span>
-                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[#262626] text-[#9a9a94]">
-                            •••• {k.keyLast4}
-                          </span>
+                  <div className="space-y-3">
+                    {connectionsList.map((c) => {
+                      const isTesting = testingConnId === c.id;
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="p-4 rounded-2xl bg-[#191919] border border-[#303030] space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-display font-bold text-sm text-[#f4f4f2]">
+                                  {c.accountLabel}
+                                </span>
+
+                                {c.configuredModel && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-brand-500/15 border border-brand-500/30 text-brand-300">
+                                    Model: {c.configuredModel}
+                                  </span>
+                                )}
+
+                                {/* Method Badge */}
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#262626] border border-[#383838] text-[#9a9a94]">
+                                  {c.method === 'oauth_plan'
+                                    ? 'Account (Plan Usage)'
+                                    : c.method === 'custom_endpoint'
+                                    ? 'Endpoint'
+                                    : 'API Key'}
+                                </span>
+
+                                {/* Call Mode Badge if Browser Mode */}
+                                {c.callMode === 'browser' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+                                    Browser Mode (Localhost)
+                                  </span>
+                                )}
+
+                                {/* Default Badge */}
+                                {c.isDefault && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-brand-500/15 border border-brand-500/40 text-brand-300 font-semibold">
+                                    Default
+                                  </span>
+                                )}
+
+                                {/* Semantic Status Badge */}
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
+                                    c.status === 'connected'
+                                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                      : c.status === 'capped_or_exhausted'
+                                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                      : c.status === 'not_eligible'
+                                      ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                                      : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                  }`}
+                                >
+                                  {c.status === 'connected'
+                                    ? 'Connected'
+                                    : c.status === 'capped_or_exhausted'
+                                    ? 'Quota Reached / Capped'
+                                    : c.status === 'not_eligible'
+                                    ? 'Not Eligible'
+                                    : c.status === 'revoked'
+                                    ? 'Revoked'
+                                    : 'Error'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-[11px] text-[#9a9a94] font-serif">
+                                <span>Provider: <strong className="text-[#f4f4f2]">{c.provider.toUpperCase()}</strong></span>
+                                {c.lastUsedAt && <span>Last used: {new Date(c.lastUsedAt).toLocaleDateString()}</span>}
+                              </div>
+
+                              {c.lastError && (
+                                <p className="text-[11px] text-rose-300 font-serif pt-0.5">
+                                  {c.lastError}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Actions: Test, Set Default, Disconnect */}
+                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-start sm:justify-end">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={isTesting}
+                                onClick={async () => {
+                                  setTestingConnId(c.id);
+                                  try {
+                                    const testRes = await testConnection(c.id);
+                                    if (testRes.healthy) {
+                                      toast({ title: 'Connection Healthy', description: 'Connection verified successfully.', variant: 'success' });
+                                    } else {
+                                      toast({ title: 'Check Notice', description: testRes.error || 'Connection reported issue.', variant: 'error' });
+                                    }
+                                    await loadUserConnections();
+                                  } catch (e: any) {
+                                    toast({ title: 'Test Failed', description: e.message, variant: 'error' });
+                                  } finally {
+                                    setTestingConnId(null);
+                                  }
+                                }}
+                                className="text-[11px] h-7 px-2.5 border border-[#333333] hover:border-brand-500"
+                              >
+                                {isTesting ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Test'}
+                              </Button>
+
+                              {!c.isDefault && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
+                                    await setDefaultConnection(c.id);
+                                    await loadUserConnections();
+                                    toast({ title: 'Default Updated', description: 'Connection set as default.', variant: 'success' });
+                                  }}
+                                  className="text-[11px] h-7 px-2.5 border border-[#333333] hover:border-brand-500"
+                                >
+                                  Set Default
+                                </Button>
+                              )}
+
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={async () => {
+                                  if (confirm(`Disconnect ${c.accountLabel}? Tokens will be revoked.`)) {
+                                    await disconnectConnection(c.id);
+                                    await loadUserConnections();
+                                    toast({ title: 'Disconnected', description: 'Connection removed and revoked.', variant: 'success' });
+                                  }
+                                }}
+                                className="text-[11px] h-7 px-2.5"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Opt-in Automatic Fallback Toggle for ChatGPT */}
+                          {c.provider === 'chatgpt' && (
+                            <div className="pt-2 border-t border-[#262626] flex flex-col xs:flex-row xs:items-center justify-between gap-2">
+                              <div className="text-[11px] text-[#9a9a94] font-serif">
+                                <span className="text-[#f4f4f2] font-semibold">Automatic Fallback to Gemini Key:</span>{' '}
+                                When ChatGPT plan allowance is capped, automatically fall back to your connected Gemini Key.
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={c.autoFallback}
+                                onClick={async () => {
+                                  await toggleAutoFallback(c.id, !c.autoFallback);
+                                  await loadUserConnections();
+                                  toast({
+                                    title: 'Fallback Preference Updated',
+                                    description: !c.autoFallback
+                                      ? 'Automatic fallback to Gemini key enabled.'
+                                      : 'Automatic fallback disabled.',
+                                    variant: 'success',
+                                  });
+                                }}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-brand-500 ${
+                                  c.autoFallback ? 'bg-brand-500' : 'bg-[#333333]'
+                                }`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                    c.autoFallback ? 'translate-x-4' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          Active
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -621,17 +828,17 @@ export function SettingsForm({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <button
                   type="button"
                   onClick={() => setTheme('dark')}
-                  className={`p-4 rounded-2xl border text-center transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all ${
                     theme === 'dark'
                       ? 'bg-brand-950/30 border-brand-500 text-white shadow-md'
                       : 'bg-[#262626] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
                   }`}
                 >
-                  <Moon className="w-6 h-6 mx-auto mb-2 text-brand-400" />
+                  <Moon className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-brand-400" />
                   <p className="font-display font-bold text-xs">Dark Mode</p>
                   <p className="text-[10px] mt-0.5 opacity-80">Warm Claude Charcoal</p>
                 </button>
@@ -639,13 +846,13 @@ export function SettingsForm({
                 <button
                   type="button"
                   onClick={() => setTheme('light')}
-                  className={`p-4 rounded-2xl border text-center transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all ${
                     theme === 'light'
                       ? 'bg-brand-950/30 border-brand-500 text-white shadow-md'
                       : 'bg-[#262626] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
                   }`}
                 >
-                  <Sun className="w-6 h-6 mx-auto mb-2 text-amber-400" />
+                  <Sun className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-amber-400" />
                   <p className="font-display font-bold text-xs">Light Mode</p>
                   <p className="text-[10px] mt-0.5 opacity-80">Clean Crisp Ivory</p>
                 </button>
@@ -653,13 +860,13 @@ export function SettingsForm({
                 <button
                   type="button"
                   onClick={() => setTheme('system')}
-                  className={`p-4 rounded-2xl border text-center transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all ${
                     theme === 'system'
                       ? 'bg-brand-950/30 border-brand-500 text-white shadow-md'
                       : 'bg-[#262626] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
                   }`}
                 >
-                  <Laptop className="w-6 h-6 mx-auto mb-2 text-cyan-400" />
+                  <Laptop className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-cyan-400" />
                   <p className="font-display font-bold text-xs">System Match</p>
                   <p className="text-[10px] mt-0.5 opacity-80">Sync with OS Theme</p>
                 </button>
@@ -669,7 +876,134 @@ export function SettingsForm({
         </TabsContent>
 
         {/* TAB 5: DATA & PRIVACY */}
-        <TabsContent value="data">
+        <TabsContent value="data" className="space-y-6">
+          {/* Privacy & Cookie Management */}
+          <Card className="border-border">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Cookie className="w-5 h-5 text-amber-400" />
+                    Privacy &amp; Cookie Preferences
+                  </CardTitle>
+                  <CardDescription>
+                    Control what cookies and local storage tokens Learning Partner can store on your device.
+                  </CardDescription>
+                </div>
+                <a
+                  href="/cookies"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-amber-400 hover:underline flex items-center gap-1 font-display shrink-0"
+                >
+                  Full Cookie Policy
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isGpc && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                  <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-semibold text-amber-300">Global Privacy Control (GPC) Signal Detected</p>
+                    <p className="text-[#dcdcd8] mt-0.5 leading-relaxed font-serif">
+                      Your browser has broadcast an automated opt-out signal. All non-essential preference cookies and tracking are automatically disabled by default.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Categories */}
+              <div className="space-y-3">
+                {/* Strictly Necessary */}
+                <div className="p-3.5 rounded-xl bg-[#262626] border border-[#303030] flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#f4f4f2] font-display">Essential / Strictly Necessary</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold uppercase tracking-wider">
+                        Always Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#9a9a94] font-serif">
+                      Required for secure authentication via Neon Auth (lp_session), CSRF protection, and recording cookie consent preferences. Cannot be disabled.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preferences */}
+                <div className="p-3.5 rounded-xl bg-[#262626] border border-[#303030] flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <span className="text-xs font-bold text-[#f4f4f2] font-display">Preference Cookies</span>
+                    <p className="text-xs text-[#9a9a94] font-serif">
+                      Remembers your UI theme (dark / light / warm charcoal) and chosen interface language across visits without requiring database lookups.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={consent?.categories.preferences ?? false}
+                      onChange={(e) => {
+                        updateConsent({
+                          preferences: e.target.checked,
+                          analytics: consent?.categories.analytics ?? false,
+                        });
+                        toast({
+                          title: e.target.checked ? 'Preferences Saved' : 'Preferences Disabled',
+                          description: e.target.checked
+                            ? 'Preference cookies enabled.'
+                            : 'Preference cookies disabled and purged.',
+                        });
+                      }}
+                    />
+                    <div className="w-10 h-5 bg-[#3a3a3a] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+
+                {/* Analytics */}
+                <div className="p-3.5 rounded-xl bg-[#262626] border border-[#303030] flex items-center justify-between opacity-60">
+                  <div className="space-y-0.5 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#f4f4f2] font-display">Analytics Cookies</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3a3a3a] text-[#888] font-semibold">
+                        None Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#9a9a94] font-serif">
+                      Learning Partner does not use third-party analytics, tracking pixels, or advertising beacons.
+                    </p>
+                  </div>
+                  <input type="checkbox" disabled checked={false} className="sr-only" />
+                </div>
+              </div>
+
+              {/* Cookie Inventory & Deletion Action */}
+              <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#303030]">
+                <p className="text-xs text-[#888] font-serif">
+                  We maintain zero third-party tracking scripts. API keys for browser mode are kept in client-side IndexedDB only.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    withdrawConsent();
+                    toast({
+                      title: 'Non-Essential Cookies Deleted',
+                      description: 'All preference cookies have been removed and consent has been reset to strictly necessary only.',
+                    });
+                  }}
+                  className="text-xs w-full sm:w-auto shrink-0 text-amber-300 border-amber-500/30 hover:bg-amber-500/10 font-display justify-center"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Delete all non-essential cookies now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Data Portability & Account Control */}
           <Card className="border-border">
             <CardHeader>
               <CardTitle>Data Portability &amp; Account Control</CardTitle>
@@ -679,7 +1013,7 @@ export function SettingsForm({
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Export Data Card */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#262626] border border-[#303030]">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl bg-[#262626] border border-[#303030]">
                 <div>
                   <h4 className="font-display font-bold text-xs text-[#f4f4f2] flex items-center gap-1.5">
                     <Download className="w-4 h-4 text-emerald-400" />
@@ -696,14 +1030,14 @@ export function SettingsForm({
                   size="sm"
                   onClick={handleExportData}
                   disabled={isExporting}
-                  className="text-xs shrink-0 font-display font-semibold"
+                  className="text-xs w-full sm:w-auto shrink-0 font-display font-semibold justify-center"
                 >
                   {isExporting ? 'Exporting...' : 'Export JSON Backup'}
                 </Button>
               </div>
 
               {/* Danger Zone: Delete Account */}
-              <div className="p-4 rounded-2xl bg-rose-950/15 border border-rose-500/30 space-y-3">
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-950/15 border border-rose-500/30 space-y-3">
                 <div className="flex items-center gap-2 text-rose-400 font-display font-bold text-xs">
                   <AlertTriangle className="w-4 h-4" />
                   Danger Zone: Permanent Account Deletion
@@ -717,7 +1051,7 @@ export function SettingsForm({
                   variant="destructive"
                   size="sm"
                   onClick={() => setDeleteModalOpen(true)}
-                  className="text-xs font-display font-semibold"
+                  className="text-xs w-full sm:w-auto font-display font-semibold justify-center"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                   Delete My Account and All Data
@@ -729,41 +1063,41 @@ export function SettingsForm({
       </Tabs>
 
       {/* Save Button Row */}
-      <div className="flex items-center justify-between pt-4 border-t border-[#303030]">
+      <div className="pt-6 pb-24 sm:pb-12 border-t border-[#303030] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5">
+        <Button
+          type="submit"
+          variant="primary"
+          size="sm"
+          disabled={loading}
+          className="w-full sm:w-auto text-xs font-display font-semibold sm:min-w-[140px] justify-center h-11 sm:h-9 order-1 sm:order-2 shadow-lg shadow-brand-600/20"
+        >
+          {loading ? (
+            'Saving...'
+          ) : (
+            <span className="flex items-center gap-2">
+              <Save className="w-3.5 h-3.5" />
+              Save All Changes
+            </span>
+          )}
+        </Button>
+
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={handleSignOut}
           disabled={signingOut}
-          className="text-xs text-rose-400 hover:text-rose-300"
+          className="w-full sm:w-auto text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 justify-center h-10 sm:h-9 order-2 sm:order-1"
         >
           <LogOut className="w-3.5 h-3.5 mr-1.5" />
           {signingOut ? 'Signing out...' : 'Sign Out'}
-        </Button>
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="sm"
-          disabled={loading}
-          className="text-xs font-display font-semibold min-w-[130px]"
-        >
-          {loading ? (
-            'Saving...'
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <Save className="w-3.5 h-3.5" />
-              Save All Changes
-            </span>
-          )}
         </Button>
       </div>
 
       {/* Typed Confirmation Deletion Dialog */}
       {deleteModalOpen && (
         <Dialog open={deleteModalOpen} onOpenChange={() => setDeleteModalOpen(false)}>
-          <div className="p-6 md:p-8 max-w-md w-full bg-[#1f1f1f] text-[#f4f4f2] rounded-3xl border border-rose-500/40 shadow-2xl">
+          <div className="p-4 sm:p-6 md:p-8 max-w-md w-full bg-[#1f1f1f] text-[#f4f4f2] rounded-2xl sm:rounded-3xl border border-rose-500/40 shadow-2xl">
             <div className="flex items-center gap-2.5 text-rose-400 mb-2">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <h3 className="font-display font-bold text-base">Confirm Account Deletion</h3>
@@ -781,8 +1115,8 @@ export function SettingsForm({
               autoFocus
             />
 
-            <div className="flex items-center justify-end gap-3">
-              <Button variant="ghost" size="sm" onClick={() => setDeleteModalOpen(false)}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
+              <Button variant="ghost" size="sm" onClick={() => setDeleteModalOpen(false)} className="justify-center">
                 Cancel
               </Button>
               <Button
@@ -791,7 +1125,7 @@ export function SettingsForm({
                 size="sm"
                 onClick={handleDeleteAccount}
                 disabled={deleteConfirmationText !== 'delete my account' || isDeletingAccount}
-                className="text-xs font-display font-semibold"
+                className="text-xs font-display font-semibold justify-center"
               >
                 {isDeletingAccount ? 'Deleting Everything...' : 'Permanently Delete Account'}
               </Button>
@@ -800,12 +1134,16 @@ export function SettingsForm({
         </Dialog>
       )}
 
-      {/* BYOK API Keys Dialog */}
-      <ManageApiKeysDialog
+      {/* Connect AI Dialog */}
+      <ConnectAiDialog
         open={manageKeysOpen}
         onOpenChange={setManageKeysOpen}
+        onConnected={() => {
+          loadUserConnections();
+          router.refresh();
+        }}
         onKeysUpdated={() => {
-          loadUserKeys();
+          loadUserConnections();
           router.refresh();
         }}
       />

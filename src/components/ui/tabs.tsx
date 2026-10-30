@@ -49,7 +49,7 @@ export function TabsList({ className, children }: { className?: string; children
     <div
       onMouseLeave={() => context?.setHoveredTab(null)}
       className={cn(
-        'relative inline-flex h-12 items-center justify-center rounded-2xl bg-[#191919] p-1 text-muted-foreground border border-[#303030]',
+        'relative inline-flex h-12 items-center justify-start sm:justify-center rounded-2xl bg-[#191919] p-1 text-muted-foreground border border-[#303030]',
         className
       )}
     >
@@ -79,7 +79,7 @@ export function TabsTrigger({
       onClick={() => context.setActiveTab(value)}
       onMouseEnter={() => context.setHoveredTab(value)}
       className={cn(
-        'relative h-10 inline-flex items-center justify-center whitespace-nowrap rounded-xl px-3.5 text-xs font-display font-semibold transition-colors focus-visible:outline-none cursor-pointer',
+        'relative h-10 inline-flex items-center justify-center whitespace-nowrap rounded-xl px-3.5 text-xs font-display font-semibold transition-colors focus-visible:outline-none cursor-pointer shrink-0',
         isActive ? 'text-white' : 'text-[#9a9a94] hover:text-[#f4f4f2]',
         className
       )}

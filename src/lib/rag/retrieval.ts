@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { Citation } from '@/db/schema';
-import { getDecryptedKeyForProvider } from '@/app/app/api-key-actions';
+import { getCredentialsForRequest } from '@/lib/connections/resolver';
 import { generateEmbeddingVector } from '@/lib/ai/factory';
 import { ProviderId } from '@/lib/ai/providers';
 
@@ -103,21 +103,28 @@ export async function retrieveNotebookContext(params: {
     console.warn('FTS query failed, continuing with fallback:', err);
   }
 
-  // 2. Vector Search (if user has OpenAI or Google key for embeddings)
+  // 2. Vector Search (if user has Gemini or OpenAI connection for embeddings)
   let vectorChunks: RetrievedChunk[] = [];
-  let embeddingKey = await getDecryptedKeyForProvider(userId, 'openai');
-  let providerForEmbedding: ProviderId = 'openai';
+  let providerForEmbedding: ProviderId = 'google';
+  let embeddingApiKey = '';
 
-  if (!embeddingKey) {
-    embeddingKey = await getDecryptedKeyForProvider(userId, 'google');
+  const geminiCreds = await getCredentialsForRequest(userId, 'gemini-3.8-flash');
+  if (geminiCreds?.apiKey) {
+    embeddingApiKey = geminiCreds.apiKey;
     providerForEmbedding = 'google';
+  } else {
+    const openaiCreds = await getCredentialsForRequest(userId, 'gpt-4o-mini');
+    if (openaiCreds?.apiKey) {
+      embeddingApiKey = openaiCreds.apiKey;
+      providerForEmbedding = 'openai';
+    }
   }
 
-  if (embeddingKey) {
+  if (embeddingApiKey) {
     try {
       const queryVec = await generateEmbeddingVector({
         provider: providerForEmbedding,
-        apiKey: embeddingKey.apiKey,
+        apiKey: embeddingApiKey,
         text: cleanQuery,
       });
 
@@ -251,15 +258,22 @@ export async function retrieveNotebookContext(params: {
  * Background backfill to embed existing chunks when an embedding key is available.
  */
 export async function backfillChunkEmbeddings(notebookId: string, userId: string) {
-  let embeddingKey = await getDecryptedKeyForProvider(userId, 'openai');
-  let providerForEmbedding: ProviderId = 'openai';
+  let providerForEmbedding: ProviderId = 'google';
+  let embeddingApiKey = '';
 
-  if (!embeddingKey) {
-    embeddingKey = await getDecryptedKeyForProvider(userId, 'google');
+  const geminiCreds = await getCredentialsForRequest(userId, 'gemini-3.8-flash');
+  if (geminiCreds?.apiKey) {
+    embeddingApiKey = geminiCreds.apiKey;
     providerForEmbedding = 'google';
+  } else {
+    const openaiCreds = await getCredentialsForRequest(userId, 'gpt-4o-mini');
+    if (openaiCreds?.apiKey) {
+      embeddingApiKey = openaiCreds.apiKey;
+      providerForEmbedding = 'openai';
+    }
   }
 
-  if (!embeddingKey) return;
+  if (!embeddingApiKey) return;
 
   try {
     const unEmbeddedRows: any = await db.execute(sql`
@@ -276,7 +290,7 @@ export async function backfillChunkEmbeddings(notebookId: string, userId: string
     for (const chunk of chunks) {
       const vec = await generateEmbeddingVector({
         provider: providerForEmbedding,
-        apiKey: embeddingKey.apiKey,
+        apiKey: embeddingApiKey,
         text: chunk.content,
       });
 

@@ -4,7 +4,7 @@ import { eq, and, desc, asc, inArray, or, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { outputs, StudioOutput, sources, sourceChunks, notebooks, conversations } from '@/db/schema';
 import { requireUser } from '@/lib/auth/session';
-import { getDecryptedKeyForProvider } from './api-key-actions';
+import { getCredentialsForRequest } from '@/lib/connections/resolver';
 import { getModelDefinition, ProviderId, ModelCapabilities } from '@/lib/ai/providers';
 import { createProviderModel } from '@/lib/ai/factory';
 import { assembleStudioPrompt, StudioPromptParams } from '@/lib/ai/prompts';
@@ -253,22 +253,13 @@ export async function generateStudioOutput(
       };
     }
 
-    // Retrieve active provider API key for text model
-    let keyInfo = await getDecryptedKeyForProvider(user.id, modelDef.provider);
+    // Retrieve active AI connection for text model
+    const creds = await getCredentialsForRequest(user.id, modelDef.id);
 
-    // If no key found for selected provider, check if Google Gemini default is available
-    if (!keyInfo && process.env.GOOGLE_GENERATIVE_AI_API_KEY && modelDef.provider === 'google') {
-      keyInfo = {
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-        customBaseUrl: null,
-        keyId: 'env-default',
-      };
-    }
-
-    if (!keyInfo) {
+    if (!creds || !creds.apiKey) {
       return {
         success: false,
-        error: `No active API key found for ${modelDef.provider}. Please add one in Settings or switch models.`,
+        error: `No active AI connection found for ${modelDef.name}. Please connect your Gemini key or ChatGPT account in Settings.`,
       };
     }
 
@@ -365,9 +356,9 @@ export async function generateStudioOutput(
       // Generate text with model fallback
       let rawContent = await generateTextWithFallback({
         provider: modelDef.provider,
-        apiKey: keyInfo.apiKey,
+        apiKey: creds.apiKey,
         modelId: modelDef.id,
-        customBaseUrl: keyInfo.customBaseUrl,
+        customBaseUrl: creds.customBaseUrl,
         system: systemPrompt,
         prompt: userPrompt,
         temperature: type === 'quiz' || type === 'flashcards' || type === 'mind_map' ? 0.2 : 0.4,
@@ -400,9 +391,9 @@ export async function generateStudioOutput(
           // Retry once if JSON was malformed
           let retryText = await generateTextWithFallback({
             provider: modelDef.provider,
-            apiKey: keyInfo.apiKey,
+            apiKey: creds.apiKey,
             modelId: modelDef.id,
-            customBaseUrl: keyInfo.customBaseUrl,
+            customBaseUrl: creds.customBaseUrl,
             system: `${systemPrompt}\nIMPORTANT: Your previous response was invalid JSON. Return ONLY the raw valid JSON payload. No explanations.`,
             prompt: userPrompt,
             temperature: 0.1,
@@ -436,9 +427,9 @@ export async function generateStudioOutput(
           // Retry script generation once
           let retryText = await generateTextWithFallback({
             provider: modelDef.provider,
-            apiKey: keyInfo.apiKey,
+            apiKey: creds.apiKey,
             modelId: modelDef.id,
-            customBaseUrl: keyInfo.customBaseUrl,
+            customBaseUrl: creds.customBaseUrl,
             system: `${systemPrompt}\nCRITICAL: Return ONLY a valid JSON array of objects with schema: [{ "speaker": "Alex", "text": "..." }]. No code blocks.`,
             prompt: userPrompt,
             temperature: 0.2,
@@ -461,11 +452,12 @@ export async function generateStudioOutput(
         let voiceApiKey = '';
 
         if (voiceProvider !== 'web_speech') {
-          const ttsKeyInfo = await getDecryptedKeyForProvider(user.id, voiceProvider);
-          if (ttsKeyInfo) {
-            voiceApiKey = ttsKeyInfo.apiKey;
-          } else if (voiceProvider === 'google' && process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-            voiceApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+          const ttsCreds = await getCredentialsForRequest(
+            user.id,
+            voiceProvider === 'google' ? 'gemini-3.8-flash' : 'gpt-4o-mini'
+          );
+          if (ttsCreds?.apiKey) {
+            voiceApiKey = ttsCreds.apiKey;
           }
         }
 

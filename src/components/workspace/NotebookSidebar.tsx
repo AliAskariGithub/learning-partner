@@ -28,6 +28,8 @@ import {
   Command,
   Check,
   MessageSquare,
+  User as UserIcon,
+  X,
 } from 'lucide-react';
 import { Button, Input, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
@@ -205,7 +207,7 @@ export function NotebookSidebar({
   const filtered = notebooks.filter((n) =>
     searchQuery
       ? n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      n.description?.toLowerCase().includes(searchQuery.toLowerCase())
       : true
   );
 
@@ -328,9 +330,8 @@ export function NotebookSidebar({
             e.stopPropagation();
             setOpenMenuNotebookId(isMenuOpen ? null : nb.id);
           }}
-          className={`p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#303030] transition-all cursor-pointer ${
-            isMenuOpen ? 'opacity-100 bg-[#303030] text-foreground' : 'opacity-0 group-hover:opacity-100'
-          }`}
+          className={`p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#303030] transition-all cursor-pointer ${isMenuOpen ? 'opacity-100 bg-[#303030] text-foreground' : 'opacity-0 group-hover:opacity-100'
+            }`}
           title="Notebook actions"
         >
           <MoreVertical className="w-3.5 h-3.5" />
@@ -444,24 +445,25 @@ export function NotebookSidebar({
                     if (onSelectConversation) {
                       onSelectConversation(c.id);
                     }
+                    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                      setSidebarOpen(false);
+                    }
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                   }}
-                  className={`w-full relative z-10 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-sans transition-colors text-left cursor-pointer group/chat ${
-                    isChatActive
+                  className={`w-full relative z-10 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-sans transition-colors text-left cursor-pointer group/chat ${isChatActive
                       ? 'text-brand-200 font-medium'
                       : 'text-[#9a9a94] hover:text-[#f4f4f2]'
-                  }`}
+                    }`}
                   title={c.title}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <MessageSquare
-                      className={`w-3.5 h-3.5 shrink-0 ${
-                        isChatActive
+                      className={`w-3.5 h-3.5 shrink-0 ${isChatActive
                           ? 'text-brand-400'
                           : 'text-[#71717a] group-hover/chat:text-[#9a9a94]'
-                      }`}
+                        }`}
                     />
                     <span className="truncate">{c.title}</span>
                   </div>
@@ -479,42 +481,70 @@ export function NotebookSidebar({
     <>
       <AnimatePresence initial={false}>
         {sidebarOpen && (
-          <motion.aside
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="h-full bg-surface border-r border-[#303030] flex flex-col shrink-0 select-none overflow-hidden z-30"
-          >
-            {/* Top Brand Header: Matches h-14 border-b border-[#303030] across all 3 panels */}
-            <div className="h-14 px-4 border-b border-[#303030] flex items-center justify-between shrink-0 bg-surface">
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center font-display font-extrabold text-white text-xs shadow-md shadow-brand-600/30">
-                  LP
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-display font-bold text-sm text-foreground tracking-tight leading-none">
-                    Learning Partner
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    NotebookLM Open
-                  </span>
-                </div>
-              </div>
-            </div>
+          <>
+            {/* Mobile Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setSidebarOpen(false)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden"
+            />
 
-            {/* Sidebar Scrollable Body */}
-            <div className="flex flex-col flex-1 p-3.5 overflow-hidden min-h-0 justify-between">
-              {/* Primary Action Button: + New Notebook */}
-              <Button
-                onClick={() => setCreateDialogOpen(true)}
-                variant="primary"
-                size="sm"
-                className="w-full mb-3.5 font-display font-bold text-xs h-10 justify-start px-3.5 shadow-brand-600/20 rounded-xl"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {t('new_notebook')}
-              </Button>
+            <motion.aside
+              initial={{ x: -280, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -280, opacity: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] h-full h-[100dvh] bg-surface border-r border-[#303030] flex flex-col shrink-0 select-none overflow-hidden shadow-2xl md:relative md:shadow-none md:z-30 md:translate-x-0 md:w-[280px]"
+            >
+              {/* Top Brand Header: Matches h-14 border-b border-[#303030] across all panels */}
+              <div className="h-14 px-4 border-b border-[#303030] flex items-center justify-between shrink-0 bg-surface">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center font-display font-extrabold text-white text-xs shadow-md shadow-brand-600/30">
+                    LP
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-display font-bold text-sm text-foreground tracking-tight leading-none">
+                      Learning Partner
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                      NotebookLM Open
+                    </span>
+                  </div>
+                </div>
+
+                {/* Close Button: X on mobile, collapse icon on desktop */}
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#262626] transition-colors cursor-pointer"
+                  title="Close sidebar"
+                  aria-label="Close sidebar"
+                >
+                  <PanelLeftClose className="w-4 h-4 hidden md:block" />
+                  <X className="w-5 h-5 md:hidden text-[#9a9a94] hover:text-[#f4f4f2]" />
+                </button>
+              </div>
+
+              {/* Sidebar Scrollable Body */}
+              <div className="flex flex-col flex-1 p-3.5 overflow-hidden min-h-0 justify-between">
+                {/* Primary Action Button: + New Notebook */}
+                <Button
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                      setSidebarOpen(false);
+                    }
+                    setCreateDialogOpen(true);
+                  }}
+                  variant="primary"
+                  size="sm"
+                  className="w-full mb-3.5 font-display font-bold text-xs h-10 justify-start px-3.5 shadow-brand-600/20 rounded-xl"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('new_notebook')}
+                </Button>
 
               {/* Search Notebooks */}
               <div className="relative mb-4 px-0.5">
@@ -552,33 +582,36 @@ export function NotebookSidebar({
                               className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
                               onMouseEnter={() => setHoveredNotebookId(nb.id)}
                             >
-                            <GlidingHighlight
-                              activeId={isActive ? nb.id : null}
-                              hoverId={hoveredNotebookId}
-                              itemId={nb.id}
-                              layoutId="pinned-notebooks-sidebar-glide"
-                              className={
-                                isActive
-                                  ? 'bg-brand-500/15 border border-brand-500/40'
-                                  : 'bg-[#262626] border border-[#383838]'
-                              }
-                            />
-                            <div
-                              onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                              className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${
-                                isMenuOpen ? 'z-40' : 'z-10'
-                              } ${
-                                isActive
-                                  ? 'text-brand-300 font-semibold'
-                                  : 'text-muted-foreground hover:text-foreground'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0 pr-1">
-                                <BookOpen className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
-                                <span className="truncate font-serif">{nb.title}</span>
-                              </div>
+                              <GlidingHighlight
+                                activeId={isActive ? nb.id : null}
+                                hoverId={hoveredNotebookId}
+                                itemId={nb.id}
+                                layoutId="pinned-notebooks-sidebar-glide"
+                                className={
+                                  isActive
+                                    ? 'bg-brand-500/15 border border-brand-500/40'
+                                    : 'bg-[#262626] border border-[#383838]'
+                                }
+                              />
+                              <div
+                                onClick={() => {
+                                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                                    setSidebarOpen(false);
+                                  }
+                                  router.push(`/app/notebooks/${nb.id}`);
+                                }}
+                                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${isMenuOpen ? 'z-40' : 'z-10'
+                                  } ${isActive
+                                    ? 'text-brand-300 font-semibold'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 pr-1">
+                                  <BookOpen className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
+                                  <span className="truncate font-serif">{nb.title}</span>
+                                </div>
 
-                              {renderNotebookMenu(nb)}
+                                {renderNotebookMenu(nb)}
                               </div>
                             </div>
                             {renderNotebookChatsSublist(nb.id)}
@@ -610,33 +643,36 @@ export function NotebookSidebar({
                               className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
                               onMouseEnter={() => setHoveredNotebookId(nb.id)}
                             >
-                            <GlidingHighlight
-                              activeId={isActive ? nb.id : null}
-                              hoverId={hoveredNotebookId}
-                              itemId={nb.id}
-                              layoutId="other-notebooks-sidebar-glide"
-                              className={
-                                isActive
-                                  ? 'bg-brand-500/15 border border-brand-500/40'
-                                  : 'bg-[#262626] border border-[#383838]'
-                              }
-                            />
-                            <div
-                              onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                              className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${
-                                isMenuOpen ? 'z-40' : 'z-10'
-                              } ${
-                                isActive
-                                  ? 'text-brand-300 font-semibold'
-                                  : 'text-muted-foreground hover:text-foreground'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0 pr-1">
-                                <Folder className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
-                                <span className="truncate font-serif">{nb.title}</span>
-                              </div>
+                              <GlidingHighlight
+                                activeId={isActive ? nb.id : null}
+                                hoverId={hoveredNotebookId}
+                                itemId={nb.id}
+                                layoutId="other-notebooks-sidebar-glide"
+                                className={
+                                  isActive
+                                    ? 'bg-brand-500/15 border border-brand-500/40'
+                                    : 'bg-[#262626] border border-[#383838]'
+                                }
+                              />
+                              <div
+                                onClick={() => {
+                                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                                    setSidebarOpen(false);
+                                  }
+                                  router.push(`/app/notebooks/${nb.id}`);
+                                }}
+                                className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${isMenuOpen ? 'z-40' : 'z-10'
+                                  } ${isActive
+                                    ? 'text-brand-300 font-semibold'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 pr-1">
+                                  <Folder className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
+                                  <span className="truncate font-serif">{nb.title}</span>
+                                </div>
 
-                              {renderNotebookMenu(nb)}
+                                {renderNotebookMenu(nb)}
                               </div>
                             </div>
                             {renderNotebookChatsSublist(nb.id)}
@@ -651,7 +687,7 @@ export function NotebookSidebar({
               {/* ---------------------------------------------------------------- */}
               {/* Bottom User Button & Upward Popover Menu                          */}
               {/* ---------------------------------------------------------------- */}
-              <div className="relative pt-3 border-t border-border mt-auto" ref={userMenuRef}>
+              <div className="relative pt-3 border-t border-border mt-auto pb-[max(0.5rem,env(safe-area-inset-bottom))]" ref={userMenuRef}>
                 {/* Popover Menu opening upward */}
                 <AnimatePresence>
                   {userMenuOpen && (
@@ -662,21 +698,29 @@ export function NotebookSidebar({
                       transition={{ duration: 0.15, ease: 'easeOut' }}
                       className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-border bg-[#262626] shadow-2xl p-1.5 text-xs z-50 overflow-hidden"
                     >
-                      {/* User Email Header with Avatar */}
-                      <div className="flex items-center gap-2.5 px-3 py-2 border-b border-border/60 mb-1 select-none font-sans">
+                      {/* User Email Header with Avatar - Clickable to open Profile */}
+                      <div
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          if (onOpenSettings) onOpenSettings();
+                          else router.push('/settings');
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 border-b border-border/60 mb-1 select-none font-sans cursor-pointer hover:bg-[#202020] rounded-xl transition group"
+                        title="Open User Profile"
+                      >
                         {userAvatarUrl ? (
                           <img
                             src={userAvatarUrl}
                             alt={userDisplayName}
-                            className="w-7 h-7 rounded-full object-cover border border-brand-500/40 shrink-0 shadow-sm"
+                            className="w-7 h-7 rounded-full object-cover border border-purple-500/40 shrink-0 shadow-sm"
                           />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-surface-raised border border-border text-brand-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm">
+                          <div className="w-7 h-7 rounded-full bg-surface-raised border border-border text-purple-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm">
                             {userDisplayName.charAt(0).toUpperCase()}
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-display font-semibold text-foreground truncate">
+                          <p className="text-xs font-display font-semibold text-foreground truncate group-hover:text-purple-300 transition-colors">
                             {userDisplayName}
                           </p>
                           <p className="text-[10px] text-muted-foreground truncate font-mono">
@@ -686,7 +730,7 @@ export function NotebookSidebar({
                       </div>
 
                       <div className="space-y-0.5 relative" onMouseLeave={() => setHoveredUserMenuItem(null)}>
-                        {/* 1. Settings - Takes directly to user profile */}
+                        {/* 1. User Profile & Settings - Always accessible */}
                         <div className="relative w-full" onMouseEnter={() => setHoveredUserMenuItem('settings')}>
                           <GlidingHighlight
                             activeId={null}
@@ -698,15 +742,16 @@ export function NotebookSidebar({
                           <button
                             onClick={() => {
                               setUserMenuOpen(false);
-                              router.push('/settings');
+                              if (onOpenSettings) onOpenSettings();
+                              else router.push('/settings');
                             }}
                             className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
                           >
                             <div className="flex items-center gap-2.5">
-                              <Settings className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                              <span className="font-display font-medium">{t('settings')}</span>
+                              <UserIcon className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                              <span className="font-display font-medium">User Profile &amp; Settings</span>
                             </div>
-                            <span className="text-[10px] text-muted-foreground font-mono">{t('profile_keys')}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">Profile</span>
                           </button>
                         </div>
 
@@ -857,9 +902,8 @@ export function NotebookSidebar({
                         {userDisplayName}
                       </span>
                       <ChevronDown
-                        className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${
-                          userMenuOpen ? 'rotate-180 text-brand-400' : ''
-                        }`}
+                        className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${userMenuOpen ? 'rotate-180 text-brand-400' : ''
+                          }`}
                       />
                     </div>
                   </button>
@@ -877,8 +921,9 @@ export function NotebookSidebar({
               </div>
             </div>
           </motion.aside>
-        )}
-      </AnimatePresence>
+        </>
+      )}
+    </AnimatePresence>
 
       {/* Dialog: Language Picker */}
       <Dialog
@@ -896,11 +941,10 @@ export function NotebookSidebar({
                   key={lang.code}
                   onClick={() => handleSelectLanguage(lang.code)}
                   disabled={savingLanguage}
-                  className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-display transition cursor-pointer text-left ${
-                    isSelected
+                  className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-display transition cursor-pointer text-left ${isSelected
                       ? 'bg-brand-500/10 border-brand-500 text-foreground font-semibold shadow-sm'
                       : 'bg-surface border-border text-muted-foreground hover:text-foreground hover:bg-surface-raised hover:border-brand-500/30'
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col">
                     <span className="text-foreground font-semibold">{lang.name}</span>

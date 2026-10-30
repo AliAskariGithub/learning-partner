@@ -58,14 +58,14 @@ export function Dialog({
             transition={{ duration: 0.22, ease: 'easeOut' }}
             data-lenis-prevent
             className={cn(
-              'relative z-50 w-full max-w-lg rounded-3xl border border-border bg-surface p-6 text-foreground shadow-2xl max-h-[88vh] overflow-y-auto',
+              'relative z-50 w-full max-w-lg rounded-2xl sm:rounded-3xl border border-border bg-surface p-4 sm:p-6 text-foreground shadow-2xl max-h-[92dvh] sm:max-h-[88vh] overflow-y-auto',
               className
             )}
           >
             {!hideCloseButton && (
               <button
                 onClick={() => onOpenChange(false)}
-                className="absolute right-4 top-4 rounded-xl p-1.5 text-muted-foreground hover:bg-surface-raised hover:text-foreground transition focus-visible:outline-none cursor-pointer z-20"
+                className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-xl p-1.5 text-muted-foreground hover:bg-surface-raised hover:text-foreground transition focus-visible:outline-none cursor-pointer z-20"
                 aria-label="Close dialog"
               >
                 <X className="h-4 w-4" />
@@ -73,15 +73,15 @@ export function Dialog({
             )}
 
             {title && (
-              <h2 className="font-display text-lg font-bold tracking-tight text-foreground pr-8">
+              <h2 className="font-display text-lg font-bold tracking-tight text-foreground pr-8 shrink-0">
                 {title}
               </h2>
             )}
             {description && (
-              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+              <p className="mt-1 text-sm text-muted-foreground shrink-0">{description}</p>
             )}
 
-            {title ? <div className="mt-4">{children}</div> : children}
+            {title ? <div className="mt-4 flex-1 min-h-0 flex flex-col">{children}</div> : children}
           </motion.div>
         </div>
       )}

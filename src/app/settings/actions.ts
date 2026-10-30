@@ -11,10 +11,13 @@ import {
   messages,
   outputs,
   apiKeys,
+  connections,
   sourceChunks,
 } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
+import { neon } from '@neondatabase/serverless';
 
 export async function updateProfileSettings(formData: FormData) {
   const user = await requireUser();
@@ -102,6 +105,19 @@ export async function exportUserData(): Promise<{ success: boolean; data?: any; 
       .from(outputs)
       .where(eq(outputs.userId, user.id));
 
+    const userConns = await db
+      .select({
+        id: connections.id,
+        provider: connections.provider,
+        method: connections.method,
+        callMode: connections.callMode,
+        accountLabel: connections.accountLabel,
+        status: connections.status,
+        createdAt: connections.createdAt,
+      })
+      .from(connections)
+      .where(eq(connections.userId, user.id));
+
     const exportPayload = {
       exportVersion: '1.0',
       exportedAt: new Date().toISOString(),
@@ -116,6 +132,7 @@ export async function exportUserData(): Promise<{ success: boolean; data?: any; 
       notes: userNotes,
       conversations: userConvs,
       studioOutputs: userOutputs,
+      aiConnections: userConns,
     };
 
     return { success: true, data: exportPayload };
@@ -125,26 +142,59 @@ export async function exportUserData(): Promise<{ success: boolean; data?: any; 
 }
 
 /**
- * Permanently deletes user's account and all associated data across all tables.
+ * Permanently deletes user's account and all associated data across all tables,
+ * and completely removes user identity and email from Neon Auth.
  */
 export async function deleteAccountAndData(): Promise<{ success: boolean; error?: string }> {
   try {
     const user = await requireUser();
+    const userId = user.id;
 
-    // 1. Delete source chunks, sources, notes, outputs, messages, conversations, notebooks
-    await db.delete(sourceChunks).where(eq(sourceChunks.userId, user.id));
-    await db.delete(outputs).where(eq(outputs.userId, user.id));
-    await db.delete(notes).where(eq(notes.userId, user.id));
-    await db.delete(sources).where(eq(sources.userId, user.id));
-    await db.delete(conversations).where(eq(conversations.userId, user.id));
-    await db.delete(apiKeys).where(eq(apiKeys.userId, user.id));
-    await db.delete(notebooks).where(eq(notebooks.userId, user.id));
-    await db.delete(profiles).where(eq(profiles.authUserId, user.id));
+    if (process.env.DATABASE_URL) {
+      const sql = neon(process.env.DATABASE_URL);
+
+      // 1. Delete dependent content tables in public schema
+      await sql`DELETE FROM source_chunks WHERE user_id = ${userId}`;
+      await sql`DELETE FROM sources WHERE user_id = ${userId}`;
+      await sql`DELETE FROM outputs WHERE user_id = ${userId}`;
+      await sql`DELETE FROM notes WHERE user_id = ${userId}`;
+
+      // Delete messages associated with user's conversations
+      await sql`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ${userId})`;
+      await sql`DELETE FROM conversations WHERE user_id = ${userId}`;
+
+      // Delete notebooks, connections, api keys, profile
+      await sql`DELETE FROM notebooks WHERE user_id = ${userId}`;
+      await sql`DELETE FROM connections WHERE user_id = ${userId}`;
+      await sql`DELETE FROM api_keys WHERE user_id = ${userId}`;
+      await sql`DELETE FROM profiles WHERE auth_user_id = ${userId}`;
+
+      // 2. Wipe identity & email from Neon Auth (cascades sessions, accounts, invitations, members)
+      await sql`DELETE FROM neon_auth.user WHERE id = ${userId}`;
+    } else {
+      // Fallback via Drizzle
+      await db.delete(sourceChunks).where(eq(sourceChunks.userId, userId));
+      await db.delete(sources).where(eq(sources.userId, userId));
+      await db.delete(outputs).where(eq(outputs.userId, userId));
+      await db.delete(notes).where(eq(notes.userId, userId));
+      await db.delete(conversations).where(eq(conversations.userId, userId));
+      await db.delete(notebooks).where(eq(notebooks.userId, userId));
+      await db.delete(connections).where(eq(connections.userId, userId));
+      await db.delete(apiKeys).where(eq(apiKeys.userId, userId));
+      await db.delete(profiles).where(eq(profiles.authUserId, userId));
+    }
+
+    // 3. Clear all authentication and state cookies
+    const cookieStore = await cookies();
+    cookieStore.delete('neon_auth_session');
+    cookieStore.delete('lp_session');
+    cookieStore.delete('lp_csrf');
+    cookieStore.delete('lp_oauth_state');
+    cookieStore.delete('lp_consent');
 
     return { success: true };
   } catch (err: any) {
+    console.error('deleteAccountAndData error:', err);
     return { success: false, error: err.message || 'Failed to delete account data.' };
   }
 }
-
-

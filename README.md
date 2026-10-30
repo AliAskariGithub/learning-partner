@@ -12,13 +12,29 @@
 - **Verifiable Citation Chips**: Every factual assertion contains interactive bracketed citations (`[1]`, `[2]`) that map directly to underlying source chunks.
 - **Absence of Information Protocol**: If source documents do not contain evidence for a question, the model explicitly responds: *"I could not find information about that in the provided sources."*
 
-### 2. Bring Your Own Key (BYOK) Architecture
-- **Zero Subscriptions & Zero Markups**: Connect your own API keys and pay providers at cost or use free tiers.
-- **AES-256-GCM Encryption**: Client credentials are encrypted with authenticated AES-256-GCM. Plaintext keys are never stored in databases or exposed in logs.
-- **Multi-Provider Support**: Google Gemini (Gemini 3.8 Flash, 3.7 Flash, 2.5 Flash, 1.5 Pro), OpenAI (GPT-4o), Anthropic (Claude 3.5 Sonnet, 3.7 Sonnet, 3.5 Haiku), Groq (Llama 3.3 70B), OpenRouter, and Custom OpenAI-compatible endpoints (Ollama, LM Studio).
-- **Capability Gating**: UI automatically detects model capabilities (structured output, vision, audio input, audio output) and disables unsupported tools with explanatory tooltips via `<CapabilityGate>`.
+### 2. "Connect your AI" Architecture (Phase 5)
+- **Primary Option 1: "Use Gemini Key" (Recommended)**:
+  - 3-step guided setup with direct link to Google AI Studio.
+  - One key powers everything: Grounded Chat, vector retrieval, Structured Outputs (Quiz/Flashcards), and Gemini TTS Audio Overviews.
+  - **Factual Privacy Notice**: Transparent mustard-yellow disclosure highlighting that Google free-tier prompt data may be reviewed by human evaluators to improve Google products under Google terms (`https://ai.google.dev/gemini-api/terms`), advising paid-tier keys for sensitive documents.
+  - Friendly rate-limit handling with exponential retry guidance.
+- **Primary Option 2: "Connect with ChatGPT" (OAuth Plan Usage)**:
+  - RFC 7636 Authorization Code + PKCE (`chatgpt.tokens.use.direct` scope).
+  - Enables ChatGPT Plus and Pro subscribers to power inference using their existing ChatGPT plan allowance without buying API credits.
+  - Automatic error mapping: HTTP 429 usage cap mapped to `capped_or_exhausted` with direct link to ChatGPT settings; HTTP 403 mapped to `not_eligible`.
+  - Opt-in automatic fallback to a Gemini Key when plan allowance runs out.
+- **Secondary Options ("Want to use another platform?")**:
+  - Honest labeling: Claude via Anthropic API Key (disclosing that Claude Pro/Max consumer subscriptions cannot be used in third-party apps), OpenAI API Key, OpenRouter (API Key or 1-click OAuth PKCE), and Groq Key.
+- **OmniRoute & Self-Hosted Gateways**:
+  - **Server Mode**: Connects via public HTTPS tunnel with comprehensive SSRF protection (DNS resolution, RFC 1918 & cloud metadata subnet blocking, redirect re-checks, 15s timeout, 5MB limit).
+  - **Browser Mode**: Zero-trust key isolation for local machines (`http://localhost:20128/v1`). Gateway keys are stored strictly in client-side **IndexedDB** and never sent to our servers.
 
-### 3. Studio Synthesis Suite (7 Core Tools)
+### 3. Privacy-First Cookies & Consent
+- **Zero Third-Party Trackers**: No advertising pixels or invasive behavioral telemetry.
+- **Global Privacy Control (GPC)**: Automatically honors `Sec-GPC` / `navigator.globalPrivacyControl` signals by defaulting all non-essential cookies to disabled.
+- **Consent Preference Center**: Granular category toggles, live cookie inventory at `/cookies`, and a one-click "Delete all non-essential cookies now" action.
+
+### 4. Studio Synthesis Suite (7 Core Tools)
 Exactly seven studio synthesizers:
 1. **Quiz**: Interactive multiple-choice & conceptual quizzes, instant explanations, final score calculation, and "Retry Missed Questions".
 2. **Flashcards**: 3D flip card recall with keyboard shortcuts (`Space` to flip, `Arrow` keys to navigate), "Know It" / "Still Learning" tracking, and shuffle.

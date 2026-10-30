@@ -6,12 +6,23 @@ import { notebooks } from '@/db/schema';
 
 export const instant = false;
 
-export default async function AppPage() {
+export default async function AppPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireUser();
   const userNotebooks = await getUserNotebooks();
+  const sp = searchParams ? await searchParams : {};
+  const queryString = new URLSearchParams(
+    Object.entries(sp).flatMap(([k, v]) =>
+      v === undefined ? [] : Array.isArray(v) ? v.map((val) => [k, val]) : [[k, v]]
+    )
+  ).toString();
+  const querySuffix = queryString ? `?${queryString}` : '';
 
   if (userNotebooks.length > 0) {
-    redirect(`/app/notebooks/${userNotebooks[0].id}`);
+    redirect(`/app/notebooks/${userNotebooks[0].id}${querySuffix}`);
   }
 
   // Create a default initial notebook for new users
@@ -27,5 +38,5 @@ export default async function AppPage() {
     })
     .returning();
 
-  redirect(`/app/notebooks/${starterNotebook.id}`);
+  redirect(`/app/notebooks/${starterNotebook.id}${querySuffix}`);
 }

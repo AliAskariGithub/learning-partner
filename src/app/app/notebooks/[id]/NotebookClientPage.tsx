@@ -7,8 +7,7 @@ import { NotebookSidebar } from '@/components/workspace/NotebookSidebar';
 import { WorkspaceThreePanelView } from '@/components/workspace/WorkspaceThreePanelView';
 import { AddSourceDialog } from '@/components/workspace/AddSourceDialog';
 import { SourceViewerDialog } from '@/components/workspace/SourceViewerDialog';
-import { GeminiSettingsModal } from '@/components/workspace/GeminiSettingsModal';
-import { ManageApiKeysDialog } from '@/components/ai/ManageApiKeysDialog';
+import { ConnectAiDialog } from '@/components/ai/ConnectAiDialog';
 import { useToast } from '@/components/ui/toast';
 import { SafeApiKey, getUserApiKeys } from '@/app/app/api-key-actions';
 import { getNotebookOutputs } from '@/app/app/studio-actions';
@@ -21,7 +20,9 @@ import {
   saveNoteFromMessage,
   deleteMessage,
   updateMessage,
+  saveBrowserChatMessage,
 } from '@/app/app/chat-actions';
+import { getBrowserKey } from '@/lib/connections/browser-store';
 import {
   toggleSourceEnabled,
   renameSource,
@@ -75,7 +76,14 @@ export function NotebookClientPage({
   const [sources, setSources] = useState<Source[]>(initialSources);
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [outputs, setOutputs] = useState<StudioOutput[]>(initialOutputs);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Open sidebar by default on desktop, keep closed on mobile & tablet
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setSidebarOpen(true);
+    }
+  }, []);
 
   const refreshOutputs = useCallback(async () => {
     try {
@@ -113,7 +121,6 @@ export function NotebookClientPage({
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [sourceViewerSource, setSourceViewerSource] = useState<Source | null>(null);
   const [sourceViewerHighlightChunkId, setSourceViewerHighlightChunkId] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [manageKeysOpen, setManageKeysOpen] = useState(false);
 
   // Refresh user keys from server
@@ -125,6 +132,42 @@ export function NotebookClientPage({
       console.error('Failed to load user keys:', err);
     }
   }, []);
+
+  // Listen for OAuth feedback in URL query parameters
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const connected = params.get('connected');
+      const connError = params.get('connection_error');
+      if (connected) {
+        toast({
+          title: 'Connection Established',
+          description: `Successfully connected ${connected}.`,
+          variant: 'success',
+        });
+        refreshUserKeys();
+        window.history.replaceState({}, '', window.location.pathname);
+      } else if (connError) {
+        toast({
+          title: 'Connection Failed',
+          description: decodeURIComponent(connError),
+          variant: 'error',
+        });
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [refreshUserKeys, toast]);
+
+  // Onboarding trigger: Show ConnectAiDialog if user has 0 connections on first visit
+  useEffect(() => {
+    try {
+      const shown = localStorage.getItem('lp_connect_ai_onboarding_shown');
+      if (!shown && (!initialUserKeys || initialUserKeys.length === 0)) {
+        setManageKeysOpen(true);
+        localStorage.setItem('lp_connect_ai_onboarding_shown', 'true');
+      }
+    } catch {}
+  }, [initialUserKeys]);
 
   // Sync state when props change
   useEffect(() => {
@@ -385,6 +428,148 @@ export function NotebookClientPage({
         throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`);
       }
 
+      // ---------------------------------------------------------
+      // BROWSER MODE: Direct execution from browser to local gateway (e.g. localhost OmniRoute / Ollama)
+      // ---------------------------------------------------------
+      const isBrowserMode = res.headers.get('x-browser-mode') === 'true';
+      if (isBrowserMode) {
+        const payload = await res.json();
+        const convId = payload.conversationId || activeConversationId;
+        if (convId && convId !== activeConversationId) {
+          setActiveConversationId(convId);
+          try {
+            if (typeof window !== 'undefined') {
+              const url = new URL(window.location.href);
+              url.searchParams.set('chat', convId);
+              window.history.replaceState({ chatId: convId }, '', url.toString());
+            }
+          } catch (e) {}
+          getConversations(notebook.id).then(setConversations).catch(() => {});
+        }
+
+        if (payload.citations) {
+          setStreamingCitations(payload.citations);
+        }
+
+        // Retrieve local key from client-side IndexedDB if configured
+        const localKey = payload.connectionId ? await getBrowserKey(payload.connectionId) : null;
+        const targetEndpoint = (payload.endpoint || 'http://localhost:20128/v1').replace(/\/+$/, '');
+        const completionsUrl = `${targetEndpoint}/chat/completions`;
+
+        let localRes: Response;
+        try {
+          localRes = await fetch(completionsUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(localKey ? { Authorization: `Bearer ${localKey}` } : {}),
+            },
+            body: JSON.stringify({
+              model: payload.modelId,
+              messages: [
+                { role: 'system', content: payload.systemPrompt },
+                ...payload.chatHistory,
+              ],
+              stream: true,
+            }),
+            signal: controller.signal,
+          });
+        } catch (fetchErr: any) {
+          throw new Error(
+            `Could not reach your local gateway at ${targetEndpoint}. Please verify that OmniRoute or your local service is running and CORS is enabled: ${fetchErr.message}`
+          );
+        }
+
+        if (!localRes.ok) {
+          const errData = await localRes.json().catch(() => ({}));
+          throw new Error(
+            errData.error?.message || errData.message || `Local gateway returned status ${localRes.status}: ${localRes.statusText}`
+          );
+        }
+
+        const reader = localRes.body?.getReader();
+        if (!reader) throw new Error('No readable stream from local gateway.');
+
+        const decoder = new TextDecoder();
+        let accumulatedText = '';
+        let sseBuffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          sseBuffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+            if (trimmed === 'data: [DONE]') break;
+
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const parsed = JSON.parse(trimmed.slice(6));
+                const delta =
+                  parsed.choices?.[0]?.delta?.content ||
+                  parsed.choices?.[0]?.text ||
+                  '';
+                if (delta) {
+                  accumulatedText += delta;
+                  setStreamingContent(accumulatedText);
+                }
+              } catch {
+                // Ignore partial JSON chunks
+              }
+            }
+          }
+        }
+
+        // Fallback for non-streaming response
+        if (!accumulatedText.trim() && sseBuffer.trim()) {
+          try {
+            const nonStreamJson = JSON.parse(sseBuffer.trim());
+            accumulatedText =
+              nonStreamJson.choices?.[0]?.message?.content ||
+              nonStreamJson.choices?.[0]?.text ||
+              '';
+            if (accumulatedText) {
+              setStreamingContent(accumulatedText);
+            }
+          } catch {}
+        }
+
+        if (!accumulatedText.trim()) {
+          throw new Error('Local gateway completed without returning text. Please verify the model name and gateway logs.');
+        }
+
+        const finalConversationId = convId || 'pending';
+        const assistantMsg: Message = {
+          id: 'assistant-' + Date.now(),
+          conversationId: finalConversationId,
+          role: 'assistant',
+          content: accumulatedText,
+          citations: payload.citations || [],
+          createdAt: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+        setStreamingContent('');
+
+        // Persist to Neon Postgres DB via server action
+        await saveBrowserChatMessage({
+          conversationId: finalConversationId,
+          notebookId: notebook.id,
+          content: accumulatedText,
+          citations: payload.citations || [],
+          userPrompt: prompt.trim(),
+        }).catch((err) => console.warn('Failed to save browser message:', err));
+
+        getConversations(notebook.id).then(setConversations).catch(() => {});
+        getNotebookNotes(notebook.id).then(setNotes).catch(() => {});
+        return;
+      }
+
       const convIdHeader = res.headers.get('x-conversation-id');
       const citationsHeader = res.headers.get('x-citations');
       let parsedCitations: Citation[] = [];
@@ -590,7 +775,7 @@ export function NotebookClientPage({
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#191919] text-[#f4f4f2]">
+    <div className="flex flex-col h-screen h-[100dvh] w-full min-h-[100dvh] overflow-hidden bg-[#191919] text-[#f4f4f2]">
       {/* Top Red Alert Notification when user is not verified */}
       <UnverifiedBanner email={user.email || ''} isVerified={Boolean(user.emailVerified)} />
 
@@ -601,7 +786,7 @@ export function NotebookClientPage({
           activeNotebookId={notebook.id}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => router.push('/settings')}
           userDisplayName={profile?.displayName || user.name || user.email?.split('@')[0] || 'Scholar'}
           userEmail={user.email || ''}
           userAvatarUrl={profile?.avatarUrl || null}
@@ -628,7 +813,7 @@ export function NotebookClientPage({
           onDeleteSource={handleDeleteSource}
           onRetrySource={handleRetrySource}
           hasApiKey={userKeys.length > 0}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => router.push('/settings')}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           userKeys={userKeys}
@@ -685,21 +870,19 @@ export function NotebookClientPage({
         highlightChunkId={sourceViewerHighlightChunkId}
       />
 
-      <GeminiSettingsModal
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        user={user}
-        initialDisplayName={profile?.displayName || user.name || user.email?.split('@')[0] || 'Learner'}
-        initialInstructions={profile?.customInstructions || ''}
-        initialLanguage={profile?.preferredLanguage || 'English'}
-      />
-
-      <ManageApiKeysDialog
+      <ConnectAiDialog
         open={manageKeysOpen}
         onOpenChange={setManageKeysOpen}
+        onConnected={() => {
+          refreshUserKeys();
+          router.refresh();
+        }}
         onKeysUpdated={() => {
           refreshUserKeys();
           router.refresh();
+        }}
+        onModelSelected={(modelId) => {
+          setSelectedModelId(modelId);
         }}
       />
     </div>

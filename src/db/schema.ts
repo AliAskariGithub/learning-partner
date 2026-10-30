@@ -143,6 +143,49 @@ export const notes = pgTable(
   ]
 );
 
+// Connections table (Phase 5 Unified AI Connection Architecture)
+export const connections = pgTable(
+  'connections',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull(),
+    provider: text('provider', {
+      enum: ['gemini', 'chatgpt', 'anthropic', 'openai', 'openrouter', 'groq', 'omniroute', 'custom'],
+    }).notNull(),
+    method: text('method', {
+      enum: ['api_key', 'oauth_plan', 'oauth_key', 'custom_endpoint'],
+    }).notNull(),
+    callMode: text('call_mode', {
+      enum: ['server', 'browser'],
+    })
+      .default('server')
+      .notNull(),
+    baseUrl: text('base_url'),
+    status: text('status', {
+      enum: ['connected', 'capped_or_exhausted', 'not_eligible', 'expired', 'revoked', 'error'],
+    })
+      .default('connected')
+      .notNull(),
+    encryptedAccessToken: text('encrypted_access_token'),
+    encryptedRefreshToken: text('encrypted_refresh_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    grantedScopes: jsonb('granted_scopes').$type<string[]>(),
+    accountLabel: text('account_label'),
+    modelCapabilityOverrides: jsonb('model_capability_overrides').$type<Record<string, Record<string, boolean>>>(),
+    lastError: text('last_error'),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    isDefault: boolean('is_default').default(false).notNull(),
+    autoFallback: boolean('auto_fallback').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('connections_user_id_idx').on(table.userId),
+    index('connections_provider_idx').on(table.provider),
+    index('connections_status_idx').on(table.status),
+  ]
+);
+
 // API Keys table (Bring Your Own Key - encrypted with AES-256-GCM)
 export const apiKeys = pgTable(
   'api_keys',
@@ -273,6 +316,9 @@ export type NewNote = typeof notes.$inferInsert;
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
+
+export type Connection = typeof connections.$inferSelect;
+export type NewConnection = typeof connections.$inferInsert;
 
 export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;

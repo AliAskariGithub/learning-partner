@@ -80,19 +80,6 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     defaultModel: 'gemini-3.8-flash',
     supportsEmbeddings: true,
   },
-  groq: {
-    id: 'groq',
-    name: 'Groq',
-    badge: 'Ultra-fast LPU',
-    keyFormatHint: 'gsk_...',
-    keyPlaceholder: 'gsk_xxxxxxxxxxxxxxxxxxxxxxx',
-    keyUrl: 'https://console.groq.com/keys',
-    usageUrl: 'https://console.groq.com/usage',
-    docsUrl: 'https://console.groq.com/docs',
-    description: 'Sub-second real-time inference on open weights models (Llama 3.3, Mixtral).',
-    defaultModel: 'llama-3.3-70b-versatile',
-    supportsEmbeddings: false,
-  },
   openrouter: {
     id: 'openrouter',
     name: 'OpenRouter',
@@ -106,17 +93,30 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
     defaultModel: 'meta-llama/llama-3.3-70b-instruct',
     supportsEmbeddings: false,
   },
+  groq: {
+    id: 'groq',
+    name: 'Groq',
+    badge: 'Ultra-Fast LPU',
+    keyFormatHint: 'gsk_...',
+    keyPlaceholder: 'gsk_xxxxxxxxxxxxxxxxxxxx',
+    keyUrl: 'https://console.groq.com/keys',
+    usageUrl: 'https://console.groq.com/usage',
+    docsUrl: 'https://console.groq.com/docs',
+    description: 'Sub-second inference for open-weights models like Llama 3.3.',
+    defaultModel: 'llama-3.3-70b-versatile',
+    supportsEmbeddings: false,
+  },
   custom: {
     id: 'custom',
-    name: 'Custom (OpenAI-compatible)',
-    badge: 'Self-hosted & vLLM',
+    name: 'Custom Configuration',
+    badge: 'OpenAI-Compatible',
     keyFormatHint: 'Any API key string or "not-needed"',
     keyPlaceholder: 'your-api-key',
     keyUrl: '',
     usageUrl: '',
     docsUrl: '',
     description: 'Connect any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, Together, LocalAI).',
-    defaultModel: 'default',
+    defaultModel: 'custom-model',
     supportsEmbeddings: false,
   },
 };
@@ -307,41 +307,6 @@ export const MODEL_CATALOG: ModelDefinition[] = [
     },
   },
 
-  // Groq
-  {
-    id: 'llama-3.3-70b-versatile',
-    name: 'Llama 3.3 70B (Groq)',
-    provider: 'groq',
-    isDefault: true,
-    description: 'Blazing fast inference (300+ tok/s) on open weights.',
-    capabilities: {
-      text: true,
-      vision: false,
-      audioInput: false,
-      audioOutput: false,
-      structuredOutput: true,
-      toolUse: true,
-      embeddings: false,
-      contextWindow: 131072,
-    },
-  },
-  {
-    id: 'llama-3.1-8b-instant',
-    name: 'Llama 3.1 8B (Groq)',
-    provider: 'groq',
-    description: 'Ultra-low latency instant responses for chat and study queries.',
-    capabilities: {
-      text: true,
-      vision: false,
-      audioInput: false,
-      audioOutput: false,
-      structuredOutput: true,
-      toolUse: true,
-      embeddings: false,
-      contextWindow: 131072,
-    },
-  },
-
   // OpenRouter
   {
     id: 'meta-llama/llama-3.3-70b-instruct',
@@ -450,8 +415,17 @@ export function getModelDefinition(modelId: string): ModelDefinition {
   if (modelId.startsWith('gemini')) provider = 'google';
   else if (modelId.startsWith('claude')) provider = 'anthropic';
   else if (modelId.startsWith('gpt') || modelId.startsWith('o1') || modelId.startsWith('o3')) provider = 'openai';
-  else if (modelId.includes('llama') || modelId.includes('mixtral')) provider = 'groq';
-  else if (modelId.includes('/')) provider = 'openrouter';
+  else if (
+    modelId.startsWith('deepseek/') ||
+    modelId.startsWith('meta-llama/') ||
+    modelId.startsWith('mistralai/') ||
+    modelId.startsWith('qwen/') ||
+    modelId.startsWith('openrouter/')
+  ) {
+    provider = 'openrouter';
+  } else {
+    provider = 'custom';
+  }
 
   const isGeminiOrOpenAi = provider === 'google' || provider === 'openai';
 

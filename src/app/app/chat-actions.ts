@@ -128,6 +128,7 @@ export async function deleteConversation(conversationId: string, notebookId: str
 
 export async function saveNoteFromMessage(params: {
   notebookId: string;
+  conversationId?: string | null;
   title: string;
   content: string;
 }) {
@@ -138,6 +139,7 @@ export async function saveNoteFromMessage(params: {
     .insert(notes)
     .values({
       notebookId: params.notebookId,
+      conversationId: params.conversationId || null,
       userId: session.user.id,
       title: params.title.trim() || 'Saved Insight',
       content: params.content.trim(),

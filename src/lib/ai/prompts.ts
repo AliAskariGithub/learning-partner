@@ -6,6 +6,7 @@ export interface AssembleSystemPromptParams {
   notebookInstructions?: string | null;
   memoryNotes?: Array<{ title: string; content: string }>;
   formattedSourcesContext: string;
+  preferredLanguage?: string | null;
 }
 
 /**
@@ -18,6 +19,7 @@ export function assembleSystemPrompt(params: AssembleSystemPromptParams): string
     notebookInstructions,
     memoryNotes = [],
     formattedSourcesContext,
+    preferredLanguage,
   } = params;
 
   const sections: string[] = [];
@@ -112,6 +114,14 @@ ${memoryFormatted}`);
   // 6. The Retrieved Grounding Sources
   sections.push(`=== SOURCES CONTEXT (GROUNDING MATERIAL) ===
 ${formattedSourcesContext}`);
+
+  // 7. Preferred Language Grounding
+  if (preferredLanguage && preferredLanguage !== 'en' && preferredLanguage !== 'English') {
+    const isUr = preferredLanguage.toLowerCase().includes('ur');
+    sections.push(`=== PREFERRED LANGUAGE PROTOCOL ===
+The user has configured their preferred response language to: ${preferredLanguage}.
+${isUr ? 'You MUST respond entirely in natural, fluent, and authentic Urdu (اردو), maintaining Markdown formatting and bracketed citations [N].' : `You MUST respond in ${preferredLanguage}, maintaining Markdown formatting and bracketed citations [N].`}`);
+  }
 
   return sections.join('\n\n');
 }
@@ -286,6 +296,8 @@ Use citations [N] for all factual claims and evidence.`;
       const style = options.voiceStyle || 'conversation';
       const format = options.voiceFormat || 'deep_dive';
       const length = options.length || 'medium';
+      const lang = options.language || 'English';
+      const isUrdu = lang.toLowerCase().includes('urdu') || lang.toLowerCase() === 'ur';
       const turnCount = length === 'short' ? 12 : length === 'long' ? 32 : 20;
 
       systemPrompt += `\nYou are a professional audio podcast producer and scriptwriter.
@@ -295,6 +307,11 @@ Output MUST be valid raw JSON only (no markdown code blocks, no backticks). Sche
   { "speaker": "Jordan", "text": "Spoken dialogue here..." }
 ]
 SCRIPTWRITING RULES:
+- Spoken Language: All spoken dialogue MUST be written in ${lang}. ${
+        isUrdu
+          ? 'IMPORTANT: All dialogue text MUST be written in natural, authentic Urdu script (اردو رسم الخط). Use fluent, colloquial, conversational Urdu for greetings, questions, explanations, affirmations, and transitions.'
+          : `Dialogue MUST be spoken in ${lang}.`
+      }
 - Style: ${style === 'conversation' ? 'Natural spoken dialogue between two co-hosts, Alex and Jordan.' : 'Single narrator presenting a clear, engaging spoken overview.'}
 - Conversation format: ${format} (Deep Dive = detailed analysis; Brief = quick energetic summary; Critique = constructive evaluation of arguments; Debate = two hosts exploring contrasting perspectives).
 - Spoken language only: No markdown symbols (no #, no *, no bullet points), no emojis, no stage directions, no URLs, NO spoken citation numbers like "[1]" or "citation one".
@@ -302,7 +319,7 @@ SCRIPTWRITING RULES:
 - Total turns: approximately ${turnCount} turns.
 - Strictly grounded in the provided sources.`;
 
-      userPrompt += `Write the complete audio overview script based on the sources.
+      userPrompt += `Write the complete audio overview script in ${lang} based on the sources.
 ${focus}
 ${extra}
 Return pure JSON array of speaker turns.`;

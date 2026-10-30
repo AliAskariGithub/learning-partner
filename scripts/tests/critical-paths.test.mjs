@@ -214,28 +214,30 @@ describe('Critical Path: Multi-Chat Studio Output Scoping', () => {
     { id: '1', title: 'English Quiz', conversationId: 'conv-english' },
     { id: '2', title: 'Urdu Summary', conversationId: 'conv-urdu' },
     { id: '3', title: 'Maths Mind Map', conversationId: 'conv-maths' },
-    { id: '4', title: 'Global Notebook Notes', conversationId: null },
   ];
 
   function filterOutputsForChat(outputs, activeConversationId) {
-    if (!activeConversationId) return outputs;
+    if (!activeConversationId) return [];
     return outputs.filter(
-      (o) => o.conversationId === activeConversationId || !o.conversationId
+      (o) => o.conversationId === activeConversationId
     );
   }
 
-  test('filters outputs strictly by active conversation while including legacy notebook outputs', () => {
+  test('filters outputs strictly by active conversation to isolate studio outputs per chat', () => {
     const englishOutputs = filterOutputsForChat(mockOutputs, 'conv-english');
-    assert.equal(englishOutputs.length, 2);
-    assert.deepEqual(englishOutputs.map(o => o.id), ['1', '4']);
+    assert.equal(englishOutputs.length, 1);
+    assert.deepEqual(englishOutputs.map(o => o.id), ['1']);
 
     const urduOutputs = filterOutputsForChat(mockOutputs, 'conv-urdu');
-    assert.equal(urduOutputs.length, 2);
-    assert.deepEqual(urduOutputs.map(o => o.id), ['2', '4']);
+    assert.equal(urduOutputs.length, 1);
+    assert.deepEqual(urduOutputs.map(o => o.id), ['2']);
 
     const mathsOutputs = filterOutputsForChat(mockOutputs, 'conv-maths');
-    assert.equal(mathsOutputs.length, 2);
-    assert.deepEqual(mathsOutputs.map(o => o.id), ['3', '4']);
+    assert.equal(mathsOutputs.length, 1);
+    assert.deepEqual(mathsOutputs.map(o => o.id), ['3']);
+
+    const newChatOutputs = filterOutputsForChat(mockOutputs, null);
+    assert.equal(newChatOutputs.length, 0);
   });
 });
 
@@ -285,5 +287,37 @@ describe('Critical Path: Context Window & Token Consumption', () => {
     assert.equal(metrics.memoryTokens, 6);
     assert.equal(metrics.totalUsed, 1349);
     assert.ok(metrics.percentage < 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. MULTI-CHAT MEMORY (SAVED NOTES) SCOPING
+// ---------------------------------------------------------------------------
+describe('Critical Path: Multi-Chat Memory Scoping', () => {
+  const mockNotes = [
+    { id: 'n1', notebookId: 'nb-1', conversationId: 'conv-1', title: 'Chat 1 Note', content: 'Details 1' },
+    { id: 'n2', notebookId: 'nb-1', conversationId: 'conv-1', title: 'Chat 1 Takeaway', content: 'Details 2' },
+    { id: 'n3', notebookId: 'nb-1', conversationId: 'conv-2', title: 'Chat 2 Concept', content: 'Details 3' },
+  ];
+
+  function filterNotesForChat(notes, activeConversationId) {
+    if (!activeConversationId) return [];
+    return notes.filter((n) => n.conversationId === activeConversationId);
+  }
+
+  test('filters memory notes strictly by active conversation to isolate memory per chat', () => {
+    const chat1Notes = filterNotesForChat(mockNotes, 'conv-1');
+    assert.equal(chat1Notes.length, 2);
+    assert.deepEqual(chat1Notes.map((n) => n.id), ['n1', 'n2']);
+
+    const chat2Notes = filterNotesForChat(mockNotes, 'conv-2');
+    assert.equal(chat2Notes.length, 1);
+    assert.deepEqual(chat2Notes.map((n) => n.id), ['n3']);
+
+    const chat3Notes = filterNotesForChat(mockNotes, 'conv-3');
+    assert.equal(chat3Notes.length, 0);
+
+    const emptyChatNotes = filterNotesForChat(mockNotes, null);
+    assert.equal(emptyChatNotes.length, 0);
   });
 });

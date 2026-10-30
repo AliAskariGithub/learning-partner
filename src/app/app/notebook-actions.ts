@@ -2,8 +2,8 @@
 
 import { requireUser } from '@/lib/auth/session';
 import { db } from '@/db';
-import { notebooks, sources, sourceChunks, notes } from '@/db/schema';
-import { and, eq, desc } from 'drizzle-orm';
+import { notebooks, sources, sourceChunks, notes, conversations } from '@/db/schema';
+import { and, eq, desc, asc, isNull } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getStorageAdapter } from '@/lib/storage';
 import { processSourceIngestion } from '@/lib/ingestion';
@@ -29,6 +29,29 @@ export async function getNotebookDetails(notebookId: string) {
     .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, user.id)));
 
   if (!notebook) return null;
+
+  // Backfill legacy notes without conversation_id to the earliest conversation of the notebook
+  const legacyNotes = await db
+    .select({ id: notes.id })
+    .from(notes)
+    .where(and(eq(notes.notebookId, notebookId), isNull(notes.conversationId)))
+    .limit(1);
+
+  if (legacyNotes.length > 0) {
+    const [oldestConv] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(eq(conversations.notebookId, notebookId))
+      .orderBy(asc(conversations.createdAt))
+      .limit(1);
+
+    if (oldestConv) {
+      await db
+        .update(notes)
+        .set({ conversationId: oldestConv.id })
+        .where(and(eq(notes.notebookId, notebookId), isNull(notes.conversationId)));
+    }
+  }
 
   const notebookSources = await db
     .select()
@@ -182,13 +205,19 @@ export async function retrySource(sourceId: string) {
 }
 
 // 10. Notes: Create Saved Note (Project Memory)
-export async function createNote(notebookId: string, title: string, content: string) {
+export async function createNote(
+  notebookId: string,
+  title: string,
+  content: string,
+  conversationId?: string | null
+) {
   const user = await requireUser();
 
   const [newNote] = await db
     .insert(notes)
     .values({
       notebookId,
+      conversationId: conversationId || null,
       userId: user.id,
       title: title.trim(),
       content: content.trim(),
@@ -238,12 +267,20 @@ export async function getSourceChunks(sourceId: string) {
     .orderBy(sourceChunks.chunkIndex);
 }
 
-// 14. Fetch all notes (Memory) for a notebook
-export async function getNotebookNotes(notebookId: string) {
+// 14. Fetch all notes (Memory) for a notebook (or filtered by conversation)
+export async function getNotebookNotes(notebookId: string, conversationId?: string | null) {
   const user = await requireUser();
   return db
     .select()
     .from(notes)
-    .where(and(eq(notes.notebookId, notebookId), eq(notes.userId, user.id)))
+    .where(
+      conversationId
+        ? and(
+            eq(notes.notebookId, notebookId),
+            eq(notes.userId, user.id),
+            eq(notes.conversationId, conversationId)
+          )
+        : and(eq(notes.notebookId, notebookId), eq(notes.userId, user.id))
+    )
     .orderBy(desc(notes.createdAt));
 }

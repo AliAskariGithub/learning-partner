@@ -116,38 +116,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 6. Fetch Profile (user custom instructions) and Saved Notes (memory)
-    const [profile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.authUserId, userId))
-      .limit(1);
-
-    const savedNotes = await db
-      .select({ title: notes.title, content: notes.content })
-      .from(notes)
-      .where(and(eq(notes.notebookId, notebookId), eq(notes.userId, userId)))
-      .orderBy(desc(notes.createdAt))
-      .limit(15);
-
-    // 7. Hybrid RAG Retrieval over enabled sources
-    const retrieval = await retrieveNotebookContext({
-      notebookId,
-      userId,
-      query: message,
-      maxTokens: Math.min(16000, Math.floor(modelDef.capabilities.contextWindow * 0.4)),
-    });
-
-    // 8. Assemble Grounded System Prompt
-    const systemPrompt = assembleSystemPrompt({
-      mode,
-      userCustomInstructions: profile?.customInstructions,
-      notebookInstructions: notebook.instructions,
-      memoryNotes: savedNotes,
-      formattedSourcesContext: retrieval.formattedContext,
-    });
-
-    // 9. Resolve Conversation
+    // 6. Resolve Conversation
     let activeConversationId = incomingConvId;
     if (activeConversationId) {
       const [existing] = await db
@@ -187,6 +156,46 @@ export async function POST(req: NextRequest) {
       .set({ lastModel: modelId })
       .where(eq(notebooks.id, notebookId))
       .catch(() => {});
+
+    // 7. Fetch Profile (user custom instructions) and Saved Notes (scoped to active conversation)
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.authUserId, userId))
+      .limit(1);
+
+    const savedNotes = await db
+      .select({ title: notes.title, content: notes.content })
+      .from(notes)
+      .where(
+        activeConversationId
+          ? and(
+              eq(notes.notebookId, notebookId),
+              eq(notes.userId, userId),
+              eq(notes.conversationId, activeConversationId)
+            )
+          : and(eq(notes.notebookId, notebookId), eq(notes.userId, userId))
+      )
+      .orderBy(desc(notes.createdAt))
+      .limit(15);
+
+    // 8. Hybrid RAG Retrieval over enabled sources
+    const retrieval = await retrieveNotebookContext({
+      notebookId,
+      userId,
+      query: message,
+      maxTokens: Math.min(16000, Math.floor(modelDef.capabilities.contextWindow * 0.4)),
+    });
+
+    // 9. Assemble Grounded System Prompt
+    const systemPrompt = assembleSystemPrompt({
+      mode,
+      userCustomInstructions: profile?.customInstructions,
+      notebookInstructions: notebook.instructions,
+      memoryNotes: savedNotes,
+      formattedSourcesContext: retrieval.formattedContext,
+      preferredLanguage: profile?.preferredLanguage,
+    });
 
     // 10. Fetch previous conversation history
     const pastMessages = await db
@@ -262,12 +271,13 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // Auto-save key conversation context to notebook shared memory
+          // Auto-save key conversation context to conversation memory
           try {
             const memoryTitle = message.slice(0, 42).replace(/[*_#]/g, '').trim();
             const memoryContent = `Q: ${message.trim()}\nA: ${text.slice(0, 360).trim()}...`;
             await db.insert(notes).values({
               notebookId,
+              conversationId: activeConversationId || null,
               userId,
               title: memoryTitle || 'Chat Context Takeaway',
               content: memoryContent,

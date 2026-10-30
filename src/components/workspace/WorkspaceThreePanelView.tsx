@@ -82,6 +82,7 @@ import {
   GraduationCap,
   Square as StopSquare,
 } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 function formatRelativeTime(date: Date | string | number | null | undefined): string {
   if (!date) return 'Just now';
@@ -140,6 +141,7 @@ interface WorkspaceThreePanelViewProps {
   outputs?: StudioOutput[];
   onRefreshOutputs?: () => void;
   isLoadingMessages?: boolean;
+  onEnsureConversation?: (title?: string) => Promise<string>;
 }
 
 
@@ -158,6 +160,7 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
   enabledCount: number;
 }) {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   return (
     <div
@@ -183,7 +186,7 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
             }`}
           >
             <Layers className="w-3.5 h-3.5 text-brand-400" />
-            <span>Context</span>
+            <span>{t('context')}</span>
             {sourcesCount > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
                 {enabledCount}
@@ -212,7 +215,7 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-brand-400" />
-            <span>Studio</span>
+            <span>{t('studio')}</span>
           </button>
         </div>
       </Tooltip>
@@ -248,6 +251,7 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
 
   const activeModelDef = React.useMemo(() => getModelDefinition(selectedModelId), [selectedModelId]);
   const supportsStructuredOutput = activeModelDef?.capabilities?.structuredOutput ?? true;
+  const { t } = useLanguage();
 
   const modes: Array<{
     id: 'chat' | 'learn' | 'quiz';
@@ -259,20 +263,20 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
   }> = [
     {
       id: 'chat',
-      label: 'Chat',
-      description: 'Freeform chat with grounded citations',
+      label: t('chat'),
+      description: t('mode_chat_desc'),
       icon: MessageSquare,
     },
     {
       id: 'learn',
-      label: 'Learn',
-      description: 'Step-by-step interactive tutoring',
+      label: t('learn'),
+      description: t('mode_learn_desc'),
       icon: GraduationCap,
     },
     {
       id: 'quiz',
-      label: 'Quiz',
-      description: 'Knowledge check & instant quiz cards',
+      label: t('quiz'),
+      description: t('mode_quiz_desc'),
       icon: HelpCircle,
       disabled: !supportsStructuredOutput,
       disabledReason: 'Requires structured output',
@@ -294,7 +298,7 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
           aria-expanded={dropdownOpen}
         >
           <CurrentIcon className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-          <span className="text-[#9a9a94] text-[11px] hidden xs:inline">Mode:</span>
+          <span className="text-[#9a9a94] text-[11px] hidden xs:inline">{t('mode')}:</span>
           <span className="capitalize font-semibold text-[#f4f4f2]">{currentModeObj.label}</span>
           <ChevronDown
             className={`w-3.5 h-3.5 text-[#9a9a94] transition-transform duration-200 ${
@@ -433,8 +437,10 @@ export function WorkspaceThreePanelView({
   onSelectMode,
   outputs = [],
   onRefreshOutputs,
+  onEnsureConversation,
 }: WorkspaceThreePanelViewProps) {
   const { toast } = useToast();
+  const { language, t } = useLanguage();
 
   // Desktop Right Sidebar Open/Close
   const [studioPanelOpen, setStudioPanelOpen] = useState(true);
@@ -484,9 +490,14 @@ export function WorkspaceThreePanelView({
     return messages.reduce((acc, m) => acc + Math.round((m.content?.length || 0) / 4), 0);
   }, [messages]);
 
+  const chatNotes = React.useMemo(() => {
+    if (!activeConversationId) return [];
+    return notes.filter((n) => n.conversationId === activeConversationId);
+  }, [notes, activeConversationId]);
+
   const memoryTokens = React.useMemo(() => {
-    return notes.reduce((acc, n) => acc + Math.round(((n.title?.length || 0) + (n.content?.length || 0)) / 4), 0);
-  }, [notes]);
+    return chatNotes.reduce((acc, n) => acc + Math.round(((n.title?.length || 0) + (n.content?.length || 0)) / 4), 0);
+  }, [chatNotes]);
 
   const totalUsedTokens = sourcesTokens + chatTokens + memoryTokens;
   const usedPercentage = Math.min(100, (totalUsedTokens / contextWindowLimit) * 100);
@@ -508,6 +519,16 @@ export function WorkspaceThreePanelView({
       'ROLE You are my personal study partner. Answer questions strictly grounded in uploaded sources, prioritize clear step-by-step breakdowns, and always reference citations.'
   );
   const [savingInstructions, setSavingInstructions] = useState(false);
+
+  // Keep instructions strictly synchronized across all chats of the notebook
+  React.useEffect(() => {
+    if (notebook?.instructions !== undefined) {
+      setInstructionsText(
+        notebook.instructions ||
+          'ROLE You are my personal study partner. Answer questions strictly grounded in uploaded sources, prioritize clear step-by-step breakdowns, and always reference citations.'
+      );
+    }
+  }, [notebook?.instructions]);
 
   // Read-Only Memory Modal
   const [viewMemoryOpen, setViewMemoryOpen] = useState(false);
@@ -750,8 +771,8 @@ export function WorkspaceThreePanelView({
               {/* 1. Instructions Section */}
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-display font-bold text-[#f4f4f2]">Instructions</span>
-                  <Tooltip content="Edit notebook instructions" side="top">
+                  <span className="text-sm font-display font-bold text-[#f4f4f2]">{t('instructions')}</span>
+                  <Tooltip content={t('edit_instructions')} side="top">
                     <button
                       onClick={() => setEditInstructionsOpen(true)}
                       className="p-1.5 rounded-lg text-[#9a9a94] hover:text-brand-400 hover:bg-[#191919] transition-colors cursor-pointer"
@@ -773,26 +794,26 @@ export function WorkspaceThreePanelView({
               <div className="p-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-display font-bold text-[#f4f4f2]">Memory</span>
+                    <span className="text-sm font-display font-bold text-[#f4f4f2]">{t('memory')}</span>
                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] text-[10px] border border-[#303030]">
                       <Lock className="w-2.5 h-2.5" />
-                      <span>Only you</span>
+                      <span>{t('only_you')}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => setViewMemoryOpen(true)}
                     className="text-xs font-display font-semibold text-brand-400 hover:text-brand-300 transition-colors cursor-pointer"
                   >
-                    View memory
+                    {t('view_memory')}
                   </button>
                 </div>
                 <p className="text-xs text-[#9a9a94] font-serif leading-relaxed">
-                  View what your study partner automatically remembers and carries across all chats.
+                  {t('memory_desc')}
                 </p>
 
-                {notes.length > 0 && (
+                {chatNotes.length > 0 && (
                   <div className="mt-3 space-y-1.5">
-                    {notes.slice(0, 2).map((note) => (
+                    {chatNotes.slice(0, 2).map((note) => (
                       <div
                         key={note.id}
                         onClick={() => setViewMemoryOpen(true)}
@@ -802,12 +823,12 @@ export function WorkspaceThreePanelView({
                         {note.content}
                       </div>
                     ))}
-                    {notes.length > 2 && (
+                    {chatNotes.length > 2 && (
                       <button
                         onClick={() => setViewMemoryOpen(true)}
                         className="text-[11px] font-display text-brand-400 hover:underline pt-0.5"
                       >
-                        +{notes.length - 2} more notes
+                        +{chatNotes.length - 2} more notes
                       </button>
                     )}
                   </div>
@@ -821,14 +842,14 @@ export function WorkspaceThreePanelView({
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-display font-bold text-[#f4f4f2]">Context</span>
+                    <span className="text-sm font-display font-bold text-[#f4f4f2]">{t('context')}</span>
                     {sources.length > 0 && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] border border-[#303030]">
-                        {enabledCount}/{sources.length} active
+                        {enabledCount}/{sources.length} {t('active')}
                       </span>
                     )}
                   </div>
-                  <Tooltip content="Add source to context" side="top">
+                  <Tooltip content={t('attach_source')} side="top">
                     <button
                       onClick={onOpenAddSource}
                       className="w-6 h-6 rounded-lg bg-[#191919] text-brand-400 hover:bg-brand-600 hover:text-white border border-[#303030] flex items-center justify-center transition cursor-pointer shadow-sm"
@@ -867,7 +888,7 @@ export function WorkspaceThreePanelView({
                     </div>
 
                     <p className="text-xs text-[#9a9a94] font-serif leading-relaxed max-w-[210px] mx-auto">
-                      Add PDFs, documents, or other text to reference in this project.
+                      {t('add_source_empty')}
                     </p>
                   </div>
                 ) : (
@@ -907,21 +928,21 @@ export function WorkspaceThreePanelView({
                             {source.title}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5 text-[10px] text-[#9a9a94]">
-                            <span>{source.wordCount?.toLocaleString() || 0} words</span>
+                            <span>{source.wordCount?.toLocaleString() || 0} {t('words')}</span>
                             {source.status === 'processing' && (
                               <span className="flex items-center gap-1 text-amber-400">
                                 <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                                Parsing...
+                                {t('processing')}...
                               </span>
                             )}
                             {source.status === 'failed' && (
                               <span className="text-red-400 flex items-center gap-1">
                                 <AlertTriangle className="w-2.5 h-2.5" />
-                                Failed
+                                {t('error')}
                               </span>
                             )}
                             {source.status === 'ready' && (
-                              <span className="text-emerald-400 font-medium">Ready</span>
+                              <span className="text-emerald-400 font-medium">{t('ready')}</span>
                             )}
                           </div>
                         </div>
@@ -965,7 +986,7 @@ export function WorkspaceThreePanelView({
                       className="w-full mt-2 text-xs border-[#303030] text-brand-400 hover:text-brand-300 hover:bg-[#191919]"
                     >
                       <Plus className="w-3.5 h-3.5 mr-1" />
-                      Add Source
+                      {t('add_source')}
                     </Button>
                   </div>
                 )}
@@ -986,6 +1007,7 @@ export function WorkspaceThreePanelView({
             onOpenSourceViewer={onOpenSourceViewer}
             activeConversationId={activeConversationId}
             activeConversationTitle={activeConversation?.title}
+            onEnsureConversation={onEnsureConversation}
           />
         )}
       </div>
@@ -1075,30 +1097,6 @@ export function WorkspaceThreePanelView({
                 )}
               </button>
             )}
-
-            <span className="text-xs text-[#9a9a94]">•</span>
-            <button
-              onClick={() => {
-                setStudioPanelOpen(true);
-                setStudioTab('context');
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 text-[11px] font-display font-semibold transition cursor-pointer"
-            >
-              <BookOpen className="w-3 h-3" />
-              <span>{enabledCount} active</span>
-            </button>
-
-            {onNewConversation && (
-              <button
-                type="button"
-                onClick={onNewConversation}
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-display font-medium rounded-lg bg-[#262626] text-[#9a9a94] hover:text-[#f4f4f2] border border-[#303030] hover:border-brand-500/40 transition cursor-pointer"
-                title="Start a new chat thread"
-              >
-                <Plus className="w-3 h-3 text-brand-400" />
-                <span>New Chat</span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -1143,7 +1141,7 @@ export function WorkspaceThreePanelView({
                   </div>
                   <div className="flex items-center justify-between text-[#9a9a94]">
                     <span className="flex items-center gap-1.5">
-                      <Brain className="w-3 h-3 text-emerald-400" /> Shared Memory ({notes.length} notes)
+                      <Brain className="w-3 h-3 text-emerald-400" /> Chat Memory ({chatNotes.length} notes)
                     </span>
                     <span className="font-mono text-[#f4f4f2]">{memoryTokens.toLocaleString()} tokens</span>
                   </div>
@@ -1751,7 +1749,11 @@ export function WorkspaceThreePanelView({
                 ? 'Connect an API key in the model switcher below to start chatting...'
                 : sources.length === 0
                 ? 'Add sources in Context sidebar, then ask questions...'
-                : `Ask anything about your sources in ${selectedMode} mode...`
+                : selectedMode === 'learn'
+                ? t('placeholder_learn')
+                : selectedMode === 'quiz'
+                ? t('placeholder_quiz')
+                : t('placeholder_chat')
             }
           />
 
@@ -1759,7 +1761,7 @@ export function WorkspaceThreePanelView({
           <AIPromptInputTools>
             <div className="flex items-center gap-2">
               {/* Add Source Fast Button */}
-              <Tooltip content="Add Source (PDF, Doc, Link, Text)" side="top">
+              <Tooltip content={t('attach_source')} side="top">
                 <button
                   type="button"
                   onClick={onOpenAddSource}
@@ -1786,7 +1788,11 @@ export function WorkspaceThreePanelView({
               {/* Sources Count Badge */}
               <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-display text-[#9a9a94]">
                 <BookOpen className="w-3 h-3" />
-                {enabledCount} source{enabledCount === 1 ? '' : 's'}
+                {enabledCount === 0
+                  ? t('source_chip_none')
+                  : enabledCount === 1
+                  ? t('source_chip_single')
+                  : t('source_chip_multi', enabledCount)}
               </span>
             </div>
 
@@ -1794,7 +1800,7 @@ export function WorkspaceThreePanelView({
             <div className="flex items-center gap-1.5">
               {/* Mic Input wrapped with CapabilityGate */}
               <CapabilityGate feature="audioInput" modelId={selectedModelId}>
-                <Tooltip content="Voice input (speech-to-text)" side="top">
+                <Tooltip content={t('voice_input')} side="top">
                   <button
                     type="button"
                     className="p-2 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919] transition-colors cursor-pointer"
@@ -1806,27 +1812,29 @@ export function WorkspaceThreePanelView({
 
               {/* Send / Stop Button */}
               {isStreaming ? (
-                <Tooltip content="Stop generating (Esc)" side="top">
+                <Tooltip content={`${t('stop_generating')} (Esc)`} side="top">
                   <button
                     type="button"
                     onClick={onStopStreaming}
                     className="h-8 w-8 rounded-full bg-[#2a2a2a] hover:bg-[#333333] border border-[#383838] flex items-center justify-center cursor-pointer transition-colors shadow-sm"
-                    title="Stop generating"
-                    aria-label="Stop generating response"
+                    title={t('stop_generating')}
+                    aria-label={t('stop_generating')}
                   >
                     <span className="w-3 h-3 rounded-[2px] bg-[#ef4444]" />
                   </button>
                 </Tooltip>
               ) : (
                 <div className="relative group">
-                  <Button
-                    size="sm"
-                    disabled={userKeys.length === 0 || !chatPrompt.trim()}
-                    onClick={() => handleSendAction()}
-                    className="h-8 w-8 p-0 rounded-xl bg-brand-600 text-white hover:bg-brand-500 shadow-md shadow-brand-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </Button>
+                  <Tooltip content={t('send_message')} side="top">
+                    <Button
+                      size="sm"
+                      disabled={userKeys.length === 0 || !chatPrompt.trim()}
+                      onClick={() => handleSendAction()}
+                      className="h-8 w-8 p-0 rounded-xl bg-brand-600 text-white hover:bg-brand-500 shadow-md shadow-brand-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </Button>
+                  </Tooltip>
 
                   {userKeys.length === 0 && (
                     <div
@@ -2002,36 +2010,36 @@ export function WorkspaceThreePanelView({
       <Dialog
         open={viewMemoryOpen}
         onOpenChange={setViewMemoryOpen}
-        title="Notebook Memory"
-        description="Key takeaways, context, and insights across all chats in this notebook are automatically stored here and carried into future conversations."
+        title={t('view_memory_title')}
+        description={t('view_memory_heading')}
         className="max-w-2xl"
       >
         <div className="space-y-4 pt-2">
           {/* Header Action / Badge: Read-Only */}
           <div className="flex items-center justify-between pb-2 border-b border-[#303030]">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[#9a9a94] font-mono">{notes.length} saved memories</span>
+              <span className="text-xs text-[#9a9a94] font-mono">{chatNotes.length} saved memories</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium">
                 <Lock className="w-2.5 h-2.5" /> Read-Only · Auto-Saved
               </span>
             </div>
             <span className="text-[11px] text-[#9a9a94] font-serif">
-              Shared across all notebook chats
+              Scoped to this chat
             </span>
           </div>
 
           {/* Notes List (Strictly Read-Only: No Add, No Edit, No Delete) */}
           <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-[#303030]">
-            {notes.length === 0 ? (
+            {chatNotes.length === 0 ? (
               <div className="py-12 text-center text-[#9a9a94] text-xs font-serif space-y-2">
                 <Brain className="w-8 h-8 text-[#9a9a94] mx-auto opacity-40" />
-                <p className="text-[#f4f4f2] font-semibold">No memories stored yet</p>
+                <p className="text-[#f4f4f2] font-semibold">No memories stored for this chat yet</p>
                 <p className="max-w-md mx-auto text-[#9a9a94]">
-                  As you chat with your learning partner, key insights and context are automatically extracted and remembered here.
+                  As you chat with your learning partner, key insights and context from this chat are automatically extracted and remembered here.
                 </p>
               </div>
             ) : (
-              notes.map((note) => (
+              chatNotes.map((note) => (
                 <div
                   key={note.id}
                   className="p-3.5 rounded-2xl bg-[#191919] border border-[#303030] hover:border-brand-500/40 transition group"

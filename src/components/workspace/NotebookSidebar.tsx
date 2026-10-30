@@ -39,6 +39,7 @@ import {
   deleteNotebook,
 } from '@/app/app/notebook-actions';
 import { updateProfileSettings } from '@/app/settings/actions';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface NotebookSidebarProps {
   notebooks: Notebook[];
@@ -91,22 +92,17 @@ export function NotebookSidebar({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredNotebookId, setHoveredNotebookId] = useState<string | null>(null);
+  const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
 
   // User Popover Menu State
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [hoveredUserMenuItem, setHoveredUserMenuItem] = useState<string | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Language Picker Dialog State
+  // Language Context & Dialog State
+  const { language: currentLanguage, setLanguage, t } = useLanguage();
   const [languageDialogOpen, setLanguageDialogOpen] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState(initialLanguage);
   const [savingLanguage, setSavingLanguage] = useState(false);
-
-  useEffect(() => {
-    if (initialLanguage) {
-      setCurrentLanguage(initialLanguage);
-    }
-  }, [initialLanguage]);
 
   // Help & Shortcuts Dialog
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
@@ -181,17 +177,16 @@ export function NotebookSidebar({
 
   // Language selection handler
   const handleSelectLanguage = async (code: string) => {
-    setCurrentLanguage(code);
     setSavingLanguage(true);
     try {
-      const fd = new FormData();
-      fd.append('preferredLanguage', code);
-      await updateProfileSettings(fd);
+      await setLanguage(code);
       setLanguageDialogOpen(false);
       const langObj = SUPPORTED_LANGUAGES.find((l) => l.code === code);
       toast({
-        title: 'Language Updated',
-        description: `Study language set to ${langObj?.name || code} (${langObj?.native || ''})`,
+        title: code === 'ur' ? 'زبان تبدیل ہو گئی' : 'Language Updated',
+        description: code === 'ur'
+          ? `مطالعہ کی زبان اردو (${langObj?.native || ''}) پر سیٹ کر دی گئی ہے`
+          : `Study language set to ${langObj?.name || code} (${langObj?.native || ''})`,
         variant: 'brand',
       });
       router.refresh();
@@ -355,7 +350,7 @@ export function NotebookSidebar({
               className="w-full px-2.5 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
             >
               <Pencil className="w-3.5 h-3.5 text-[#9a9a94]" />
-              Rename
+              {t('rename')}
             </button>
 
             <button
@@ -368,7 +363,7 @@ export function NotebookSidebar({
               className="w-full px-2.5 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
             >
               <Pin className={`w-3.5 h-3.5 ${nb.pinned ? 'fill-brand-400 text-brand-400' : 'text-[#9a9a94]'}`} />
-              {nb.pinned ? 'Unpin' : 'Pin to top'}
+              {nb.pinned ? t('unpin') : t('pin_to_top')}
             </button>
 
             <div className="h-px bg-[#303030] my-1" />
@@ -384,7 +379,7 @@ export function NotebookSidebar({
               className="w-full px-2.5 py-1.5 text-left text-xs font-display text-rose-400 hover:bg-rose-950/25 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Delete
+              {t('delete')}
             </button>
           </div>
         )}
@@ -399,9 +394,12 @@ export function NotebookSidebar({
   const renderNotebookChatsSublist = (nbId: string) => {
     if (activeNotebookId !== nbId || !conversations || conversations.length === 0) return null;
     return (
-      <div className="pl-3.5 pr-1 py-1 space-y-0.5 border-l border-brand-500/30 ml-4 my-1 relative z-20">
-        <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-display font-semibold uppercase tracking-wider text-muted-foreground/70">
-          <span>Chats ({conversations.length})</span>
+      <div
+        className="pl-3.5 pr-1 py-1.5 space-y-1.5 border-l border-brand-500/30 ml-4 my-2 relative z-20"
+        onMouseLeave={() => setHoveredChatId(null)}
+      >
+        <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-display font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
+          <span>{t('chats', conversations.length)}</span>
           {onNewConversation && (
             <button
               type="button"
@@ -410,44 +408,69 @@ export function NotebookSidebar({
                 e.stopPropagation();
                 onNewConversation();
               }}
-              className="text-brand-400 hover:text-brand-300 font-semibold inline-flex items-center gap-0.5 cursor-pointer lowercase first-letter:uppercase"
+              className="text-brand-400 hover:text-brand-300 font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
               title="Start new chat"
             >
-              <Plus className="w-2.5 h-2.5" /> new
+              <Plus className="w-2.5 h-2.5" />
+              <span>{t('new_chat_short')}</span>
             </button>
           )}
         </div>
-        {conversations.map((c) => {
-          const isChatActive = c.id === activeConversationId;
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (onSelectConversation) {
-                  onSelectConversation(c.id);
-                }
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-sans transition-all text-left cursor-pointer group/chat ${
-                isChatActive
-                  ? 'bg-brand-500/25 text-brand-200 font-medium border border-brand-500/50 shadow-sm'
-                  : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent'
-              }`}
-              title={c.title}
-            >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isChatActive ? 'text-brand-400' : 'text-[#71717a] group-hover/chat:text-[#9a9a94]'}`} />
-                <span className="truncate">{c.title}</span>
+        <div className="space-y-1 relative">
+          {conversations.map((c) => {
+            const isChatActive = c.id === activeConversationId;
+            return (
+              <div
+                key={c.id}
+                className="relative"
+                onMouseEnter={() => setHoveredChatId(c.id)}
+              >
+                <GlidingHighlight
+                  activeId={isChatActive ? c.id : null}
+                  hoverId={hoveredChatId}
+                  itemId={c.id}
+                  layoutId={`chats-sidebar-glide-${nbId}`}
+                  className={
+                    isChatActive
+                      ? 'bg-brand-500/20 border border-brand-500/40 shadow-sm'
+                      : 'bg-[#262626] border border-[#383838]'
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onSelectConversation) {
+                      onSelectConversation(c.id);
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className={`w-full relative z-10 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-sans transition-colors text-left cursor-pointer group/chat ${
+                    isChatActive
+                      ? 'text-brand-200 font-medium'
+                      : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+                  }`}
+                  title={c.title}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <MessageSquare
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        isChatActive
+                          ? 'text-brand-400'
+                          : 'text-[#71717a] group-hover/chat:text-[#9a9a94]'
+                      }`}
+                    />
+                    <span className="truncate">{c.title}</span>
+                  </div>
+                  {isChatActive && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0 ml-1" />}
+                </button>
               </div>
-              {isChatActive && <Check className="w-3.5 h-3.5 text-brand-400 shrink-0 ml-1" />}
-            </button>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -481,50 +504,50 @@ export function NotebookSidebar({
             </div>
 
             {/* Sidebar Scrollable Body */}
-            <div className="flex flex-col flex-1 p-3 overflow-hidden min-h-0 justify-between">
+            <div className="flex flex-col flex-1 p-3.5 overflow-hidden min-h-0 justify-between">
               {/* Primary Action Button: + New Notebook */}
               <Button
                 onClick={() => setCreateDialogOpen(true)}
                 variant="primary"
                 size="sm"
-                className="w-full mb-3 font-display font-bold text-xs h-9 justify-start px-3 shadow-brand-600/20"
+                className="w-full mb-3.5 font-display font-bold text-xs h-10 justify-start px-3.5 shadow-brand-600/20 rounded-xl"
               >
-                <Plus className="h-3.5 w-3.5 mr-2" />
-                New Notebook
+                <Plus className="h-4 w-4 mr-2" />
+                {t('new_notebook')}
               </Button>
 
               {/* Search Notebooks */}
-              <div className="relative mb-3 px-1">
+              <div className="relative mb-4 px-0.5">
                 <Search className="h-3.5 w-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search notebooks..."
-                  className="w-full bg-surface-raised border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-brand-500 font-sans"
+                  placeholder={t('search_notebooks')}
+                  className="w-full bg-surface-raised border border-border rounded-xl pl-8 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-brand-500 font-sans"
                 />
               </div>
 
               {/* Scrollable Notebooks List */}
               <div
-                className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 scrollbar-thin scrollbar-thumb-border overscroll-contain"
+                className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1 scrollbar-thin scrollbar-thumb-border overscroll-contain"
                 data-lenis-prevent
                 onMouseLeave={() => setHoveredNotebookId(null)}
               >
                 {/* 1. Pinned Notebooks */}
                 {pinnedNotebooks.length > 0 && (
                   <div>
-                    <div className="flex items-center gap-1.5 px-2 mb-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground/70">
+                    <div className="flex items-center gap-1.5 px-2 my-2 text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground/70">
                       <Pin className="h-3 w-3 text-brand-400" />
                       <span>Pinned Notebooks</span>
                     </div>
 
-                    <div className="space-y-1 relative">
+                    <div className="space-y-1.5 relative">
                       {pinnedNotebooks.map((nb) => {
                         const isActive = activeNotebookId === nb.id;
                         const isMenuOpen = openMenuNotebookId === nb.id;
                         return (
-                          <div key={nb.id} className={`space-y-0.5 relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}>
+                          <div key={nb.id} className={`space-y-1 relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}>
                             <div
                               className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
                               onMouseEnter={() => setHoveredNotebookId(nb.id)}
@@ -533,7 +556,7 @@ export function NotebookSidebar({
                               activeId={isActive ? nb.id : null}
                               hoverId={hoveredNotebookId}
                               itemId={nb.id}
-                              layoutId="notebooks-sidebar-glide"
+                              layoutId="pinned-notebooks-sidebar-glide"
                               className={
                                 isActive
                                   ? 'bg-brand-500/15 border border-brand-500/40'
@@ -542,7 +565,7 @@ export function NotebookSidebar({
                             />
                             <div
                               onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                              className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                              className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${
                                 isMenuOpen ? 'z-40' : 'z-10'
                               } ${
                                 isActive
@@ -568,7 +591,7 @@ export function NotebookSidebar({
 
                 {/* 2. All Other Notebooks */}
                 <div>
-                  <div className="flex items-center justify-between px-2 mb-1.5 text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground/70">
+                  <div className="flex items-center justify-between px-2 mb-2 text-[10px] font-display font-bold uppercase tracking-wider text-muted-foreground/70">
                     <span>Notebooks ({notebooks.length})</span>
                   </div>
 
@@ -582,7 +605,7 @@ export function NotebookSidebar({
                         const isActive = activeNotebookId === nb.id;
                         const isMenuOpen = openMenuNotebookId === nb.id;
                         return (
-                          <div key={nb.id} className={`space-y-0.5 relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}>
+                          <div key={nb.id} className={`space-y-1 relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}>
                             <div
                               className={`relative ${isMenuOpen ? 'z-40' : 'z-auto'}`}
                               onMouseEnter={() => setHoveredNotebookId(nb.id)}
@@ -591,7 +614,7 @@ export function NotebookSidebar({
                               activeId={isActive ? nb.id : null}
                               hoverId={hoveredNotebookId}
                               itemId={nb.id}
-                              layoutId="notebooks-sidebar-glide"
+                              layoutId="other-notebooks-sidebar-glide"
                               className={
                                 isActive
                                   ? 'bg-brand-500/15 border border-brand-500/40'
@@ -600,7 +623,7 @@ export function NotebookSidebar({
                             />
                             <div
                               onClick={() => router.push(`/app/notebooks/${nb.id}`)}
-                              className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition cursor-pointer ${
+                              className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${
                                 isMenuOpen ? 'z-40' : 'z-10'
                               } ${
                                 isActive
@@ -628,7 +651,7 @@ export function NotebookSidebar({
               {/* ---------------------------------------------------------------- */}
               {/* Bottom User Button & Upward Popover Menu                          */}
               {/* ---------------------------------------------------------------- */}
-              <div className="relative pt-2 border-t border-border mt-auto" ref={userMenuRef}>
+              <div className="relative pt-3 border-t border-border mt-auto" ref={userMenuRef}>
                 {/* Popover Menu opening upward */}
                 <AnimatePresence>
                   {userMenuOpen && (
@@ -681,9 +704,9 @@ export function NotebookSidebar({
                           >
                             <div className="flex items-center gap-2.5">
                               <Settings className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                              <span className="font-display font-medium">Settings</span>
+                              <span className="font-display font-medium">{t('settings')}</span>
                             </div>
-                            <span className="text-[10px] text-muted-foreground font-mono">Profile &amp; Keys</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">{t('profile_keys')}</span>
                           </button>
                         </div>
 
@@ -705,7 +728,7 @@ export function NotebookSidebar({
                           >
                             <div className="flex items-center gap-2.5">
                               <Globe className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                              <span className="font-display font-medium">Language</span>
+                              <span className="font-display font-medium">{t('language')}</span>
                             </div>
                             <span className="text-[10px] text-brand-400 font-medium">
                               {activeLangObj?.native || 'English'}
@@ -731,7 +754,7 @@ export function NotebookSidebar({
                           >
                             <div className="flex items-center gap-2.5">
                               <Key className="w-4 h-4 text-brand-400 group-hover:text-brand-300 transition-colors" />
-                              <span className="font-display font-medium">Get API keys</span>
+                              <span className="font-display font-medium">{t('get_api_keys')}</span>
                             </div>
                             <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-brand-400 transition-colors" />
                           </a>
@@ -755,7 +778,7 @@ export function NotebookSidebar({
                           >
                             <div className="flex items-center gap-2.5">
                               <HelpCircle className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                              <span className="font-display font-medium">Help &amp; Shortcuts</span>
+                              <span className="font-display font-medium">{t('help_shortcuts')}</span>
                             </div>
                           </button>
                         </div>
@@ -778,7 +801,7 @@ export function NotebookSidebar({
                           >
                             <div className="flex items-center gap-2.5">
                               <Info className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                              <span className="font-display font-medium">About Learning Partner</span>
+                              <span className="font-display font-medium">{t('about_app')}</span>
                             </div>
                             <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                           </button>
@@ -801,7 +824,7 @@ export function NotebookSidebar({
                             className="relative z-10 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[#f87171] transition-colors cursor-pointer group"
                           >
                             <LogOut className="w-4 h-4 text-[#f87171] group-hover:translate-x-0.5 transition-transform" />
-                            <span className="font-display font-medium">Log out</span>
+                            <span className="font-display font-medium">{t('logout')}</span>
                           </button>
                         </div>
                       </div>
@@ -810,20 +833,20 @@ export function NotebookSidebar({
                 </AnimatePresence>
 
                 {/* The User Button: Initial Circle or Photo + Display Name + Chevron (Clean without • Free) */}
-                <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center justify-between gap-1.5">
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-surface-raised transition-colors cursor-pointer flex-1 min-w-0 text-left group"
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-raised transition-colors cursor-pointer flex-1 min-w-0 text-left group"
                   >
                     {/* Circle Avatar with Image or Initial */}
                     {userAvatarUrl ? (
                       <img
                         src={userAvatarUrl}
                         alt={userDisplayName}
-                        className="w-7 h-7 rounded-full object-cover border border-border shrink-0 shadow-sm group-hover:border-brand-500/40 transition-colors"
+                        className="w-8 h-8 rounded-full object-cover border border-border shrink-0 shadow-sm group-hover:border-brand-500/40 transition-colors"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-surface-raised border border-border text-brand-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm group-hover:border-brand-500/40 transition-colors">
+                      <div className="w-8 h-8 rounded-full bg-surface-raised border border-border text-brand-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm group-hover:border-brand-500/40 transition-colors">
                         {userDisplayName.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -861,8 +884,8 @@ export function NotebookSidebar({
       <Dialog
         open={languageDialogOpen}
         onOpenChange={setLanguageDialogOpen}
-        title="Select Preferred Study Language"
-        description="Choose your primary language for study materials, summaries, and AI grounded reasoning."
+        title={t('select_language_title')}
+        description={t('select_language_desc')}
       >
         <div className="space-y-4 pt-1">
           <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-border">
@@ -894,7 +917,7 @@ export function NotebookSidebar({
               size="sm"
               onClick={() => setLanguageDialogOpen(false)}
             >
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
         </div>

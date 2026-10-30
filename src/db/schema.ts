@@ -128,6 +128,8 @@ export const notes = pgTable(
     notebookId: uuid('notebook_id')
       .notNull()
       .references(() => notebooks.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id')
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull(),
     title: text('title').notNull(),
     content: text('content').notNull(),
@@ -136,6 +138,7 @@ export const notes = pgTable(
   },
   (table) => [
     index('notes_notebook_id_idx').on(table.notebookId),
+    index('notes_conversation_id_idx').on(table.conversationId),
     index('notes_user_id_idx').on(table.userId),
   ]
 );

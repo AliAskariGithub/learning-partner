@@ -1,8 +1,8 @@
 'use server';
 
-import { eq, and, desc, inArray, or, isNull } from 'drizzle-orm';
+import { eq, and, desc, asc, inArray, or, isNull } from 'drizzle-orm';
 import { db } from '@/db';
-import { outputs, StudioOutput, sources, sourceChunks, notebooks } from '@/db/schema';
+import { outputs, StudioOutput, sources, sourceChunks, notebooks, conversations } from '@/db/schema';
 import { requireUser } from '@/lib/auth/session';
 import { getDecryptedKeyForProvider } from './api-key-actions';
 import { getModelDefinition, ProviderId, ModelCapabilities } from '@/lib/ai/providers';
@@ -29,13 +29,53 @@ export interface GenerateStudioOutputParams {
 }
 
 /**
- * Fetches all outputs for a given notebook, scoped strictly by authenticated user.
+ * Fetches all outputs for a given notebook, scoped strictly by authenticated user and conversation.
  */
 export async function getNotebookOutputs(
   notebookId: string,
   conversationId?: string | null
 ): Promise<StudioOutput[]> {
   const user = await requireUser();
+
+  // If there are legacy outputs with NULL conversationId, bind them to the earliest conversation of this notebook
+  // so they do not pollute every chat
+  try {
+    const unassignedOutputs = await db
+      .select({ id: outputs.id })
+      .from(outputs)
+      .where(
+        and(
+          eq(outputs.notebookId, notebookId),
+          eq(outputs.userId, user.id),
+          isNull(outputs.conversationId)
+        )
+      )
+      .limit(10);
+
+    if (unassignedOutputs.length > 0) {
+      const [firstConv] = await db
+        .select({ id: conversations.id })
+        .from(conversations)
+        .where(and(eq(conversations.notebookId, notebookId), eq(conversations.userId, user.id)))
+        .orderBy(asc(conversations.createdAt))
+        .limit(1);
+
+      if (firstConv) {
+        await db
+          .update(outputs)
+          .set({ conversationId: firstConv.id })
+          .where(
+            and(
+              eq(outputs.notebookId, notebookId),
+              eq(outputs.userId, user.id),
+              isNull(outputs.conversationId)
+            )
+          );
+      }
+    }
+  } catch (err) {
+    console.warn('Could not auto-attribute legacy outputs:', err);
+  }
 
   if (conversationId) {
     const rows = await db
@@ -45,7 +85,7 @@ export async function getNotebookOutputs(
         and(
           eq(outputs.notebookId, notebookId),
           eq(outputs.userId, user.id),
-          or(eq(outputs.conversationId, conversationId), isNull(outputs.conversationId))
+          eq(outputs.conversationId, conversationId)
         )
       )
       .orderBy(desc(outputs.createdAt));
@@ -438,6 +478,7 @@ export async function generateStudioOutput(
           style: options.voiceStyle || 'conversation',
           format: options.voiceFormat || 'deep_dive',
           provider: voiceProvider,
+          language: options.language || 'English',
         };
 
         // Step 2 & 3: Audio synthesis & storage

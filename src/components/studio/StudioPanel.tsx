@@ -36,6 +36,7 @@ import {
 } from '@/app/app/studio-actions';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { StudioGenerateDialog } from './StudioGenerateDialog';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { QuizViewer } from './viewers/QuizViewer';
 import { FlashcardsViewer } from './viewers/FlashcardsViewer';
 import { StudyGuideViewer } from './viewers/StudyGuideViewer';
@@ -68,6 +69,7 @@ export interface StudioPanelProps {
   onOpenSourceViewer?: (source: Source) => void;
   activeConversationId?: string | null;
   activeConversationTitle?: string | null;
+  onEnsureConversation?: (title?: string) => Promise<string>;
 }
 
 export function StudioPanel({
@@ -80,8 +82,10 @@ export function StudioPanel({
   onOpenSourceViewer,
   activeConversationId,
   activeConversationTitle,
+  onEnsureConversation,
 }: StudioPanelProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   // Local outputs state synchronized with parent outputs for instant optimistic rendering
   const [localOutputs, setLocalOutputs] = useState<StudioOutput[]>(outputs);
@@ -90,11 +94,11 @@ export function StudioPanel({
     setLocalOutputs(outputs);
   }, [outputs]);
 
-  // Scoped outputs for the active chat / conversation
+  // Scoped outputs strictly isolated for the active chat / conversation
   const chatOutputs = React.useMemo(() => {
-    if (!activeConversationId) return localOutputs;
+    if (!activeConversationId) return [];
     return localOutputs.filter(
-      (o) => o.conversationId === activeConversationId || !o.conversationId
+      (o) => o.conversationId === activeConversationId
     );
   }, [localOutputs, activeConversationId]);
 
@@ -132,58 +136,58 @@ export function StudioPanel({
   const studioTiles = [
     {
       id: 'quiz' as const,
-      title: 'Quiz',
-      desc: 'Multiple choice & conceptual knowledge check questions.',
+      title: t('quiz_title'),
+      desc: t('quiz_desc'),
       icon: <HelpCircle className="w-5 h-5 text-amber-400" />,
-      badge: 'Interactive',
+      badge: t('badge_interactive'),
       capability: 'structuredOutput' as const,
     },
     {
       id: 'flashcards' as const,
-      title: 'Flashcards',
-      desc: 'Key definitions, terms, and active recall cards.',
+      title: t('flashcards_title'),
+      desc: t('flashcards_desc'),
       icon: <Layers className="w-5 h-5 text-brand-400" />,
-      badge: 'Spaced Recall',
+      badge: t('badge_spaced_recall'),
       capability: 'structuredOutput' as const,
     },
     {
       id: 'study_guide' as const,
-      title: 'Study Guide',
-      desc: 'Structured serif curriculum with key takeaways.',
+      title: t('study_guide_title'),
+      desc: t('study_guide_desc'),
       icon: <BookOpen className="w-5 h-5 text-emerald-400" />,
-      badge: 'Curriculum',
+      badge: t('badge_curriculum'),
       capability: 'text' as const,
     },
     {
       id: 'summary' as const,
-      title: 'Summary (briefing doc)',
-      desc: 'Concise executive briefing with one-paragraph overview and citations.',
+      title: t('summary_title'),
+      desc: t('summary_desc'),
       icon: <AlignLeft className="w-5 h-5 text-cyan-400" />,
-      badge: 'Synthesis',
+      badge: t('badge_synthesis'),
       capability: 'text' as const,
     },
     {
       id: 'mind_map' as const,
-      title: 'Mind Map',
-      desc: 'Interactive, zoomable and collapsible concept graph.',
+      title: t('mind_map_title'),
+      desc: t('mind_map_desc'),
       icon: <GitFork className="w-5 h-5 text-brand-300" />,
-      badge: 'Graph',
+      badge: t('badge_graph'),
       capability: 'structuredOutput' as const,
     },
     {
       id: 'report' as const,
-      title: 'Report',
-      desc: 'Formal academic briefing or analytical essay with citations.',
+      title: t('report_title'),
+      desc: t('report_desc'),
       icon: <ScrollText className="w-5 h-5 text-rose-400" />,
-      badge: 'Citations',
+      badge: t('badge_citations'),
       capability: 'text' as const,
     },
     {
       id: 'voice' as const,
-      title: 'Voice',
-      desc: 'Two co-hosts discuss sources, or single voice-over narration.',
+      title: t('voice_title'),
+      desc: t('voice_desc'),
       icon: <Mic className="w-5 h-5 text-purple-400" />,
-      badge: 'Audio Overview',
+      badge: t('badge_audio_overview'),
       capability: 'audioOutput' as const,
     },
   ];
@@ -192,7 +196,7 @@ export function StudioPanel({
     setGenerateDialogType(tileId);
   };
 
-  const handleExecuteGenerate = (params: {
+  const handleExecuteGenerate = async (params: {
     type: 'quiz' | 'flashcards' | 'study_guide' | 'summary' | 'mind_map' | 'report' | 'voice';
     sourceIds: string[];
     options: any;
@@ -212,7 +216,17 @@ export function StudioPanel({
     };
     const title = typeTitles[params.type] || 'Studio Synthesis';
 
-    // 3. Immediately insert optimistic generating card in local outputs
+    // 3. Resolve conversation ID for strict chat isolation
+    let targetConvId = activeConversationId;
+    if (!targetConvId && onEnsureConversation) {
+      try {
+        targetConvId = await onEnsureConversation(title);
+      } catch (e) {
+        console.warn('Failed to ensure conversation:', e);
+      }
+    }
+
+    // 4. Immediately insert optimistic generating card in local outputs
     const tempId = `temp-${Date.now()}`;
     const optimisticOutput: StudioOutput = {
       id: tempId,
@@ -223,7 +237,7 @@ export function StudioPanel({
       content: null,
       sourceIds: params.sourceIds,
       model: selectedModelId,
-      conversationId: activeConversationId || null,
+      conversationId: targetConvId || null,
       status: 'generating',
       errorMessage: null,
       createdAt: new Date(),
@@ -236,17 +250,17 @@ export function StudioPanel({
 
     setLocalOutputs((prev) => [optimisticOutput, ...prev.filter((o) => o.id !== tempId)]);
 
-    // 4. Semantic info toast
+    // 5. Semantic info toast
     toast({
       title: 'Generating Output',
       description: `${title} is synthesizing in the background with ${activeModelDef.name}...`,
       variant: 'info',
     });
 
-    // 5. Trigger generation in background
+    // 6. Trigger generation in background with targetConvId
     generateStudioOutput({
       notebookId: notebook.id,
-      conversationId: activeConversationId || null,
+      conversationId: targetConvId || null,
       type: params.type,
       sourceIds: params.sourceIds,
       modelId: selectedModelId,
@@ -425,7 +439,7 @@ export function StudioPanel({
       {/* 7 Studio Action Tiles */}
       <div>
         <p className="text-[11px] uppercase tracking-wider font-display font-bold text-[#9a9a94] mb-2.5 px-1">
-          Studio Synthesizers
+          {t('studio_synthesizers')}
         </p>
 
         <div
@@ -507,7 +521,7 @@ export function StudioPanel({
                       </p>
                     ) : (
                       <p className="text-[10px] text-rose-400/90 font-serif line-clamp-2 mt-0.5 leading-snug">
-                        {activeModelDef.name} does not support this.
+                        {t('model_unsupported_desc', activeModelDef.name)}
                       </p>
                     )}
                   </div>
@@ -539,7 +553,7 @@ export function StudioPanel({
       <div className="pt-2 border-t border-[#303030]">
         <div className="flex items-center justify-between px-1 mb-2.5">
           <p className="text-[11px] uppercase tracking-wider font-display font-bold text-[#9a9a94]">
-            Generated Outputs
+            {t('generated_outputs')}
           </p>
           <span className="text-[10px] text-[#9a9a94] font-mono shrink-0">
             {chatOutputs.length} {chatOutputs.length === 1 ? 'item' : 'items'}
@@ -549,9 +563,9 @@ export function StudioPanel({
         {chatOutputs.length === 0 ? (
           <div className="py-8 text-center px-4 rounded-2xl bg-[#262626]/50 border border-dashed border-[#303030]">
             <Sparkles className="w-6 h-6 text-[#9a9a94] mx-auto mb-2 opacity-40" />
-            <p className="text-xs font-display font-semibold text-[#f4f4f2]">No outputs generated yet</p>
+            <p className="text-xs font-display font-semibold text-[#f4f4f2]">{t('no_outputs_yet')}</p>
             <p className="text-[11px] text-[#9a9a94] font-serif mt-1 max-w-[220px] mx-auto leading-relaxed">
-              Select any of the studio synthesizers above to create quizzes, flashcards, study guides, or voice-overs.
+              {t('no_outputs_desc')}
             </p>
           </div>
         ) : (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button, Input, Dialog, Tooltip } from '@/components/ui';
 import { useToast } from '@/components/ui/toast';
 import { Source } from '@/db/schema';
@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { TTS_VOICE_CATALOG, getVoicesForProvider, ProviderId, getModelDefinition } from '@/lib/ai/providers';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 
 export interface StudioGenerateDialogProps {
@@ -38,6 +39,20 @@ export interface StudioGenerateDialogProps {
   }) => Promise<void> | void;
   isGenerating?: boolean;
 }
+
+const URDU_VOICE_ALIASES: Record<string, string> = {
+  Puck: 'طارق (Tariq - پرجوش)',
+  Charon: 'ارسلان (Arsalan - باوقار)',
+  Kore: 'زینب (Zainab - مشفقانہ)',
+  Fenrir: 'حمزہ (Hamza - مضبوط آواز)',
+  Aoede: 'مریم (Maryam - پرسکون)',
+  alloy: 'عالیہ (Alloy - متوازن)',
+  echo: 'عمر (Echo - گہری آواز)',
+  fable: 'فرحان (Fable - وضاحتی)',
+  onyx: 'عثمان (Onyx - پروقار)',
+  nova: 'نور (Nova - توانا)',
+  shimmer: 'شمع (Shimmer - پرکشش)',
+};
 
 export function StudioGenerateDialog({
   isOpen,
@@ -67,11 +82,13 @@ export function StudioGenerateDialog({
     readySources.filter((s) => s.enabled).map((s) => s.id)
   );
 
+  const { language: siteLanguage, t } = useLanguage();
+
   // General options
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [length, setLength] = useState<'short' | 'medium' | 'long'>('medium');
   const [itemCount, setItemCount] = useState<number>(type === 'quiz' ? 5 : 8);
-  const [language, setLanguage] = useState('English');
+  const [language, setLanguage] = useState(siteLanguage === 'ur' ? 'Urdu' : 'English');
   const [focusTopic, setFocusTopic] = useState('');
   const [extraInstructions, setExtraInstructions] = useState('');
 
@@ -94,14 +111,77 @@ export function StudioGenerateDialog({
   const [speaker1Voice, setSpeaker1Voice] = useState(availableVoices[0]?.id || 'Puck');
   const [speaker2Voice, setSpeaker2Voice] = useState(availableVoices[1]?.id || 'Kore');
 
-  // Play audio sample preview using Web Speech API
-  const playSamplePreview = (voiceName: string) => {
+  // Preview state & audio element reference
+  const [playingPreview, setPlayingPreview] = useState<string | null>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
+
+  // Play audio sample preview (supports Urdu & English reliably on all devices)
+  const playSamplePreview = async (voiceName: string, hostNumber: 1 | 2 = 1) => {
     if (typeof window === 'undefined') return;
+
+    // Cancel any previous playing audio
+    if (audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+      audioPreviewRef.current = null;
+    }
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      const sampleText = `Hello! This is the ${voiceName} voice speaking for your audio overview.`;
-      const utterance = new SpeechSynthesisUtterance(sampleText);
-      window.speechSynthesis.speak(utterance);
+    }
+
+    const isUrdu = language.toLowerCase().includes('urdu') || language === 'ur';
+    const previewKey = `${voiceName}-${hostNumber}`;
+    setPlayingPreview(previewKey);
+
+    const sampleText = isUrdu
+      ? hostNumber === 1
+        ? 'السلام علیکم! میں طارق ہوں، آپ کے آڈیو اوورویو کا پہلا میزبان۔'
+        : 'وعلیکم السلام! میں زینب ہوں، اور ہم مل کر آپ کے مواد کا تفصیلی جائزہ لیں گے۔'
+      : hostNumber === 1
+      ? `Hello! I'm Alex speaking with the ${voiceName} voice for your audio overview.`
+      : `Hi there! I'm Jordan speaking with the ${voiceName} voice, ready to explore your sources.`;
+
+    try {
+      // 1. High-fidelity audio route (provides authentic native Urdu & English audio on any OS)
+      const audioUrl = `/api/studio/tts-preview?text=${encodeURIComponent(sampleText)}&lang=${
+        isUrdu ? 'ur' : 'en'
+      }&host=${hostNumber}&voice=${encodeURIComponent(voiceName)}`;
+      const audio = new Audio(audioUrl);
+      audioPreviewRef.current = audio;
+
+      audio.onended = () => {
+        setPlayingPreview(null);
+        audioPreviewRef.current = null;
+      };
+
+      audio.onerror = () => {
+        // Fallback to browser SpeechSynthesis
+        if (window.speechSynthesis) {
+          const utterance = new SpeechSynthesisUtterance(sampleText);
+          if (isUrdu) {
+            utterance.lang = 'ur-PK';
+          }
+          utterance.onend = () => setPlayingPreview(null);
+          utterance.onerror = () => setPlayingPreview(null);
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setPlayingPreview(null);
+        }
+      };
+
+      await audio.play();
+    } catch {
+      // Fallback to browser SpeechSynthesis if audio fetch fails
+      if (window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(sampleText);
+        if (isUrdu) {
+          utterance.lang = 'ur-PK';
+        }
+        utterance.onend = () => setPlayingPreview(null);
+        utterance.onerror = () => setPlayingPreview(null);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setPlayingPreview(null);
+      }
     }
   };
 
@@ -476,6 +556,24 @@ export function StudioGenerateDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                    Audio Language
+                  </label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                  >
+                    <option value="English">English</option>
+                    <option value="Urdu">Urdu (اردو)</option>
+                    <option value="Arabic">Arabic (العربية)</option>
+                    <option value="Spanish">Spanish (Español)</option>
+                    <option value="French">French (Français)</option>
+                    <option value="German">German (Deutsch)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
                     Audio Style
                   </label>
                   <select
@@ -487,25 +585,25 @@ export function StudioGenerateDialog({
                     <option value="narration">Narration (1 Voice)</option>
                   </select>
                 </div>
-
-                {voiceStyle === 'conversation' && (
-                  <div>
-                    <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
-                      Format
-                    </label>
-                    <select
-                      value={voiceFormat}
-                      onChange={(e) => setVoiceFormat(e.target.value as any)}
-                      className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
-                    >
-                      <option value="deep_dive">Deep Dive</option>
-                      <option value="brief">Brief</option>
-                      <option value="critique">Critique</option>
-                      <option value="debate">Debate</option>
-                    </select>
-                  </div>
-                )}
               </div>
+
+              {voiceStyle === 'conversation' && (
+                <div>
+                  <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-1.5">
+                    Format
+                  </label>
+                  <select
+                    value={voiceFormat}
+                    onChange={(e) => setVoiceFormat(e.target.value as any)}
+                    className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
+                  >
+                    <option value="deep_dive">Deep Dive</option>
+                    <option value="brief">Brief</option>
+                    <option value="critique">Critique</option>
+                    <option value="debate">Debate</option>
+                  </select>
+                </div>
+              )}
 
               {/* Voice Provider Selector */}
               <div>
@@ -534,15 +632,25 @@ export function StudioGenerateDialog({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
-                      {voiceStyle === 'narration' ? 'Narrator Voice' : 'Host 1 (Alex)'}
+                      {voiceStyle === 'narration'
+                        ? 'Narrator Voice'
+                        : (language.toLowerCase().includes('urdu') || language === 'ur')
+                        ? 'Host 1 (Alex / طارق)'
+                        : 'Host 1 (Alex)'}
                     </label>
                     <button
                       type="button"
-                      onClick={() => playSamplePreview(speaker1Voice)}
-                      className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer"
+                      onClick={() => playSamplePreview(speaker1Voice, 1)}
+                      className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer transition-colors"
                     >
-                      <Volume2 className="w-3 h-3" />
-                      Preview
+                      <Volume2
+                        className={`w-3 h-3 ${
+                          playingPreview === `${speaker1Voice}-1` ? 'text-brand-400 animate-pulse' : ''
+                        }`}
+                      />
+                      {playingPreview === `${speaker1Voice}-1`
+                        ? (language.toLowerCase().includes('urdu') || language === 'ur' ? 'جاری ہے...' : 'Playing...')
+                        : (language.toLowerCase().includes('urdu') || language === 'ur' ? 'نمونہ سنیں' : 'Preview')}
                     </button>
                   </div>
                   <select
@@ -550,11 +658,15 @@ export function StudioGenerateDialog({
                     onChange={(e) => setSpeaker1Voice(e.target.value)}
                     className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                   >
-                    {availableVoices.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} ({v.gender})
-                      </option>
-                    ))}
+                    {availableVoices.map((v) => {
+                      const isUrduLang = language.toLowerCase().includes('urdu') || language === 'ur';
+                      const urduAlias = URDU_VOICE_ALIASES[v.id];
+                      return (
+                        <option key={v.id} value={v.id}>
+                          {isUrduLang && urduAlias ? urduAlias : `${v.name} (${v.gender})`}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -562,15 +674,23 @@ export function StudioGenerateDialog({
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
-                        Host 2 (Jordan)
+                        {(language.toLowerCase().includes('urdu') || language === 'ur')
+                          ? 'Host 2 (Jordan / زینب)'
+                          : 'Host 2 (Jordan)'}
                       </label>
                       <button
                         type="button"
-                        onClick={() => playSamplePreview(speaker2Voice)}
-                        className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer"
+                        onClick={() => playSamplePreview(speaker2Voice, 2)}
+                        className="text-[10px] text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer transition-colors"
                       >
-                        <Volume2 className="w-3 h-3" />
-                        Preview
+                        <Volume2
+                          className={`w-3 h-3 ${
+                            playingPreview === `${speaker2Voice}-2` ? 'text-brand-400 animate-pulse' : ''
+                          }`}
+                        />
+                        {playingPreview === `${speaker2Voice}-2`
+                          ? (language.toLowerCase().includes('urdu') || language === 'ur' ? 'جاری ہے...' : 'Playing...')
+                          : (language.toLowerCase().includes('urdu') || language === 'ur' ? 'نمونہ سنیں' : 'Preview')}
                       </button>
                     </div>
                     <select
@@ -578,11 +698,15 @@ export function StudioGenerateDialog({
                       onChange={(e) => setSpeaker2Voice(e.target.value)}
                       className="w-full bg-[#1f1f1f] border border-[#383838] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500"
                     >
-                      {availableVoices.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name} ({v.gender})
-                        </option>
-                      ))}
+                      {availableVoices.map((v) => {
+                        const isUrduLang = language.toLowerCase().includes('urdu') || language === 'ur';
+                        const urduAlias = URDU_VOICE_ALIASES[v.id];
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {isUrduLang && urduAlias ? urduAlias : `${v.name} (${v.gender})`}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 )}

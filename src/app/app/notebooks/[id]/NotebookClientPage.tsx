@@ -15,6 +15,7 @@ import { getNotebookOutputs } from '@/app/app/studio-actions';
 import {
   getConversations,
   getConversationMessages,
+  createConversation,
   deleteConversation,
   updateConversationTitle,
   saveNoteFromMessage,
@@ -268,6 +269,30 @@ export function NotebookClientPage({
     } catch (e) {}
   }, []);
 
+  // Ensures an active conversation exists before creating chat-scoped entities like Studio outputs
+  const handleEnsureConversation = useCallback(
+    async (title?: string): Promise<string> => {
+      if (activeConversationId) return activeConversationId;
+      const newConv = await createConversation({
+        notebookId: notebook.id,
+        model: selectedModelId,
+        mode: selectedMode,
+        title: title || 'New Chat',
+      });
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveConversationId(newConv.id);
+      try {
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('chat', newConv.id);
+          window.history.pushState({ chatId: newConv.id }, '', url.toString());
+        }
+      } catch (e) {}
+      return newConv.id;
+    },
+    [activeConversationId, notebook.id, selectedModelId, selectedMode]
+  );
+
   // Listen for browser Back/Forward (popstate)
   useEffect(() => {
     const handlePopState = () => {
@@ -472,13 +497,14 @@ export function NotebookClientPage({
     try {
       const saved = await saveNoteFromMessage({
         notebookId: notebook.id,
+        conversationId: activeConversationId || null,
         title: title || 'Saved Insight',
         content,
       });
       setNotes((prev) => [saved, ...prev]);
       toast({
-        title: 'Saved to Notebook Notes',
-        description: 'Insight added to project memory.',
+        title: 'Saved to Chat Notes',
+        description: 'Insight added to this chat memory.',
         variant: 'success',
       });
     } catch (err: any) {
@@ -631,6 +657,7 @@ export function NotebookClientPage({
           onSelectMode={setSelectedMode}
           outputs={outputs}
           onRefreshOutputs={refreshOutputs}
+          onEnsureConversation={handleEnsureConversation}
         />
       </div>
     </div>

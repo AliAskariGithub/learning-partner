@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Source_Serif_4 } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { MotionProvider } from '@/components/motion-provider';
 import { ToastProvider } from '@/components/ui/toast';
+import { LanguageProvider } from '@/lib/i18n/LanguageContext';
 import './globals.css';
 
 const displaySans = Bricolage_Grotesque({
@@ -38,11 +39,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background text-foreground antialiased selection:bg-brand-600 selection:text-white">
-        <ThemeProvider>
-          <ToastProvider>
-            <MotionProvider>{children}</MotionProvider>
-          </ToastProvider>
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <MotionProvider>{children}</MotionProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

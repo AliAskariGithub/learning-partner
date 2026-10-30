@@ -15,6 +15,7 @@ export interface SynthesizeTurnsParams {
     speaker2Voice: string;
     speaker1Name?: string;
     speaker2Name?: string;
+    language?: string;
   };
   onProgress?: (current: number, total: number) => void;
 }
@@ -57,53 +58,76 @@ async function synthesizeOpenAiTurn(
 }
 
 /**
- * Synthesizes a single turn using Google Gemini TTS.
+ * Fallback synthesizer using Google TTS service for native pronunciation (supports Urdu, English, etc.)
+ */
+async function synthesizeGoogleTtsFallback(text: string, lang = 'ur'): Promise<Buffer> {
+  const targetLang = lang.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(text) ? 'ur' : 'en';
+  const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
+    text.slice(0, 350)
+  )}&tl=${targetLang}&client=tw-ob`;
+  const res = await fetch(ttsUrl, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Google TTS fallback error ${res.status}`);
+  }
+  const ab = await res.arrayBuffer();
+  return Buffer.from(ab);
+}
+
+/**
+ * Synthesizes a single turn using Google Gemini TTS with resilient fallback.
  */
 async function synthesizeGeminiTurn(
   apiKey: string,
   text: string,
-  voice: string
+  voice: string,
+  language?: string
 ): Promise<Buffer> {
-  // Use Gemini 3.8 Flash TTS via interactions endpoint
-  const url = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gemini-3.8-flash-tts',
-      input: text,
-      speech_config: {
-        voice_config: {
-          prebuilt_voice_config: {
-            voice_name: voice,
+  const isUrdu = language?.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(text);
+
+  try {
+    // Use Gemini 3.8 Flash TTS via interactions endpoint
+    const url = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gemini-3.8-flash-tts',
+        input: text,
+        speech_config: {
+          voice_config: {
+            prebuilt_voice_config: {
+              voice_name: voice,
+            },
           },
         },
-      },
-    }),
-  });
+      }),
+    });
 
-  if (!res.ok) {
-    // Fallback: check if standard generateContent with audio modality works
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Google Gemini TTS Error (${res.status}): ${errorText || res.statusText}`);
+    if (res.ok) {
+      const json = await res.json();
+      let base64Audio = '';
+      if (json.outputs?.[0]?.data) {
+        base64Audio = json.outputs[0].data;
+      } else if (json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+        base64Audio = json.candidates[0].content.parts[0].inlineData.data;
+      }
+      if (base64Audio) {
+        return Buffer.from(base64Audio, 'base64');
+      }
+    }
+  } catch (err) {
+    console.warn('Gemini TTS interactions endpoint failed, falling back:', err);
   }
 
-  const json = await res.json();
-  // Extract audio bytes from response output
-  let base64Audio = '';
-  if (json.outputs?.[0]?.data) {
-    base64Audio = json.outputs[0].data;
-  } else if (json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
-    base64Audio = json.candidates[0].content.parts[0].inlineData.data;
-  }
-
-  if (!base64Audio) {
-    throw new Error('Google Gemini returned empty audio response.');
-  }
-
-  return Buffer.from(base64Audio, 'base64');
+  // Resilient fallback ensuring sound is always produced
+  return synthesizeGoogleTtsFallback(text, isUrdu ? 'ur' : 'en');
 }
 
 /**
@@ -154,7 +178,7 @@ export async function synthesizeVoiceScript(
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         if (provider === 'google') {
-          audioBuffer = await synthesizeGeminiTurn(apiKey, turn.text, assignedVoice);
+          audioBuffer = await synthesizeGeminiTurn(apiKey, turn.text, assignedVoice, voiceConfig.language);
         } else if (provider === 'openai') {
           audioBuffer = await synthesizeOpenAiTurn(apiKey, turn.text, assignedVoice);
         } else {

@@ -76,8 +76,10 @@ export function VoicePlayer({
   // Web Speech API Playback Engine (Free Fallback)
   // ----------------------------------------------------
   const playWebSpeechTurn = (index: number) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (typeof window === 'undefined') return;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
 
     if (index >= safeScript.length) {
       setIsPlaying(false);
@@ -87,15 +89,71 @@ export function VoicePlayer({
     }
 
     const turn = safeScript[index];
+    const isUrdu =
+      (voiceConfig as any)?.language?.toLowerCase().includes('urdu') ||
+      (voiceConfig as any)?.language === 'ur' ||
+      /[\u0600-\u06FF]/.test(turn.text);
+
+    const isAlex = turn.speaker.toLowerCase().includes('alex') || turn.speaker.toLowerCase().includes('host 1');
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const urduVoices = voices.filter(
+      (v) => v.lang.startsWith('ur') || v.name.toLowerCase().includes('urdu') || v.lang.startsWith('pa')
+    );
+
+    // If Urdu and no local voice pack installed on OS, stream native speech from audio preview route
+    if (isUrdu && urduVoices.length === 0) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        const hostNumber = isAlex ? '1' : '2';
+        const audioUrl = `/api/studio/tts-preview?text=${encodeURIComponent(turn.text)}&lang=ur&host=${hostNumber}`;
+        audioRef.current.src = audioUrl;
+        audioRef.current.playbackRate = playbackSpeed;
+        audioRef.current.muted = isMuted;
+
+        audioRef.current.onended = () => {
+          if (index + 1 < safeScript.length) {
+            setCurrentTurnIndex(index + 1);
+            playWebSpeechTurn(index + 1);
+          } else {
+            setIsPlaying(false);
+            setCurrentTurnIndex(0);
+          }
+        };
+
+        audioRef.current.onerror = () => {
+          setIsPlaying(false);
+        };
+
+        audioRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch(() => setIsPlaying(false));
+        return;
+      }
+    }
+
+    if (!window.speechSynthesis) return;
+
     const utterance = new SpeechSynthesisUtterance(turn.text);
     utterance.rate = playbackSpeed;
+    if (isUrdu) {
+      utterance.lang = 'ur-PK';
+    } else {
+      utterance.lang = 'en-US';
+    }
 
-    // Try to find matching gender voice
-    const voices = window.speechSynthesis.getVoices();
-    const isAlex = turn.speaker.toLowerCase().includes('alex') || turn.speaker.toLowerCase().includes('host 1');
+    // Try to find matching voice
     if (voices.length > 0) {
-      if (isAlex && voices[0]) utterance.voice = voices[0];
-      else if (!isAlex && voices.length > 1) utterance.voice = voices[1];
+      if (isUrdu) {
+        if (urduVoices.length > 0) {
+          if (isAlex && urduVoices[0]) utterance.voice = urduVoices[0];
+          else if (!isAlex && urduVoices.length > 1) utterance.voice = urduVoices[1];
+          else utterance.voice = urduVoices[0];
+        }
+      } else {
+        if (isAlex && voices[0]) utterance.voice = voices[0];
+        else if (!isAlex && voices.length > 1) utterance.voice = voices[1];
+      }
     }
 
     utterance.onend = () => {
@@ -146,15 +204,23 @@ export function VoicePlayer({
   const handlePlayPause = () => {
     if (isPlaying) {
       if (isWebSpeech) {
-        window.speechSynthesis.pause();
+        if (window.speechSynthesis?.speaking) {
+          window.speechSynthesis.pause();
+        }
+        if (audioRef.current && !audioRef.current.paused) {
+          audioRef.current.pause();
+        }
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
       setIsPlaying(false);
     } else {
       if (isWebSpeech) {
-        if (window.speechSynthesis.paused) {
+        if (window.speechSynthesis?.paused) {
           window.speechSynthesis.resume();
+          setIsPlaying(true);
+        } else if (audioRef.current?.src && audioRef.current.paused && audioRef.current.currentTime > 0) {
+          audioRef.current.play();
           setIsPlaying(true);
         } else {
           playWebSpeechTurn(currentTurnIndex);
@@ -519,11 +585,13 @@ export function VoicePlayer({
         {safeScript.map((turn, tIdx) => {
           const isActive = tIdx === currentTurnIndex;
           const isAlex = turn.speaker.toLowerCase().includes('alex') || turn.speaker.toLowerCase().includes('host 1');
+          const isUrduTurn = /[\u0600-\u06FF]/.test(turn.text) || (voiceConfig as any)?.language?.toLowerCase().includes('urdu');
 
           return (
             <div
               key={tIdx}
               onClick={() => handleSeekTurn(tIdx)}
+              dir={isUrduTurn ? 'rtl' : 'ltr'}
               className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                 isActive
                   ? 'bg-brand-950/30 border-brand-500/50 shadow-md ring-1 ring-brand-500/30'
@@ -542,9 +610,9 @@ export function VoicePlayer({
                   </span>
                 )}
               </div>
-              <p className={`text-sm font-sans leading-relaxed ${
-                isActive ? 'text-[#f4f4f2] font-medium' : 'text-[#a4a49e]'
-              }`}>
+              <p className={`text-sm leading-relaxed ${
+                isUrduTurn ? 'text-right font-serif' : 'text-left font-sans'
+              } ${isActive ? 'text-[#f4f4f2] font-medium' : 'text-[#a4a49e]'}`}>
                 {turn.text}
               </p>
             </div>

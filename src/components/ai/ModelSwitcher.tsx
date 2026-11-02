@@ -68,7 +68,7 @@ export function ModelSwitcher({
   useEffect(() => {
     if (propConnections && propConnections.length > 0) {
       setLoadedConnections(propConnections);
-    } else {
+    } else if (!propConnections || propConnections.length === 0) {
       getUserConnections()
         .then((conns) => {
           if (conns && conns.length > 0) {
@@ -94,12 +94,24 @@ export function ModelSwitcher({
 
   const activeModel = getModelDefinition(selectedModelId);
 
-  // Determine active connections list
-  const activeConnections = propConnections || loadedConnections;
+  // Determine active connections list (prop has immediate priority)
+  const activeConnections =
+    propConnections && propConnections.length > 0
+      ? propConnections
+      : loadedConnections;
 
   // Helper to map model to its funding connection
   const getFundingConnection = (model: ModelDefinition): SafeConnection | null => {
     if (activeConnections.length > 0) {
+      // 1. Direct configured model match
+      const specificConn = activeConnections.find((c) => {
+        if (c.configuredModel && c.configuredModel.toLowerCase() === model.id.toLowerCase()) return true;
+        if (Array.isArray(c.customModels) && c.customModels.some((m) => m.toLowerCase() === model.id.toLowerCase())) return true;
+        if (c.accountLabel && c.accountLabel.toLowerCase().includes(model.id.toLowerCase())) return true;
+        return false;
+      });
+      if (specificConn) return specificConn;
+
       if (model.provider === 'google') {
         return activeConnections.find((c) => c.provider === 'gemini') || null;
       }
@@ -152,7 +164,8 @@ export function ModelSwitcher({
   };
 
   const hasAnyConnection =
-    activeConnections.length > 0 || userKeys.length > 0;
+    activeConnections.some((c) => c.status === 'connected') ||
+    userKeys.length > 0;
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, ModelDefinition[]> = {
@@ -165,55 +178,69 @@ export function ModelSwitcher({
 
     // Dynamically inject custom configured models from active connections
     for (const conn of activeConnections) {
-      if (conn.provider === 'openrouter' && conn.configuredModel) {
-        const id = conn.configuredModel;
-        if (!groups.openrouter.some((m) => m.id === id)) {
-          const namePart = id.includes('/') ? id.split('/')[1] : id;
-          const formattedName = `${namePart.charAt(0).toUpperCase() + namePart.slice(1)} (OpenRouter)`;
-          groups.openrouter.unshift({
-            id,
-            name: formattedName,
-            provider: 'openrouter',
-            description: `Configured OpenRouter model: ${id}`,
-            capabilities: {
-              text: true,
-              vision: false,
-              audioInput: false,
-              audioOutput: false,
-              structuredOutput: true,
-              toolUse: true,
-              embeddings: false,
-              contextWindow: 65536,
-            },
-          });
-        }
-      }
+      const allConnModels = [
+        ...(conn.configuredModel ? [conn.configuredModel] : []),
+        ...(Array.isArray(conn.customModels) ? conn.customModels : []),
+      ];
 
-      if (conn.provider === 'custom' && conn.configuredModel) {
-        const id = conn.configuredModel;
-        if (!groups.custom.some((m) => m.id === id)) {
-          groups.custom.unshift({
-            id,
-            name: `${id} (Custom)`,
-            provider: 'custom',
-            description: `Custom endpoint model: ${id}`,
-            capabilities: {
-              text: true,
-              vision: false,
-              audioInput: false,
-              audioOutput: false,
-              structuredOutput: true,
-              toolUse: true,
-              embeddings: false,
-              contextWindow: 32768,
-            },
-          });
+      for (const id of allConnModels) {
+        if (!id) continue;
+        if (conn.provider === 'openrouter') {
+          if (!groups.openrouter.some((m) => m.id === id)) {
+            const namePart = id.includes('/') ? id.split('/')[1] : id;
+            const formattedName = `${namePart.charAt(0).toUpperCase() + namePart.slice(1)} (OpenRouter)`;
+            groups.openrouter.unshift({
+              id,
+              name: formattedName,
+              provider: 'openrouter',
+              description: `Configured OpenRouter model: ${id}`,
+              capabilities: {
+                text: true,
+                vision: false,
+                audioInput: false,
+                audioOutput: false,
+                structuredOutput: true,
+                toolUse: true,
+                embeddings: false,
+                contextWindow: 65536,
+              },
+            });
+          }
+        }
+
+        if (conn.provider === 'custom' || conn.provider === 'omniroute') {
+          if (!groups.custom.some((m) => m.id === id)) {
+            groups.custom.unshift({
+              id,
+              name: `${id} (Custom)`,
+              provider: 'custom',
+              description: `Custom endpoint model: ${id}`,
+              capabilities: {
+                text: true,
+                vision: false,
+                audioInput: false,
+                audioOutput: false,
+                structuredOutput: true,
+                toolUse: true,
+                embeddings: false,
+                contextWindow: 32768,
+              },
+            });
+          }
         }
       }
     }
 
     return groups;
   }, [activeConnections]);
+
+  const displayName = useMemo(() => {
+    for (const group of Object.values(groupedModels)) {
+      const match = group.find((m) => m.id === selectedModelId);
+      if (match?.name) return match.name;
+    }
+    return activeModel.name;
+  }, [groupedModels, selectedModelId, activeModel.name]);
 
   // Sort provider groups so CONNECTED providers are automatically brought to the top!
   const sortedProviderIds = useMemo(() => {
@@ -278,7 +305,7 @@ export function ModelSwitcher({
         >
           {!hasAnyConnection && <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
           <span className="truncate max-w-[110px] sm:max-w-[160px]">
-            {hasAnyConnection ? activeModel.name : 'Configure Modal'}
+            {hasAnyConnection ? displayName : 'Configure Model'}
           </span>
           <ChevronDown
             className={`w-3.5 h-3.5 text-[#9a9a94] transition-transform duration-200 ${

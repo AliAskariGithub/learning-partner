@@ -10,6 +10,8 @@ import { SourceViewerDialog } from '@/components/workspace/SourceViewerDialog';
 import { ConnectAiDialog } from '@/components/ai/ConnectAiDialog';
 import { useToast } from '@/components/ui/toast';
 import { SafeApiKey, getUserApiKeys } from '@/app/app/api-key-actions';
+import { SafeConnection } from '@/lib/connections/types';
+import { getUserConnections } from '@/app/app/connection-actions';
 import { getNotebookOutputs } from '@/app/app/studio-actions';
 import {
   getConversations,
@@ -48,6 +50,7 @@ interface NotebookClientPageProps {
   initialNotes: Note[];
   allNotebooks: Notebook[];
   initialUserKeys?: SafeApiKey[];
+  initialConnections?: SafeConnection[];
   initialConversations?: Conversation[];
   initialActiveConversationId?: string | null;
   initialMessages?: Message[];
@@ -62,6 +65,7 @@ export function NotebookClientPage({
   initialNotes,
   allNotebooks,
   initialUserKeys = [],
+  initialConnections = [],
   initialConversations = [],
   initialActiveConversationId,
   initialMessages = [],
@@ -96,6 +100,7 @@ export function NotebookClientPage({
 
   // BYOK API Keys & Model State
   const [userKeys, setUserKeys] = useState<SafeApiKey[]>(initialUserKeys);
+  const [connections, setConnections] = useState<SafeConnection[]>(initialConnections);
   const [selectedModelId, setSelectedModelId] = useState<string>(
     notebook.lastModel || 'gemini-3.8-flash'
   );
@@ -123,15 +128,21 @@ export function NotebookClientPage({
   const [sourceViewerHighlightChunkId, setSourceViewerHighlightChunkId] = useState<string | null>(null);
   const [manageKeysOpen, setManageKeysOpen] = useState(false);
 
-  // Refresh user keys from server
-  const refreshUserKeys = useCallback(async () => {
+  // Refresh user connections and keys from server
+  const refreshConnections = useCallback(async () => {
     try {
-      const keys = await getUserApiKeys();
-      setUserKeys(keys);
+      const [freshConns, freshKeys] = await Promise.all([
+        getUserConnections(),
+        getUserApiKeys(),
+      ]);
+      setConnections(freshConns);
+      setUserKeys(freshKeys);
     } catch (err) {
-      console.error('Failed to load user keys:', err);
+      console.error('Failed to load user connections and keys:', err);
     }
   }, []);
+
+  const refreshUserKeys = refreshConnections;
 
   // Listen for OAuth feedback in URL query parameters
   useEffect(() => {
@@ -145,7 +156,7 @@ export function NotebookClientPage({
           description: `Successfully connected ${connected}.`,
           variant: 'success',
         });
-        refreshUserKeys();
+        refreshConnections();
         window.history.replaceState({}, '', window.location.pathname);
       } else if (connError) {
         toast({
@@ -156,18 +167,20 @@ export function NotebookClientPage({
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
-  }, [refreshUserKeys, toast]);
+  }, [refreshConnections, toast]);
 
   // Onboarding trigger: Show ConnectAiDialog if user has 0 connections on first visit
   useEffect(() => {
     try {
       const shown = localStorage.getItem('lp_connect_ai_onboarding_shown');
-      if (!shown && (!initialUserKeys || initialUserKeys.length === 0)) {
+      const hasAnyKeys = initialUserKeys && initialUserKeys.length > 0;
+      const hasAnyConns = initialConnections && initialConnections.length > 0;
+      if (!shown && !hasAnyKeys && !hasAnyConns) {
         setManageKeysOpen(true);
         localStorage.setItem('lp_connect_ai_onboarding_shown', 'true');
       }
     } catch {}
-  }, [initialUserKeys]);
+  }, [initialUserKeys, initialConnections]);
 
   // Sync state when props change
   useEffect(() => {
@@ -812,11 +825,12 @@ export function NotebookClientPage({
           onRenameSource={handleRenameSource}
           onDeleteSource={handleDeleteSource}
           onRetrySource={handleRetrySource}
-          hasApiKey={userKeys.length > 0}
+          hasApiKey={connections.some((c) => c.status === 'connected') || userKeys.length > 0}
           onOpenSettings={() => router.push('/settings')}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           userKeys={userKeys}
+          connections={connections}
           onOpenManageKeys={() => setManageKeysOpen(true)}
           conversations={conversations}
           activeConversationId={activeConversationId}
@@ -874,15 +888,16 @@ export function NotebookClientPage({
         open={manageKeysOpen}
         onOpenChange={setManageKeysOpen}
         onConnected={() => {
-          refreshUserKeys();
+          refreshConnections();
           router.refresh();
         }}
         onKeysUpdated={() => {
-          refreshUserKeys();
+          refreshConnections();
           router.refresh();
         }}
         onModelSelected={(modelId) => {
           setSelectedModelId(modelId);
+          refreshConnections();
         }}
       />
     </div>

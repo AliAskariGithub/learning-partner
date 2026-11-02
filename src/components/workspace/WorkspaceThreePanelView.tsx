@@ -74,6 +74,7 @@ import {
   Shimmer as AIShimmer,
 } from '@/components/ai-elements';
 import { SafeApiKey } from '@/app/app/api-key-actions';
+import { SafeConnection } from '@/lib/connections/types';
 import {
   Copy,
   ThumbsUp,
@@ -118,6 +119,7 @@ interface WorkspaceThreePanelViewProps {
 
   // Phase 3 additions:
   userKeys?: SafeApiKey[];
+  connections?: SafeConnection[];
   onOpenManageKeys?: () => void;
   conversations?: Conversation[];
   activeConversationId?: string | null;
@@ -414,6 +416,7 @@ export function WorkspaceThreePanelView({
   sidebarOpen = true,
   onToggleSidebar,
   userKeys = [],
+  connections = [],
   onOpenManageKeys,
   conversations = [],
   activeConversationId,
@@ -455,6 +458,11 @@ export function WorkspaceThreePanelView({
 
   // Studio Right Sidebar Active Tab: 'context' (Claude card) | 'studio' (Synthesize)
   const [studioTab, setStudioTab] = useState<'context' | 'studio'>('studio');
+
+  // Verify if user has any active connected AI (Phase 5 connections or API keys)
+  const hasActiveAi =
+    (connections && connections.some((c) => c.status === 'connected')) ||
+    userKeys.length > 0;
 
   // Active conversation resolved for all subpanels
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
@@ -883,14 +891,6 @@ export function WorkspaceThreePanelView({
                       </span>
                     )}
                   </div>
-                  <Tooltip content={t('attach_source')} side="top">
-                    <button
-                      onClick={onOpenAddSource}
-                      className="w-6 h-6 rounded-lg bg-[#191919] text-brand-400 hover:bg-brand-600 hover:text-white border border-[#303030] flex items-center justify-center transition cursor-pointer shadow-sm"
-                    >
-                    <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </Tooltip>
                 </div>
 
                 {/* Real Sources List or Exact Image 2 Empty Card */}
@@ -1017,10 +1017,10 @@ export function WorkspaceThreePanelView({
                       size="sm"
                       variant="secondary"
                       onClick={onOpenAddSource}
-                      className="w-full mt-2 text-xs border-[#303030] text-brand-400 hover:text-brand-300 hover:bg-[#191919]"
+                      className="w-full mt-2 text-xs border-[#303030] text-brand-400 hover:text-brand-300 hover:bg-[#191919] flex items-center justify-center gap-1.5 font-display font-semibold transition cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      {t('add_source')}
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
+                      <span>{t('add_source')}</span>
                     </Button>
                   </div>
                 )}
@@ -1781,7 +1781,7 @@ export function WorkspaceThreePanelView({
               }
             }}
             placeholder={
-              userKeys.length === 0
+              !hasActiveAi
                 ? 'Connect your AI (Gemini key or ChatGPT) to start chatting...'
                 : sources.length === 0
                 ? 'Add sources in Context sidebar, then ask questions...'
@@ -1813,12 +1813,14 @@ export function WorkspaceThreePanelView({
                 selectedModelId={selectedModelId}
               />
 
-              {/* Model Selector Dropdown with connected keys */}
+              {/* Model Selector Dropdown with connected keys & Phase 5 connections */}
               <ModelSwitcher
                 selectedModelId={selectedModelId}
                 onSelectModel={(mId) => onSelectModelId?.(mId)}
                 userKeys={userKeys}
+                connections={connections}
                 onOpenManageKeys={onOpenManageKeys || onOpenSettings}
+                notebookId={notebook.id}
               />
 
               {/* Sources Count Badge */}
@@ -1871,7 +1873,7 @@ export function WorkspaceThreePanelView({
                   <Tooltip content={t('send_message')} side="top">
                     <Button
                       size="sm"
-                      disabled={userKeys.length === 0 || !chatPrompt.trim()}
+                      disabled={!hasActiveAi || !chatPrompt.trim()}
                       onClick={() => handleSendAction()}
                       className="h-8 w-8 p-0 rounded-xl bg-brand-600 text-white hover:bg-brand-500 shadow-md shadow-brand-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
                     >
@@ -1879,7 +1881,7 @@ export function WorkspaceThreePanelView({
                     </Button>
                   </Tooltip>
 
-                  {userKeys.length === 0 && (
+                  {!hasActiveAi && (
                     <div
                       onClick={onOpenManageKeys || onOpenSettings}
                       className="absolute right-0 bottom-full mb-2 hidden group-hover:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#191919] border border-[#303030] text-xs text-[#f4f4f2] shadow-2xl whitespace-nowrap cursor-pointer hover:border-purple-500/50"

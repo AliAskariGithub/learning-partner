@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { requireUser, getOrCreateProfile } from '@/lib/auth/session';
 import { getNotebookDetails, getUserNotebooks } from '@/app/app/notebook-actions';
 import { getUserApiKeys } from '@/app/app/api-key-actions';
+import { getUserConnections } from '@/app/app/connection-actions';
 import { getConversations, getConversationMessages } from '@/app/app/chat-actions';
 import { getNotebookOutputs } from '@/app/app/studio-actions';
 import { NotebookClientPage } from './NotebookClientPage';
@@ -20,10 +21,11 @@ export default async function NotebookDetailPage({ params, searchParams }: PageP
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const requestedChatId = resolvedSearchParams?.chat;
 
-  const [details, allNotebooks, userKeys, convs, outputs] = await Promise.all([
+  const [details, allNotebooks, userKeys, userConns, convs, outputs] = await Promise.all([
     getNotebookDetails(notebookId),
     getUserNotebooks(),
     getUserApiKeys(),
+    getUserConnections(),
     getConversations(notebookId),
     getNotebookOutputs(notebookId),
   ]);
@@ -46,6 +48,7 @@ export default async function NotebookDetailPage({ params, searchParams }: PageP
       initialNotes={details.notes}
       allNotebooks={allNotebooks}
       initialUserKeys={userKeys}
+      initialConnections={userConns}
       initialConversations={convs}
       initialActiveConversationId={targetConv?.id || null}
       initialMessages={initialMessages}

@@ -2,7 +2,7 @@
 
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '@/db';
-import { apiKeys, ApiKey } from '@/db/schema';
+import { apiKeys, ApiKey, connections } from '@/db/schema';
 import { getSession } from '@/lib/auth/session';
 import { encryptApiKey, decryptApiKey } from '@/lib/crypto';
 import { ProviderId } from '@/lib/ai/providers';
@@ -24,6 +24,7 @@ export interface SafeApiKey {
 
 /**
  * Lists the authenticated user's API keys (without encrypted secret).
+ * Seamlessly includes active connections from the Phase 5 connections table.
  */
 export async function getUserApiKeys(): Promise<SafeApiKey[]> {
   const session = await getSession();
@@ -31,6 +32,43 @@ export async function getUserApiKeys(): Promise<SafeApiKey[]> {
     return [];
   }
 
+  // 1. Fetch active connections from connections table (Phase 5 single source of truth)
+  const userConns = await db
+    .select()
+    .from(connections)
+    .where(
+      and(
+        eq(connections.userId, session.user.id),
+        eq(connections.status, 'connected')
+      )
+    )
+    .orderBy(desc(connections.createdAt));
+
+  const connKeys: SafeApiKey[] = userConns.map((c) => {
+    let p: ProviderId = 'custom';
+    if (c.provider === 'gemini') p = 'google';
+    else if (c.provider === 'chatgpt') p = 'openai';
+    else if (c.provider === 'openai') p = 'openai';
+    else if (c.provider === 'anthropic') p = 'anthropic';
+    else if (c.provider === 'openrouter') p = 'openrouter';
+    else if (c.provider === 'groq') p = 'groq';
+    else p = 'custom';
+
+    const last4 = c.accountLabel?.match(/\.\.\.([a-zA-Z0-9]{4})/)?.[1] || 'conn';
+
+    return {
+      id: c.id,
+      provider: p,
+      label: c.accountLabel || `${c.provider.toUpperCase()} Connection`,
+      keyLast4: last4,
+      customBaseUrl: c.baseUrl,
+      status: 'active' as const,
+      createdAt: c.createdAt.toISOString(),
+      lastUsedAt: c.lastUsedAt ? c.lastUsedAt.toISOString() : null,
+    };
+  });
+
+  // 2. Fetch from legacy apiKeys table
   const rows = await db
     .select({
       id: apiKeys.id,
@@ -46,12 +84,21 @@ export async function getUserApiKeys(): Promise<SafeApiKey[]> {
     .where(eq(apiKeys.userId, session.user.id))
     .orderBy(desc(apiKeys.createdAt));
 
-  return rows.map((r) => ({
+  const legacyKeys: SafeApiKey[] = rows.map((r) => ({
     ...r,
-    provider: r.provider as ProviderId,
+    provider: (r.provider === 'google' ? 'google' : r.provider) as ProviderId,
     createdAt: r.createdAt.toISOString(),
     lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
   }));
+
+  const combined = [...connKeys];
+  for (const leg of legacyKeys) {
+    if (!combined.some((k) => k.id === leg.id || k.provider === leg.provider)) {
+      combined.push(leg);
+    }
+  }
+
+  return combined;
 }
 
 /**

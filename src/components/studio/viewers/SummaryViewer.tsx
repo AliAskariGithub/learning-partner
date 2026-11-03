@@ -12,7 +12,10 @@ import {
   AlignLeft,
   Check,
   X,
+  FileText,
+  FileCode,
 } from 'lucide-react';
+import { exportToPdf, exportToMarkdown, printFormattedDocument } from '@/lib/export/export-helper';
 
 export function SummaryViewer({
   title,
@@ -34,7 +37,7 @@ export function SummaryViewer({
       setCopied(true);
       toast({
         title: 'Copied to Clipboard',
-        description: 'Summary briefing has been copied.',
+        description: 'Briefing content has been copied.',
         variant: 'success',
       });
       setTimeout(() => setCopied(false), 2000);
@@ -43,21 +46,35 @@ export function SummaryViewer({
     }
   };
 
-  const handleDownloadMarkdown = () => {
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-briefing.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: 'Markdown file saved.', variant: 'success' });
+  const handleDownloadPdf = () => {
+    try {
+      exportToPdf({
+        filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-briefing.pdf`,
+        title,
+        content,
+        metadata: { type: 'EXECUTIVE BRIEFING' },
+      });
+      toast({ title: 'Downloaded PDF', description: 'Briefing PDF saved to your device.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not download PDF.', variant: 'error' });
+    }
   };
 
-  const handlePrintPdf = () => {
-    window.print();
+  const handleDownloadMarkdown = () => {
+    try {
+      exportToMarkdown(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-briefing.md`, content);
+      toast({ title: 'Downloaded Markdown', description: 'Markdown file saved.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not save Markdown.', variant: 'error' });
+    }
+  };
+
+  const handlePrint = () => {
+    try {
+      printFormattedDocument(title, content, { type: 'Executive Summary Briefing' });
+    } catch (err: any) {
+      toast({ title: 'Print Failed', description: err.message || 'Could not open print preview.', variant: 'error' });
+    }
   };
 
   return (
@@ -74,13 +91,13 @@ export function SummaryViewer({
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {onListen && (
             <Button
               variant="secondary"
               size="sm"
               onClick={() => onListen(content)}
-              className="text-xs h-8 px-2.5 text-brand-300 border-brand-500/30 hover:bg-brand-950/20"
+              className="text-xs h-8 px-2.5 text-brand-300 border-brand-500/30 hover:bg-brand-950/20 mr-1"
             >
               <Headphones className="w-3.5 h-3.5 mr-1.5" />
               Listen
@@ -98,19 +115,31 @@ export function SummaryViewer({
           </Button>
 
           <Button
-            variant="ghost"
+            variant="secondary"
+            size="sm"
+            onClick={handleDownloadPdf}
+            className="text-xs h-8 px-2.5 text-rose-300 border-rose-500/30 hover:bg-rose-950/30 flex items-center gap-1.5 font-display font-medium"
+            title="Download PDF"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">PDF</span>
+          </Button>
+
+          <Button
+            variant="secondary"
             size="sm"
             onClick={handleDownloadMarkdown}
-            className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
+            className="text-xs h-8 px-2.5 text-blue-300 border-blue-500/30 hover:bg-blue-950/30 flex items-center gap-1.5 font-display font-medium"
             title="Download Markdown"
           >
-            <Download className="w-3.5 h-3.5" />
+            <FileCode className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">.md</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            onClick={handlePrintPdf}
+            onClick={handlePrint}
             className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
             title="Print or Save as PDF"
           >

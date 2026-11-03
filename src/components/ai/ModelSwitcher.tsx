@@ -295,21 +295,21 @@ export function ModelSwitcher({
           type="button"
           disabled={disabled}
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display font-medium transition-all cursor-pointer shadow-sm disabled:opacity-50 ${
+          className={`h-8 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-display font-medium transition-colors cursor-pointer shadow-sm shrink-0 disabled:opacity-50 ${
             !hasAnyConnection
-              ? 'text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30'
-              : 'text-[#f4f4f2] bg-[#262626] hover:bg-[#303030] border border-[#3a3a3a]'
+              ? 'text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 dark:text-purple-300'
+              : 'text-zinc-800 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-[#f4f4f2] dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:border-[#333333]'
           }`}
           aria-haspopup="listbox"
           aria-expanded={dropdownOpen}
         >
-          {!hasAnyConnection && <Zap className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
-          <span className="truncate max-w-[110px] sm:max-w-[160px]">
+          {!hasAnyConnection && <Zap className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
+          <span className="truncate max-w-[95px] xs:max-w-[130px] sm:max-w-[160px]">
             {hasAnyConnection ? displayName : 'Configure Model'}
           </span>
           <ChevronDown
-            className={`w-3.5 h-3.5 text-[#9a9a94] transition-transform duration-200 ${
-              dropdownOpen ? 'rotate-180 text-purple-400' : ''
+            className={`w-3.5 h-3.5 text-zinc-400 dark:text-[#9a9a94] transition-transform duration-200 ${
+              dropdownOpen ? 'rotate-180 text-purple-500 dark:text-purple-400' : ''
             }`}
           />
         </button>
@@ -318,19 +318,19 @@ export function ModelSwitcher({
       {/* Dropdown Menu */}
       {dropdownOpen && (
         <div
-          className="absolute left-0 max-sm:-left-20 bottom-full mb-2 w-[calc(100vw-32px)] sm:w-80 max-w-[340px] rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-2xl p-2.5 z-50 text-xs text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-h-[55vh] sm:max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#303030]"
+          className="absolute right-0 max-sm:fixed max-sm:bottom-20 max-sm:inset-x-4 max-sm:w-auto bottom-full mb-2 sm:w-80 sm:max-w-[340px] rounded-2xl bg-white border border-zinc-200 shadow-2xl p-2.5 z-50 text-xs text-zinc-900 dark:bg-[#1f1f1f] dark:border-[#303030] dark:text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-h-[55vh] sm:max-h-[420px] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#303030]"
           onMouseLeave={() => setHoveredModelId(null)}
         >
           {!hasAnyConnection ? (
             <div className="p-4 text-center space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 mx-auto">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400 mx-auto">
                 <Bot className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-display font-bold text-xs text-[#f4f4f2]">
-                  Configure Modal
+                <p className="font-display font-bold text-xs text-zinc-900 dark:text-[#f4f4f2]">
+                  Configure Model
                 </p>
-                <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                   Add your Gemini Key (Recommended) or connect with ChatGPT to power your study assistant.
                 </p>
               </div>
@@ -343,12 +343,12 @@ export function ModelSwitcher({
                 className="w-full py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-display font-semibold text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-1.5"
               >
                 <Zap className="w-3.5 h-3.5" />
-                Configure Modal
+                Configure Model
               </button>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between px-2 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
+              <div className="flex items-center justify-between px-2 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94]">
                 <span>Select AI Model</span>
                 <span className="text-[9px] font-mono lowercase opacity-70">
                   grouped by connection
@@ -436,8 +436,8 @@ export function ModelSwitcher({
                                 layoutId="model-list-glide"
                                 className={
                                   isSelected
-                                    ? 'bg-purple-500/20 border border-purple-500/40'
-                                    : 'bg-[#262626] border border-[#383838]'
+                                    ? 'bg-purple-500/15 border border-purple-500/30 dark:bg-purple-500/20 dark:border-purple-500/40'
+                                    : 'bg-zinc-100 border border-zinc-200 dark:bg-[#262626] dark:border-[#383838]'
                                 }
                               />
                               <button
@@ -455,17 +455,17 @@ export function ModelSwitcher({
                                 disabled={isConnected && !canSelect}
                                 className={`relative z-10 w-full flex items-center justify-between p-2 rounded-xl text-left transition-colors cursor-pointer ${
                                   isSelected
-                                    ? 'text-purple-300 font-semibold'
+                                    ? 'text-purple-600 dark:text-purple-300 font-semibold'
                                     : canSelect
-                                    ? 'text-[#f4f4f2]'
-                                    : 'opacity-50 text-[#9a9a94]'
+                                    ? 'text-zinc-900 dark:text-[#f4f4f2]'
+                                    : 'opacity-50 text-zinc-400 dark:text-[#9a9a94]'
                                 }`}
                               >
                                 <div className="min-w-0 pr-2">
                                   <div className="flex items-center gap-1.5">
                                     <span className="truncate">{m.name}</span>
                                     {isSelected && (
-                                      <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                      <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                                     )}
 
                                     {/* Connection funding badge */}
@@ -473,10 +473,10 @@ export function ModelSwitcher({
                                       <span
                                         className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
                                           isCapped
-                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                            ? 'bg-rose-500/15 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 border border-rose-500/30'
                                             : isNotEligible || isRevoked
-                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                            : 'bg-[#191919] text-[#9a9a94] border border-[#303030]'
+                                            ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/30'
+                                            : 'bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-[#191919] dark:text-[#9a9a94] dark:border-[#303030]'
                                         }`}
                                       >
                                         {isCapped
@@ -490,41 +490,41 @@ export function ModelSwitcher({
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[#9a9a94]">
+                                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-500 dark:text-[#9a9a94]">
                                     <Tooltip
                                       content={`Context Window: ${formatContextSize(
                                         m.capabilities.contextWindow
                                       )} tokens`}
                                     >
-                                      <span className="font-mono bg-[#191919] px-1.5 py-0.2 rounded border border-[#303030]">
+                                      <span className="font-mono bg-zinc-100 text-zinc-600 border border-zinc-200 px-1.5 py-0.2 rounded dark:bg-[#191919] dark:text-[#9a9a94] dark:border-[#303030]">
                                         {formatContextSize(m.capabilities.contextWindow)}
                                       </span>
                                     </Tooltip>
                                     {m.capabilities.vision && (
                                       <Tooltip content="Vision: Understands diagrams, charts & images">
                                         <span>
-                                          <Eye className="w-3 h-3 text-cyan-400" />
+                                          <Eye className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
                                         </span>
                                       </Tooltip>
                                     )}
                                     {m.capabilities.audioInput && (
                                       <Tooltip content="Audio Input: Understands speech and spoken queries">
                                         <span>
-                                          <Mic className="w-3 h-3 text-amber-400" />
+                                          <Mic className="w-3 h-3 text-amber-500 dark:text-amber-400" />
                                         </span>
                                       </Tooltip>
                                     )}
                                     {m.capabilities.audioOutput && (
                                       <Tooltip content="Audio Output: Generates voice podcasts & audio overviews">
                                         <span>
-                                          <Headphones className="w-3 h-3 text-purple-400" />
+                                          <Headphones className="w-3 h-3 text-purple-500 dark:text-purple-400" />
                                         </span>
                                       </Tooltip>
                                     )}
                                     {m.capabilities.structuredOutput && (
                                       <Tooltip content="Structured Output: Generates quizzes, flashcards & mind maps">
                                         <span>
-                                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                                          <Sparkles className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
                                         </span>
                                       </Tooltip>
                                     )}
@@ -533,7 +533,7 @@ export function ModelSwitcher({
 
                                 {!isConnected && (
                                   <Tooltip content={`Connect ${providerMeta.name} to unlock`}>
-                                    <span className="text-[10px] text-purple-400 hover:underline shrink-0 font-display font-medium">
+                                    <span className="text-[10px] text-purple-600 dark:text-purple-400 hover:underline shrink-0 font-display font-medium">
                                       Connect
                                     </span>
                                   </Tooltip>
@@ -549,7 +549,7 @@ export function ModelSwitcher({
               </div>
 
               {/* Bottom Actions */}
-              <div className="pt-2 border-t border-[#303030] mt-1 space-y-1">
+              <div className="pt-2 border-t border-zinc-200 dark:border-[#303030] mt-1 space-y-1">
                 <Tooltip content="Manage Gemini keys, ChatGPT plan, and other AI connections">
                   <button
                     type="button"
@@ -557,7 +557,7 @@ export function ModelSwitcher({
                       setDropdownOpen(false);
                       onOpenManageKeys();
                     }}
-                    className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-display font-medium text-purple-400 hover:text-purple-300 hover:bg-[#262626] transition cursor-pointer"
+                    className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-display font-medium text-purple-600 hover:text-purple-700 hover:bg-zinc-100 dark:text-purple-400 dark:hover:text-purple-300 dark:hover:bg-[#262626] transition cursor-pointer"
                   >
                     <span className="flex items-center gap-2">
                       <Bot className="w-3.5 h-3.5" />

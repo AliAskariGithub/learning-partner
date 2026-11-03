@@ -1,7 +1,7 @@
-// Storage, Ingestion, Quota Limits and Voice Safety Configuration
+// Storage, Ingestion, Quota Limits, Voice, Image and Shared Memory Configuration
 
 export const STORAGE_LIMITS = {
-  // 25 MB max file size
+  // 25 MB max file size for documents
   MAX_FILE_SIZE_BYTES: 25 * 1024 * 1024,
   MAX_FILE_SIZE_MB: 25,
 
@@ -34,15 +34,34 @@ export const STORAGE_LIMITS = {
 
   // Voice & Studio Safety limits
   VOICE_LIMITS: {
-    // Maximum turns in conversational script
     MAX_SCRIPT_TURNS: 40,
-    // Maximum characters per turn
     MAX_CHARS_PER_TURN: 600,
-    // Maximum total audio duration per notebook (in minutes)
     MAX_AUDIO_MINUTES_PER_NOTEBOOK: 60,
-    // Rate limit for voice generation: max 5 requests per 10 minutes
     MAX_GENERATIONS_PER_WINDOW: 5,
     WINDOW_SECONDS: 600,
   },
-} as const;
 
+  // Phase 6: Image Upload Limits
+  IMAGE_LIMITS: {
+    MAX_IMAGES_PER_MESSAGE: 5,
+    MAX_IMAGE_SIZE_BYTES: 10 * 1024 * 1024, // 10 MB
+    MAX_IMAGE_SIZE_MB: 10,
+    MAX_DIMENSION_PX: 4096,
+    ALLOWED_MIME_TYPES: ['image/png', 'image/jpeg', 'image/webp'] as const,
+    ALLOWED_EXTENSIONS: ['.png', '.jpg', '.jpeg', '.webp'] as const,
+    DISALLOWED_TYPES: ['image/svg+xml'] as const,
+  },
+
+  // Phase 6: Shared Notebook Memory Limits
+  MEMORY_LIMITS: {
+    MAX_SUMMARY_TOKENS: 1500,
+    MAX_ITEMS_PER_NOTEBOOK: 250,
+    CONSOLIDATION_DEBOUNCE_MS: 3000,
+  },
+
+  // Phase 6: Quiz Mode Limits
+  QUIZ_LIMITS: {
+    ALLOWED_QUESTION_COUNTS: [5, 10, 15, 20] as const,
+    MAX_ATTEMPTS_PER_DAY_PER_USER: 100,
+  },
+} as const;

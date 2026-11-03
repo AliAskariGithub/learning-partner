@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server';
+import { getSession } from '@/lib/auth/session';
+import { getCredentialsForRequest } from '@/lib/connections/resolver';
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const lang = searchParams.get('lang') || 'en';
   const host = searchParams.get('host') || '1';
+  const voice = searchParams.get('voice') || (host === '2' ? 'Puck' : 'Aoede');
   const isUrdu = lang.toLowerCase().startsWith('ur');
 
   let defaultText = '';
@@ -20,8 +23,59 @@ export async function GET(req: NextRequest) {
   }
 
   const text = (searchParams.get('text') || defaultText).slice(0, 350);
-  const targetLang = isUrdu ? 'ur' : 'en';
 
+  // Try high-fidelity Google Gemini TTS if session & key exist
+  try {
+    const session = await getSession();
+    if (session?.user?.id) {
+      const creds = await getCredentialsForRequest(session.user.id, 'gemini-3.8-flash');
+      if (creds?.apiKey) {
+        const ttsModels = ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'];
+        for (const m of ttsModels) {
+          try {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${creds.apiKey}`;
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text }] }],
+                generationConfig: {
+                  responseModalities: ['AUDIO'],
+                  speechConfig: {
+                    voiceConfig: {
+                      prebuiltVoiceConfig: {
+                        voiceName: voice,
+                      },
+                    },
+                  },
+                },
+              }),
+            });
+            if (res.ok) {
+              const json = await res.json();
+              const base64Data = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+              if (base64Data) {
+                const buf = Buffer.from(base64Data, 'base64');
+                return new Response(buf, {
+                  status: 200,
+                  headers: {
+                    'Content-Type': 'audio/wav',
+                    'Cache-Control': 'public, max-age=86400, s-maxage=86400',
+                  },
+                });
+              }
+            }
+          } catch {
+            // Try next model or fallback
+          }
+        }
+      }
+    }
+  } catch {
+    // Fallback to translate_tts
+  }
+
+  const targetLang = isUrdu ? 'ur' : 'en';
   const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
     text
   )}&tl=${targetLang}&client=tw-ob`;

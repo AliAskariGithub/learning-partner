@@ -49,6 +49,17 @@ export const notebooks = pgTable(
     instructions: text('instructions'),
     pinned: boolean('pinned').default(false).notNull(),
     lastModel: text('last_model'),
+    lastMode: text('last_mode', {
+      enum: ['chat', 'learn', 'quiz'],
+    })
+      .default('chat')
+      .notNull(),
+    useMemory: boolean('use_memory').default(true).notNull(),
+    learningModeGrounding: text('learning_mode_grounding', {
+      enum: ['sources_only', 'sources_first'],
+    })
+      .default('sources_first')
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -239,6 +250,24 @@ export const conversations = pgTable(
 );
 
 // Messages table
+export interface ChatImageAttachment {
+  id: string;
+  url: string;
+  storageKey?: string;
+  mimeType: string;
+  fileName?: string;
+  sizeBytes?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface ThoughtTimelineStep {
+  phase: string;
+  detail?: string;
+  elapsedMs?: number;
+  timestamp?: number;
+}
+
 export const messages = pgTable(
   'messages',
   {
@@ -251,6 +280,9 @@ export const messages = pgTable(
     }).notNull(),
     content: text('content').notNull(),
     citations: jsonb('citations').$type<Citation[]>(),
+    images: jsonb('images').$type<ChatImageAttachment[]>(),
+    thoughtTimeline: jsonb('thought_timeline').$type<ThoughtTimelineStep[]>(),
+    reasoningSummary: text('reasoning_summary'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -298,6 +330,135 @@ export const outputs = pgTable(
   ]
 );
 
+// Phase 6: Shared Notebook Memory Table (One Context per Notebook)
+export const notebookMemory = pgTable(
+  'notebook_memory',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    notebookId: uuid('notebook_id')
+      .notNull()
+      .unique()
+      .references(() => notebooks.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    summary: text('summary').default('').notNull(),
+    version: integer('version').default(1).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('notebook_memory_notebook_id_idx').on(table.notebookId),
+    index('notebook_memory_user_id_idx').on(table.userId),
+  ]
+);
+
+// Phase 6: Durable Memory Items Table
+export const memoryItemTypeEnum = [
+  'goal',
+  'preference',
+  'knowledge_level',
+  'misconception',
+  'weak_topic',
+  'strong_topic',
+  'decision',
+  'fact',
+] as const;
+
+export type MemoryItemType = typeof memoryItemTypeEnum[number];
+
+export const memoryItems = pgTable(
+  'memory_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    notebookId: uuid('notebook_id')
+      .notNull()
+      .references(() => notebooks.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    type: text('type', {
+      enum: memoryItemTypeEnum,
+    }).notNull(),
+    text: text('text').notNull(),
+    sourceConversationId: uuid('source_conversation_id')
+      .references(() => conversations.id, { onDelete: 'set null' }),
+    sourceMode: text('source_mode', {
+      enum: ['chat', 'learn', 'quiz'],
+    }),
+    confidence: integer('confidence').default(85).notNull(),
+    pinned: boolean('pinned').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('memory_items_notebook_id_idx').on(table.notebookId),
+    index('memory_items_user_id_idx').on(table.userId),
+    index('memory_items_type_idx').on(table.type),
+    index('memory_items_pinned_idx').on(table.pinned),
+  ]
+);
+
+// Phase 6: Cross-Conversation Message Chunks for Hybrid Retrieval
+export const messageChunks = pgTable(
+  'message_chunks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    messageId: uuid('message_id')
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    notebookId: uuid('notebook_id')
+      .notNull()
+      .references(() => notebooks.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    chunkIndex: integer('chunk_index').default(0).notNull(),
+    content: text('content').notNull(),
+    searchVector: tsvector('search_vector'),
+    embedding: vector('embedding', { dimensions: 1536 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('message_chunks_notebook_id_idx').on(table.notebookId),
+    index('message_chunks_conversation_id_idx').on(table.conversationId),
+    index('message_chunks_user_id_idx').on(table.userId),
+    index('message_chunks_search_vector_idx').using('gin', table.searchVector),
+  ]
+);
+
+// Phase 6: Quiz Attempts with Live Scoring and Topic Tags
+export interface QuizPerQuestionResult {
+  questionId: string;
+  question: string;
+  options: string[];
+  selectedAnswer: number | string | number[];
+  correctAnswer: number | string | number[];
+  isCorrect: boolean;
+  explanation?: string;
+  topicTags?: string[];
+  citationSnippet?: string;
+}
+
+export const quizAttempts = pgTable(
+  'quiz_attempts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    quizId: text('quiz_id').notNull(),
+    userId: text('user_id').notNull(),
+    notebookId: uuid('notebook_id')
+      .notNull()
+      .references(() => notebooks.id, { onDelete: 'cascade' }),
+    answers: jsonb('answers').notNull(),
+    score: integer('score').notNull(),
+    totalQuestions: integer('total_questions').notNull(),
+    durationSeconds: integer('duration_seconds').default(0),
+    perQuestionResults: jsonb('per_question_results').$type<QuizPerQuestionResult[]>(),
+    completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('quiz_attempts_notebook_id_idx').on(table.notebookId),
+    index('quiz_attempts_user_id_idx').on(table.userId),
+    index('quiz_attempts_quiz_id_idx').on(table.quizId),
+    index('quiz_attempts_completed_at_idx').on(table.completedAt),
+  ]
+);
+
 // Infer Types
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
@@ -328,4 +489,16 @@ export type NewMessage = typeof messages.$inferInsert;
 
 export type StudioOutput = typeof outputs.$inferSelect;
 export type NewStudioOutput = typeof outputs.$inferInsert;
+
+export type NotebookMemory = typeof notebookMemory.$inferSelect;
+export type NewNotebookMemory = typeof notebookMemory.$inferInsert;
+
+export type MemoryItem = typeof memoryItems.$inferSelect;
+export type NewMemoryItem = typeof memoryItems.$inferInsert;
+
+export type MessageChunk = typeof messageChunks.$inferSelect;
+export type NewMessageChunk = typeof messageChunks.$inferInsert;
+
+export type QuizAttempt = typeof quizAttempts.$inferSelect;
+export type NewQuizAttempt = typeof quizAttempts.$inferInsert;
 

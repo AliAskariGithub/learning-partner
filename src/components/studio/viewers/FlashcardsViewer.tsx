@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui';
+import { useToast } from '@/components/ui/toast';
 import {
   RotateCw,
   Shuffle,
@@ -13,7 +14,11 @@ import {
   Sparkles,
   Award,
   X,
+  FileText,
+  FileCode,
+  Printer,
 } from 'lucide-react';
+import { exportToPdf, exportToMarkdown, printFormattedDocument } from '@/lib/export/export-helper';
 
 export interface FlashcardItem {
   id: string;
@@ -34,6 +39,7 @@ export function FlashcardsViewer({
   content: string;
   onClose?: () => void;
 }) {
+  const { toast } = useToast();
   let parsedData: FlashcardsData;
   try {
     parsedData = JSON.parse(content);
@@ -76,6 +82,28 @@ export function FlashcardsViewer({
     }
   }, [currentIndex]);
 
+  const handleMarkKnown = () => {
+    if (!currentCard) return;
+    setKnownCardIds((prev) => new Set(prev).add(currentCard.id));
+    setLearningCardIds((prev) => {
+      const next = new Set(prev);
+      next.delete(currentCard.id);
+      return next;
+    });
+    handleNext();
+  };
+
+  const handleMarkLearning = () => {
+    if (!currentCard) return;
+    setLearningCardIds((prev) => new Set(prev).add(currentCard.id));
+    setKnownCardIds((prev) => {
+      const next = new Set(prev);
+      next.delete(currentCard.id);
+      return next;
+    });
+    handleNext();
+  };
+
   const handleShuffle = () => {
     const shuffled = [...cards].sort(() => Math.random() - 0.5);
     setCards(shuffled);
@@ -83,28 +111,6 @@ export function FlashcardsViewer({
     setIsFlipped(false);
     setShowHint(false);
     setIsCompleted(false);
-  };
-
-  const markKnown = () => {
-    if (!currentCard) return;
-    setKnownCardIds((prev) => new Set(prev).add(currentCard.id));
-    setLearningCardIds((prev) => {
-      const copy = new Set(prev);
-      copy.delete(currentCard.id);
-      return copy;
-    });
-    handleNext();
-  };
-
-  const markLearning = () => {
-    if (!currentCard) return;
-    setLearningCardIds((prev) => new Set(prev).add(currentCard.id));
-    setKnownCardIds((prev) => {
-      const copy = new Set(prev);
-      copy.delete(currentCard.id);
-      return copy;
-    });
-    handleNext();
   };
 
   const handleRestartDeck = () => {
@@ -128,11 +134,55 @@ export function FlashcardsViewer({
     }
   };
 
-  // Keyboard Navigation: Space = flip, Left = Prev, Right = Next
+  const formatFlashcardsDocument = () => {
+    let md = `# ${parsedData.title || 'Study Flashcards'}\n\n`;
+    md += `**Total Flashcards:** ${cards.length}\n\n---\n\n`;
+    cards.forEach((c, idx) => {
+      md += `### Card ${idx + 1}: ${c.front}\n\n`;
+      md += `**Answer / Definition:**\n${c.back}\n\n`;
+      if (c.hint) md += `*Hint:* ${c.hint}\n\n`;
+      md += `---\n\n`;
+    });
+    return md;
+  };
+
+  const handleDownloadPdf = () => {
+    try {
+      const md = formatFlashcardsDocument();
+      exportToPdf({
+        filename: `${(parsedData.title || 'flashcards').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-study-sheet.pdf`,
+        title: parsedData.title || 'Study Flashcards',
+        content: md,
+        metadata: { type: 'FLASHCARDS STUDY SHEET' },
+      });
+      toast({ title: 'Downloaded PDF', description: 'Flashcards PDF saved to your device.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not download PDF.', variant: 'error' });
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    try {
+      const md = formatFlashcardsDocument();
+      exportToMarkdown(`${(parsedData.title || 'flashcards').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-cards.md`, md);
+      toast({ title: 'Downloaded Markdown', description: 'Flashcards Markdown saved.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not save Markdown.', variant: 'error' });
+    }
+  };
+
+  const handlePrint = () => {
+    try {
+      const md = formatFlashcardsDocument();
+      printFormattedDocument(parsedData.title || 'Study Flashcards', md, { type: 'Flashcards Study Sheet' });
+    } catch (err: any) {
+      toast({ title: 'Print Failed', description: err.message || 'Could not open print preview.', variant: 'error' });
+    }
+  };
+
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault();
         handleFlip();
@@ -194,15 +244,46 @@ export function FlashcardsViewer({
               Complete
             </span>
           </div>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer"
-              title="Close Flashcards"
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadPdf}
+              className="text-xs h-8 px-2.5 text-rose-300 border-rose-500/30 hover:bg-rose-950/30 flex items-center gap-1.5 font-display font-medium"
+              title="Download Study Sheet as PDF"
             >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+              <FileText className="w-3.5 h-3.5" />
+              <span>PDF</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadMarkdown}
+              className="text-xs h-8 px-2.5 text-blue-300 border-blue-500/30 hover:bg-blue-950/30 flex items-center gap-1.5 font-display font-medium"
+              title="Download Cards as Markdown"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span>.md</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePrint}
+              className="text-xs h-8 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
+              title="Print Flashcards Study Sheet"
+            >
+              <Printer className="w-3.5 h-3.5" />
+            </Button>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer"
+                title="Close Flashcards"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 md:p-12 flex flex-col items-center justify-center text-center max-w-xl mx-auto w-full">
@@ -211,7 +292,7 @@ export function FlashcardsViewer({
           </div>
 
           <h3 className="font-display text-2xl md:text-3xl font-bold text-[#f4f4f2] mb-1">
-            Deck Review Complete!
+            Flashcards Session Complete!
           </h3>
           <p className="text-xs text-[#9a9a94] font-serif mb-8">
             {parsedData.title}
@@ -281,26 +362,58 @@ export function FlashcardsViewer({
           </span>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleShuffle}
-            className="text-xs text-[#9a9a94] hover:text-[#f4f4f2] h-8 px-2.5"
+            className="text-xs text-[#9a9a94] hover:text-[#f4f4f2] h-8 px-2"
             title="Shuffle Deck"
           >
-            <Shuffle className="w-3.5 h-3.5 mr-1.5" />
-            Shuffle
+            <Shuffle className="w-3.5 h-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Shuffle</span>
           </Button>
 
-          <span className="text-xs font-mono font-semibold text-[#f4f4f2] bg-[#262626] border border-[#303030] px-2.5 py-1 rounded-xl">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleDownloadPdf}
+            className="text-xs h-8 px-2 text-rose-300 border-rose-500/30 hover:bg-rose-950/30 flex items-center gap-1 font-display font-medium"
+            title="Download Study Sheet as PDF"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">PDF</span>
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleDownloadMarkdown}
+            className="text-xs h-8 px-2 text-blue-300 border-blue-500/30 hover:bg-blue-950/30 flex items-center gap-1 font-display font-medium"
+            title="Download Cards as Markdown"
+          >
+            <FileCode className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">.md</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handlePrint}
+            className="text-xs h-8 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
+            title="Print Flashcards Study Sheet"
+          >
+            <Printer className="w-3.5 h-3.5" />
+          </Button>
+
+          <span className="text-xs font-mono font-semibold text-[#f4f4f2] bg-[#262626] border border-[#303030] px-2 py-1 rounded-xl ml-1">
             {currentIndex + 1} / {cards.length}
           </span>
 
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer"
+              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
               title="Close Flashcards"
             >
               <X className="w-4 h-4" />
@@ -314,66 +427,65 @@ export function FlashcardsViewer({
         {/* Progress & Stats Pills */}
         <div className="flex items-center justify-between gap-4 mb-4 text-xs font-display">
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
+            <span className="text-emerald-400 font-semibold flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              Mastered: {knownCardIds.size}
+              {knownCardIds.size} Mastered
             </span>
-            <span className="inline-flex items-center gap-1.5 text-amber-400 font-medium">
+            <span className="text-amber-400 font-semibold flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              Learning: {learningCardIds.size}
+              {learningCardIds.size} Learning
             </span>
           </div>
-          <span className="text-[10px] text-[#9a9a94] font-mono hidden sm:inline">
-            Space to flip · ← / → to navigate
+
+          <span className="text-[#9a9a94] text-[11px] font-serif hidden sm:inline">
+            Press <kbd className="px-1.5 py-0.5 rounded bg-[#262626] border border-[#383838] text-[10px]">Space</kbd> to flip
           </span>
         </div>
 
         {/* 3D Flip Card */}
-        <div className="flex-1 flex flex-col items-center justify-center min-h-[300px] perspective-1000 my-auto w-full">
+        <div
+          onClick={handleFlip}
+          className="relative w-full aspect-[16/10] min-h-[260px] cursor-pointer select-none group perspective-1000"
+        >
           <div
-            onClick={handleFlip}
-            className={`w-full h-72 md:h-80 rounded-3xl p-8 cursor-pointer select-none transition-all duration-500 relative flex flex-col justify-between border shadow-2xl ${
+            className={`w-full h-full rounded-3xl transition-transform duration-500 transform-style-3d border shadow-2xl p-6 sm:p-10 flex flex-col justify-between ${
               isFlipped
-                ? 'bg-[#212121] border-brand-500/40 shadow-brand-500/10'
-                : 'bg-[#262626] border-[#383838] hover:border-brand-500/40 hover:bg-[#2a2a2a]'
+                ? 'bg-gradient-to-br from-[#222222] to-[#1c1c1c] border-brand-500/50 text-[#f4f4f2]'
+                : 'bg-gradient-to-br from-[#1f1f1f] to-[#171717] border-[#383838] hover:border-brand-500/40 text-[#f4f4f2]'
             }`}
           >
-            {/* Card Header Label */}
+            {/* Top Card Badge */}
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-display uppercase tracking-widest text-[#9a9a94] font-bold">
-                {isFlipped ? 'Answer / Definition' : 'Term / Concept'}
+              <span className="text-[10px] font-display font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#262626] border border-[#303030] text-[#9a9a94]">
+                {isFlipped ? 'Definition / Answer' : 'Question / Concept'}
               </span>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-1.5">
                 {isCurrentKnown && (
-                  <span className="text-[9px] font-display font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     Mastered
                   </span>
                 )}
                 {isCurrentLearning && (
-                  <span className="text-[9px] font-display font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                    Still Learning
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    Learning
                   </span>
                 )}
-                <span className="text-xs text-[#9a9a94] p-1.5 rounded-xl bg-[#191919] border border-[#303030]">
-                  <RotateCw className="w-3.5 h-3.5" />
-                </span>
+                <RotateCw className="w-3.5 h-3.5 text-[#9a9a94] group-hover:rotate-180 transition-transform duration-300" />
               </div>
             </div>
 
-            {/* Card Text */}
-            <div className="my-auto text-center px-4">
-              <p className={`font-display text-[#f4f4f2] transition-all ${
-                isFlipped
-                  ? 'text-base font-normal leading-relaxed font-serif text-[#e4e4e0]'
-                  : 'text-xl md:text-2xl font-bold tracking-tight'
-              }`}>
+            {/* Main Text */}
+            <div className="my-auto text-center py-4">
+              <p className={`font-serif leading-relaxed ${isFlipped ? 'text-base sm:text-xl text-[#dcdcd8]' : 'text-xl sm:text-2xl font-bold font-display text-[#f4f4f2]'}`}>
                 {isFlipped ? currentCard.back : currentCard.front}
               </p>
 
-              {currentCard.hint && !isFlipped && (
+              {/* Optional Hint on Front */}
+              {!isFlipped && currentCard.hint && (
                 <div className="mt-4">
                   {showHint ? (
-                    <p className="text-xs text-amber-300 font-serif italic bg-amber-950/20 px-3 py-1.5 rounded-xl border border-amber-500/30 inline-block">
+                    <p className="text-xs text-amber-300/90 font-serif italic bg-amber-500/10 border border-amber-500/30 rounded-xl py-1 px-3 inline-block">
                       Hint: {currentCard.hint}
                     </p>
                   ) : (
@@ -383,7 +495,7 @@ export function FlashcardsViewer({
                         e.stopPropagation();
                         setShowHint(true);
                       }}
-                      className="text-[11px] font-display text-[#9a9a94] hover:text-amber-400 inline-flex items-center gap-1 underline underline-offset-2"
+                      className="text-xs text-[#9a9a94] hover:text-amber-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
                     >
                       <HelpCircle className="w-3 h-3" />
                       Show Hint
@@ -393,54 +505,55 @@ export function FlashcardsViewer({
               )}
             </div>
 
-            {/* Card Bottom Hint */}
+            {/* Bottom Card Footer */}
             <div className="text-center">
-              <span className="text-[10px] text-[#9a9a94] font-display">
-                {isFlipped ? 'Click or Space to flip back' : 'Click or Space to reveal answer'}
+              <span className="text-[11px] text-[#71717a] font-serif">
+                Click anywhere to flip
               </span>
             </div>
           </div>
         </div>
 
-        {/* Action Controls: Still Learning vs Know It */}
-        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#303030] mt-6">
-          <Button
-            variant="secondary"
-            onClick={markLearning}
-            className="text-xs font-display font-semibold border-amber-500/30 hover:bg-amber-950/20 text-amber-300 h-10 shadow-sm"
-          >
-            <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
-            Still Learning
-          </Button>
-          <Button
-            variant="primary"
-            onClick={markKnown}
-            className="text-xs font-display font-semibold bg-emerald-600 hover:bg-emerald-500 text-white h-10 shadow-sm"
-          >
-            <Check className="w-3.5 h-3.5 mr-1.5" />
-            Know It!
-          </Button>
-        </div>
-
-        {/* Prev / Next Footer */}
-        <div className="flex items-center justify-between pt-3">
+        {/* Action Buttons: Mark Learning vs Mastered */}
+        <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-[#303030]">
           <Button
             variant="ghost"
             size="sm"
-            onClick={handlePrev}
             disabled={currentIndex === 0}
+            onClick={handlePrev}
             className="text-xs text-[#9a9a94] hover:text-[#f4f4f2]"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1" />
             Previous
           </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleMarkLearning}
+              className="text-xs font-display font-medium text-amber-300 border-amber-500/30 hover:bg-amber-950/20"
+            >
+              Still Learning
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleMarkKnown}
+              className="text-xs font-display font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+            >
+              <Check className="w-3.5 h-3.5 mr-1" />
+              I Know This
+            </Button>
+          </div>
+
           <Button
             variant="ghost"
             size="sm"
             onClick={handleNext}
             className="text-xs text-[#9a9a94] hover:text-[#f4f4f2]"
           >
-            {currentIndex === cards.length - 1 ? 'Finish Deck' : 'Next'}
+            Next
             <ArrowRight className="w-3.5 h-3.5 ml-1" />
           </Button>
         </div>

@@ -118,9 +118,19 @@ async function generateTextWithFallback(params: {
   const { provider, apiKey, modelId, customBaseUrl, system, prompt, temperature = 0.3 } = params;
 
   // Start strictly with the user-selected model
-  const candidateModels: string[] = [modelId];
+  let primaryModel = modelId;
+  if (provider === 'google' && (!primaryModel || primaryModel.includes('2.5-flash'))) {
+    primaryModel = 'gemini-3.8-flash';
+  }
+  const candidateModels: string[] = [primaryModel];
   if (provider === 'google') {
-    const googleFallbacks = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
+    const googleFallbacks = [
+      'gemini-3.8-flash',
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-flash-lite-latest',
+    ];
     for (const fb of googleFallbacks) {
       if (!candidateModels.includes(fb)) candidateModels.push(fb);
     }
@@ -235,7 +245,10 @@ export async function generateStudioOutput(
     }
 
     // Determine model to use from user selection
-    const modelId = params.modelId || 'gemini-3.8-flash';
+    let modelId = params.modelId || 'gemini-3.8-flash';
+    if (modelId.includes('2.5-flash')) {
+      modelId = 'gemini-3.8-flash';
+    }
     const modelDef = getModelDefinition(modelId);
 
     // Capability check: Ensure the selected model supports this studio output type
@@ -448,7 +461,16 @@ export async function generateStudioOutput(
           script = script.slice(0, STORAGE_LIMITS.VOICE_LIMITS.MAX_SCRIPT_TURNS);
         }
 
-        const voiceProvider = options.voiceProvider || 'web_speech';
+        const isUrdu =
+          options.language?.toLowerCase().includes('urdu') ||
+          options.language === 'ur';
+
+        let voiceProvider = options.voiceProvider || (isUrdu ? 'google' : 'web_speech');
+        // When Urdu is selected, enforce Google Gemini TTS for authentic NotebookLM acoustic fidelity
+        if (isUrdu) {
+          voiceProvider = 'google';
+        }
+
         let voiceApiKey = '';
 
         if (voiceProvider !== 'web_speech') {
@@ -461,16 +483,20 @@ export async function generateStudioOutput(
           }
         }
 
-        // Voice config
+        // Voice config: default to Aoede (Alex, female) and Puck (Jordan, male) for Gemini
         const voiceConfig = {
           speaker1Name: options.voiceStyle === 'narration' ? 'Narrator' : 'Alex',
           speaker2Name: options.voiceStyle === 'narration' ? '' : 'Jordan',
-          speaker1Voice: options.speaker1Voice || (voiceProvider === 'google' ? 'Puck' : 'alloy'),
-          speaker2Voice: options.speaker2Voice || (voiceProvider === 'google' ? 'Kore' : 'echo'),
+          speaker1Voice:
+            options.speaker1Voice ||
+            (voiceProvider === 'google' ? 'Aoede' : 'alloy'),
+          speaker2Voice:
+            options.speaker2Voice ||
+            (voiceProvider === 'google' ? 'Puck' : 'echo'),
           style: options.voiceStyle || 'conversation',
           format: options.voiceFormat || 'deep_dive',
           provider: voiceProvider,
-          language: options.language || 'English',
+          language: options.language || (isUrdu ? 'Urdu' : 'English'),
         };
 
         // Step 2 & 3: Audio synthesis & storage
@@ -481,6 +507,12 @@ export async function generateStudioOutput(
           voiceConfig,
         });
 
+        const finalVoiceConfig = {
+          ...voiceConfig,
+          fullAudioKey: synthResult.fullAudioKey,
+          fullAudioUrl: synthResult.fullAudioUrl,
+        };
+
         await db
           .update(outputs)
           .set({
@@ -489,7 +521,7 @@ export async function generateStudioOutput(
             script,
             audioKeys: synthResult.audioKeys,
             durationSeconds: synthResult.totalDurationSeconds,
-            voiceConfig,
+            voiceConfig: finalVoiceConfig,
             status: 'ready',
             updatedAt: new Date(),
           })
@@ -623,7 +655,7 @@ export async function regenerateStudioOutput(
       type: row.type as any,
       title: row.title,
       sourceIds: (row.sourceIds as string[]) || undefined,
-      modelId: modelId || row.model || 'gemini-3.8-flash',
+      modelId: (modelId && !modelId.includes('2.5-flash')) ? modelId : (row.model && !row.model.includes('2.5-flash')) ? row.model : 'gemini-3.8-flash',
       options: {
         voiceStyle: (row.voiceConfig as any)?.style,
         voiceFormat: (row.voiceConfig as any)?.format,

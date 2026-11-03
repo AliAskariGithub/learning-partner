@@ -298,28 +298,75 @@ Use citations [N] for all factual claims and evidence.`;
       const length = options.length || 'medium';
       const lang = options.language || 'English';
       const isUrdu = lang.toLowerCase().includes('urdu') || lang.toLowerCase() === 'ur';
-      const turnCount = length === 'short' ? 12 : length === 'long' ? 32 : 20;
+      const turnCount = length === 'short' ? 14 : length === 'long' ? 36 : 24;
 
-      systemPrompt += `\nYou are a professional audio podcast producer and scriptwriter.
-Output MUST be valid raw JSON only (no markdown code blocks, no backticks). Schema:
+      systemPrompt += `\nYou are an award-winning executive audio producer and scriptwriter specializing in Google NotebookLM-style "Deep Dive" audio podcast conversations.
+Your task is to produce an extraordinary, natural, human-like podcast dialogue between two charismatic co-hosts: Alex and Jordan.
+
+OUTPUT FORMAT:
+Output MUST be valid raw JSON only (no markdown code blocks, no backticks, no preamble).
+Schema:
 [
   { "speaker": "Alex", "text": "Spoken dialogue here..." },
   { "speaker": "Jordan", "text": "Spoken dialogue here..." }
 ]
-SCRIPTWRITING RULES:
-- Spoken Language: All spoken dialogue MUST be written in ${lang}. ${
-        isUrdu
-          ? 'IMPORTANT: All dialogue text MUST be written in natural, authentic Urdu script (اردو رسم الخط). Use fluent, colloquial, conversational Urdu for greetings, questions, explanations, affirmations, and transitions.'
-          : `Dialogue MUST be spoken in ${lang}.`
-      }
-- Style: ${style === 'conversation' ? 'Natural spoken dialogue between two co-hosts, Alex and Jordan.' : 'Single narrator presenting a clear, engaging spoken overview.'}
-- Conversation format: ${format} (Deep Dive = detailed analysis; Brief = quick energetic summary; Critique = constructive evaluation of arguments; Debate = two hosts exploring contrasting perspectives).
-- Spoken language only: No markdown symbols (no #, no *, no bullet points), no emojis, no stage directions, no URLs, NO spoken citation numbers like "[1]" or "citation one".
-- Natural speech: Use conversational rhythm, questions, short turns, agreements ("That makes a lot of sense", "Exactly"), and smooth transitions.
-- Total turns: approximately ${turnCount} turns.
-- Strictly grounded in the provided sources.`;
 
-      userPrompt += `Write the complete audio overview script in ${lang} based on the sources.
+AUDIO PRODUCTION GUIDELINES (NOTEBOOKLM DEEP DIVE STYLE):
+1. THE CO-HOST DYNAMICS:
+   - Alex (Lead Co-Host): Energetic, curious, intuitive, and highly relatable. Sets up the central mystery or theme, asks the provocative questions listeners are wondering about, uses vivid real-world analogies, and reacts with genuine human emotion ("Wait, seriously?", "That blew my mind", "Hold on, let's unpack that").
+   - Jordan (Expert Co-Host): Insightful, analytical, deeply versed in the source material. Explains the underlying mechanisms, draws non-obvious connections, quotes surprising data from the documents, and provides constructive nuance ("Right, and what makes it fascinating is...", "Exactly, but here's where it gets really interesting...").
+
+2. CONVERSATIONAL CADENCE & RHYTHM:
+   - Snappy, punchy turns: Most turns should be 1 to 3 spoken sentences (15-45 words). Never produce long academic monologues.
+   - Natural spoken reactions & interruptions: Weave in realistic conversational vocal markers:
+     ${
+       isUrdu
+         ? `- In Urdu: "بالکل درست، ایلکس!", "ارے واہ، یہ نکتہ تو کمال ہے!", "ذرا رکیے، کیا واقعی ایسا ہے؟", "جی ہاں، اور سب سے زبردست بات یہ ہے کہ...", "سوچیے تو سہی!", "اوہ، تو جسے ہم میموری کہتے ہیں...", "بالکل سو فیصد!", "سچ پوچھیں تو...", "لیکن یہاں ایک بہت دلچسپ موڑ آتا ہے..."`
+         : `- In English: "Right", "Exactly", "Wait, really?", "Oh, 100%", "Hold on a second", "And that's the key", "Which makes total sense".`
+     }
+   - Back-and-forth bounce: One host poses a concept, the other expands or provides a contrast; one suggests a metaphor, the other builds on it.
+
+3. COLD OPEN & CLOSING:
+   - Exciting Cold Open: Never start with "In this podcast today...". Start right inside an intriguing question, a bold claim, or an astonishing insight from the sources (e.g. "کیا آپ نے کبھی یہ سوچا ہے کہ...").
+   - Satisfying Wrap-up: Close with a synthesized big-picture reflection, a memorable takeaway for the listener, and a warm sign-off.
+
+4. LANGUAGE & SCRIPT REQUIREMENTS:
+${
+  isUrdu
+    ? `- URDU SCRIPT (اردو رسم الخط - NOTEBOOKLM PODCAST STYLE):
+      * Authenticity & Pacing: Write in the natural, engaging, colloquial spoken Urdu heard in top educational podcasts and Google NotebookLM's official Urdu Deep Dives (reference: Alex & Jordan).
+      * PHONETIC URDU FOR TECHNICAL TERMS (CRITICAL): Write all English technical, AI, software, and everyday loan words phonetically using Urdu script so that the text-to-speech voice model speaks them with accurate pronunciation without stumbling on Latin letters. Examples:
+        - "AI Prompting" -> اے آئی پرامپٹنگ
+        - "Context Window" -> کانٹیکسٹ ونڈو
+        - "ChatGPT" -> چیٹ جی پی ٹی
+        - "Codebase" -> کوڈ بیس
+        - "Spreadsheet" -> اسپریڈ شیٹ
+        - "Briefing document" -> بریفنگ ڈاکومنٹ
+        - "Colleague" -> کوالیگ
+        - "Stateless" -> اسٹیٹ لیس
+        - "Memory" -> میموری
+        - "Draft" -> ڈرافٹ
+        - "Web Search" -> ویب سرچ
+        - "Deep Research" -> ڈیپ ریسرچ
+        - "Data Analysis" -> ڈیٹا اینالیسس
+        - "Code Execution" -> کوڈ ایگزیکیوشن
+        - "Artifact / Canvas" -> آرٹیفیکٹ / کینوس
+        - "Tokens" -> ٹوکنز
+        - "System Prompt" -> سسٹم پرامپٹ
+        - "Feedback Loop" -> فیڈ بیک لوپ
+        - "Reasoning Model" -> ریزننگ ماڈل
+        - "Multi-turn" -> ملٹی ٹرن
+        - "Agent" -> ایجنٹ
+      * ZERO LATIN ALPHABET: Do not include English words in English letters within Urdu sentences (write 'اے آئی' instead of 'AI', 'ایلکس' instead of 'Alex', 'جورڈن' instead of 'Jordan'). Pure Urdu script ensures flawless acoustic output.`
+    : `- Dialogue MUST be spoken in natural, idiomatic ${lang}.`
+}
+- SPOKEN WORDS ONLY: Absolutely no markdown formatting (no #, no *, no bullet points), no emojis, no URLs, no stage directions like "(laughs)" or "[pause]", and NEVER speak raw citation markers like "[1]" or "citation reference three". Refer to the text, the authors, or the concepts naturally.
+- TOTAL TURNS: Aim for approximately ${turnCount} turns for a rich, thorough deep-dive discussion.
+- GROUNDING: Every topic, question, and insight must be strictly grounded in the provided source materials.`;
+
+      userPrompt += `Write the complete Google NotebookLM Deep Dive podcast dialogue in ${
+        isUrdu ? 'authentic Urdu (اردو رسم الخط)' : lang
+      } based on the sources.
 ${focus}
 ${extra}
 Return pure JSON array of speaker turns.`;

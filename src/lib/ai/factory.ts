@@ -29,7 +29,11 @@ export function createProviderModel(params: CreateModelParams): LanguageModel {
     }
     case 'google': {
       const google = createGoogleGenerativeAI({ apiKey });
-      return google(modelId);
+      let safeModelId = modelId;
+      if (!safeModelId || safeModelId === 'gemini-2.5-flash' || safeModelId.includes('2.5-flash')) {
+        safeModelId = 'gemini-2.0-flash';
+      }
+      return google(safeModelId);
     }
     case 'groq': {
       const groq = createGroq({ apiKey });

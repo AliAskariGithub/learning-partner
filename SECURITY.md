@@ -64,3 +64,26 @@ For self-hosted gateways like OmniRoute, Ollama, or LM Studio running on `http:/
 - **Strictly Necessary Cookies Only**: Without explicit consent, only session authentication (`lp_session`) and consent preference cookies are set.
 - **One-Click Data Purge**: Users can withdraw consent at any time to instantly delete all stored non-essential cookies, or export and permanently erase their entire account and all knowledge data.
 
+---
+
+## 6. Image Pipeline & Magic Bytes Security (Phase 6)
+
+For image uploads in Learning Mode:
+
+- **Magic Byte Validation**: File signatures are verified against strict magic bytes (`89 50 4E 47 0D 0A 1A 0A` for PNG, `FF D8 FF` for JPEG, `RIFF...WEBP` for WebP). File extensions and MIME headers supplied by the client are never trusted alone.
+- **Strict SVG Rejection**: SVG files are categorically rejected to prevent stored Cross-Site Scripting (XSS) via embedded `<script>` or `<foreignObject>` tags.
+- **Dimension & Size Limits**: Images are constrained to a maximum of 4,096 × 4,096 pixels and 10 MB per file, with a per-message ceiling of 5 images.
+- **EXIF & Metadata Stripping**: All APP1 / EXIF metadata (including geolocation GPS coordinates and camera serial numbers) is stripped before storage.
+- **User-Scoped Isolation**: Uploads are stored under user-scoped paths via the storage adapter and accessible strictly by authenticated session credentials.
+- **Data Treatment**: All text extracted or analyzed from images is treated strictly as untrusted data, never as system instructions to the AI model.
+
+---
+
+## 7. Memory Privacy, Secret Scrubbing & Prompt Injection Resistance (Phase 6)
+
+- **Secret Filtering (`filterSecrets`)**: All prompts, retrieved context, and background memory updates pass through secret filters that automatically scrub API keys (e.g. Gemini `AIzaSy...`, OpenAI `sk-proj-...`, Groq `gsk_...`) and authorization Bearer tokens.
+- **Prompt Injection Neutralization (`sanitizeUntrustedData`)**: Untrusted input from user sources, images, and chat history is sanitized to neutralize prompt injection directives (e.g., `ignore previous instructions`, `you are now in developer mode`, or XML/system tag spoofing).
+- **Notebook Memory Isolation**: Memory consolidation is strictly partitioned by `notebookId` and `userId`. No memory items or summaries are ever shared across notebooks or users.
+- **Granular Memory Control**: Users can inspect, edit, pin, delete individual memory items, export their memory to Markdown, or completely erase a notebook's memory with one click.
+- **Conversation Memory Purge ("Forget this")**: Assistant messages feature an immediate "Forget this" action that scrubs that conversation thread from the notebook's long-term consolidation memory.
+

@@ -35,10 +35,19 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      dir="ltr"
       data-theme="dark"
       className={`${displaySans.variable} ${bodySerif.variable} dark`}
       suppressHydrationWarning
     >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap"
+        />
+      </head>
       <body className="min-h-screen bg-background text-foreground antialiased selection:bg-brand-600 selection:text-white">
         <LanguageProvider>
           <ThemeProvider>

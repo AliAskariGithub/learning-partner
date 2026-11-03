@@ -8,6 +8,9 @@ import {
   conversations,
   messages,
   connections,
+  outputs,
+  ChatImageAttachment,
+  ThoughtTimelineStep,
 } from '@/db/schema';
 import { getSession } from '@/lib/auth/session';
 import { checkRateLimit } from '@/lib/ratelimit';
@@ -15,10 +18,22 @@ import { getModelDefinition, PROVIDER_REGISTRY } from '@/lib/ai/providers';
 import { getCredentialsForRequest } from '@/lib/connections/resolver';
 import { createProviderModel } from '@/lib/ai/factory';
 import { retrieveNotebookContext, backfillChunkEmbeddings } from '@/lib/rag/retrieval';
-import { assembleSystemPrompt, ChatMode } from '@/lib/ai/prompts';
-import { streamText } from 'ai';
+import { ChatMode } from '@/lib/ai/prompts';
+import { assembleContext } from '@/lib/ai/context';
+import {
+  getNotebookMemory,
+  getNotebookMemoryItems,
+  indexMessageChunk,
+  searchPastConversationSnippets,
+  consolidateNotebookMemory,
+} from '@/lib/ai/memory';
+import { isQuizIntent, QuizPayloadSchema, QuizPayload } from '@/lib/ai/quiz';
+import { formatSSE } from '@/lib/streaming/protocol';
+import { streamText, generateObject } from 'ai';
+import fs from 'fs/promises';
+import path from 'path';
 
-export const maxDuration = 60; // Allow up to 60s for streaming responses
+export const maxDuration = 60; // Allow up to 60s for streaming pipeline
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,8 +47,8 @@ export async function POST(req: NextRequest) {
     }
     const userId = session.user.id;
 
-    // 2. Check rate limit (30 requests / min)
-    const rateLimit = checkRateLimit(userId, 30, 60000);
+    // 2. Check rate limit (40 requests / min)
+    const rateLimit = checkRateLimit(userId, 40, 60000);
     if (!rateLimit.allowed) {
       return new Response(
         JSON.stringify({
@@ -51,22 +66,24 @@ export async function POST(req: NextRequest) {
       message,
       modelId = 'gemini-3.8-flash',
       mode = 'chat',
+      images = [],
     } = body as {
       notebookId: string;
       conversationId?: string | null;
       message: string;
       modelId?: string;
       mode?: ChatMode;
+      images?: ChatImageAttachment[];
     };
 
-    if (!notebookId || !message?.trim()) {
+    if (!notebookId || (!message?.trim() && images.length === 0)) {
       return new Response(
-        JSON.stringify({ error: 'Missing required notebookId or message.' }),
+        JSON.stringify({ error: 'Missing required notebookId or message content.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // 4. Resolve Model and verify capability
+    // 4. Resolve Model and verify capabilities
     const modelDef = getModelDefinition(modelId);
 
     // Capability check: Quiz mode requires structured output
@@ -74,6 +91,17 @@ export async function POST(req: NextRequest) {
       return new Response(
         JSON.stringify({
           error: `The selected model (${modelDef.name}) does not support Quiz mode (requires structured output). Please switch to a supported model.`,
+          code: 'CAPABILITY_UNSUPPORTED',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Capability check: Images in Learning mode require vision
+    if (images.length > 0 && !modelDef.capabilities.vision) {
+      return new Response(
+        JSON.stringify({
+          error: `The selected model (${modelDef.name}) cannot read images. Please choose a vision model (e.g. Gemini or Claude) or connect your Gemini key.`,
           code: 'CAPABILITY_UNSUPPORTED',
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -129,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!activeConversationId) {
-      const initialTitle = message.slice(0, 42).trim() + (message.length > 42 ? '...' : '');
+      const initialTitle = (message || 'Study Session').slice(0, 42).trim();
       const [newConv] = await db
         .insert(conversations)
         .values({
@@ -143,220 +171,478 @@ export async function POST(req: NextRequest) {
       activeConversationId = newConv.id;
     }
 
-    // Update notebook's remembered model
+    // Update notebook's remembered model and mode
     await db
       .update(notebooks)
-      .set({ lastModel: modelId })
+      .set({
+        lastModel: modelId,
+        lastMode: mode,
+        updatedAt: new Date(),
+      })
       .where(eq(notebooks.id, notebookId))
-      .catch(() => {});
+      .catch(() => { });
 
-    // 7. Fetch Profile (user custom instructions) and Saved Notes (scoped to active conversation)
+    // Save user message to database
+    const [savedUserMsg] = await db
+      .insert(messages)
+      .values({
+        conversationId: activeConversationId!,
+        role: 'user',
+        content: message.trim(),
+        images: images.length > 0 ? images : null,
+      })
+      .returning();
+
+    // Index user message for cross-chat hybrid retrieval
+    indexMessageChunk({
+      conversationId: activeConversationId!,
+      messageId: savedUserMsg?.id,
+      notebookId,
+      userId,
+      content: message.trim(),
+    }).catch(() => { });
+
+    // Fetch user profile for custom instructions
     const [profile] = await db
       .select()
       .from(profiles)
       .where(eq(profiles.authUserId, userId))
       .limit(1);
 
-    const savedNotes = await db
-      .select({ title: notes.title, content: notes.content })
-      .from(notes)
-      .where(
-        activeConversationId
-          ? and(
-              eq(notes.notebookId, notebookId),
-              eq(notes.userId, userId),
-              eq(notes.conversationId, activeConversationId)
-            )
-          : and(eq(notes.notebookId, notebookId), eq(notes.userId, userId))
-      )
-      .orderBy(desc(notes.createdAt))
-      .limit(15);
+    // Fetch Shared Notebook Memory & Durable Items
+    const memory = await getNotebookMemory(notebookId, userId);
+    const memoryItems = await getNotebookMemoryItems(notebookId, userId);
+    const pinnedMemory = memoryItems.filter((m) => m.pinned);
 
-    // 8. Hybrid RAG Retrieval over enabled sources
-    const retrieval = await retrieveNotebookContext({
+    // Fetch Cross-Conversation Highlights
+    const pastSnippets = await searchPastConversationSnippets({
       notebookId,
       userId,
       query: message,
-      maxTokens: Math.min(16000, Math.floor(modelDef.capabilities.contextWindow * 0.4)),
+      limit: 3,
     });
 
-    // 9. Assemble Grounded System Prompt
-    const systemPrompt = assembleSystemPrompt({
-      mode,
-      userCustomInstructions: profile?.customInstructions,
-      notebookInstructions: notebook.instructions,
-      memoryNotes: savedNotes,
-      formattedSourcesContext: retrieval.formattedContext,
-      preferredLanguage: profile?.preferredLanguage,
-    });
+    // 7. Setup TransformStream for Typed SSE Delivery
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
 
-    // 10. Fetch previous conversation history
-    const pastMessages = await db
-      .select({
-        role: messages.role,
-        content: messages.content,
-      })
-      .from(messages)
-      .where(eq(messages.conversationId, activeConversationId))
-      .orderBy(asc(messages.createdAt))
-      .limit(20);
+    const sendEvent = async (event: any) => {
+      try {
+        await writer.write(encoder.encode(formatSSE(event)));
+      } catch (e) {
+        // stream may be closed by client abort
+      }
+    };
 
-    // 11. Save current User Message to DB
-    await db.insert(messages).values({
-      conversationId: activeConversationId,
-      role: 'user',
-      content: message.trim(),
-    });
+    // Execute streaming pipeline asynchronously
+    (async () => {
+      const startTime = Date.now();
+      const timeline: ThoughtTimelineStep[] = [];
 
-    // Format chat history
-    const chatHistory = [
-      ...pastMessages.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-      {
-        role: 'user' as const,
-        content: message.trim(),
-      },
-    ];
+      try {
+        // Emit Phase 1: Reading sources
+        const p1Start = Date.now();
+        await sendEvent({
+          type: 'status',
+          phase: 'Reading your sources',
+          detail: 'Searching notebook source chunks...',
+          timestamp: p1Start,
+        });
 
-    // Browser Mode delegation for self-hosted localhost endpoints
-    if (creds.callMode === 'browser') {
-      return new Response(
-        JSON.stringify({
-          browserMode: true,
-          connectionId: creds.connectionId,
-          endpoint: creds.customBaseUrl || 'http://localhost:20128/v1',
-          modelId: modelDef.id,
-          systemPrompt,
-          chatHistory,
-          citations: retrieval.citations,
-          conversationId: activeConversationId,
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-browser-mode': 'true',
-            'x-conversation-id': activeConversationId || '',
-          },
+        // 8. Hybrid RAG Retrieval over enabled sources
+        const retrieval = await retrieveNotebookContext({
+          notebookId,
+          userId,
+          query: message,
+          maxTokens: Math.min(16000, Math.floor(modelDef.capabilities.contextWindow * 0.4)),
+        });
+
+        const p1End = Date.now();
+        timeline.push({
+          phase: 'Reading your sources',
+          detail: `Retrieved ${retrieval.chunks.length} candidate passages`,
+          elapsedMs: p1End - p1Start,
+        });
+
+        // Emit Phase 2: Finding relevant passages
+        const p2Start = Date.now();
+        await sendEvent({
+          type: 'status',
+          phase: 'Finding relevant passages',
+          detail: `Synthesizing ${retrieval.citations.length} cited source chunks...`,
+          timestamp: p2Start,
+        });
+
+        // Emit citations immediately
+        if (retrieval.citations && retrieval.citations.length > 0) {
+          await sendEvent({
+            type: 'citations',
+            citations: retrieval.citations,
+          });
         }
-      );
-    }
 
-    // 12. Create AI SDK Model Instance
-    const effectiveProvider =
-      creds.provider === 'custom' || creds.provider === 'omniroute'
-        ? 'custom'
-        : modelDef.provider;
+        timeline.push({
+          phase: 'Finding relevant passages',
+          detail: `Selected ${retrieval.citations.length} grounded citations`,
+          elapsedMs: Date.now() - p2Start,
+        });
 
-    const aiModel = createProviderModel({
-      provider: effectiveProvider,
-      apiKey: creds.apiKey,
-      modelId: modelDef.id,
-      customBaseUrl: creds.customBaseUrl,
-    });
+        // Fetch past conversation messages
+        const pastMessages = await db
+          .select({
+            role: messages.role,
+            content: messages.content,
+          })
+          .from(messages)
+          .where(eq(messages.conversationId, activeConversationId!))
+          .orderBy(asc(messages.createdAt))
+          .limit(20);
 
-    // 13. Trigger streaming with maxRetries: 2
-    const result = streamText({
-      model: aiModel,
-      system: systemPrompt,
-      messages: chatHistory,
-      maxRetries: 2,
-      async onFinish({ text }) {
-        if (!text?.trim()) return;
+        // 9. Assemble Context honoring strict priorities
+        const assembled = assembleContext({
+          mode,
+          userCustomInstructions: profile?.customInstructions,
+          notebookInstructions: notebook.instructions,
+          memorySummary: notebook.useMemory ? memory?.summary : null,
+          pinnedMemoryItems: notebook.useMemory ? pinnedMemory : [],
+          retrievedSourceChunks: retrieval.chunks.map((c, idx) => ({
+            chunkId: c.chunkId,
+            sourceId: c.sourceId,
+            sourceTitle: c.sourceTitle,
+            content: c.content,
+            citationNumber: idx + 1,
+            pageNumber: c.pageNumber,
+          })),
+          pastConversationSnippets: pastSnippets,
+          recentMessages: pastMessages.map((m) => ({
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+          })),
+          learningModeGrounding: notebook.learningModeGrounding || 'sources_first',
+          preferredLanguage: profile?.preferredLanguage,
+          maxTotalTokens: Math.min(24000, modelDef.capabilities.contextWindow - 2000),
+        });
 
-        try {
-          // Save assistant response with citations
+        // -------------------------------------------------------------
+        // QUIZ MODE BRANCH: Strictly Generate Interactive Quizzes
+        // -------------------------------------------------------------
+        if (mode === 'quiz') {
+          const quizIntent = isQuizIntent(message);
+
+          if (!quizIntent.isQuiz) {
+            // Friendly notice redirecting to Chat/Learning
+            const notice = `💡 **Quiz Mode Only Creates Quizzes**\n\nQuiz mode is dedicated exclusively to active recall testing. If you would like to ask questions or discuss concepts, please switch to **Chat** or **Learning** mode.\n\n${quizIntent.suggestedTopic ? `Would you like to generate a quiz on: **"${quizIntent.suggestedTopic}"**?` : 'Type any topic or chapter title to create a quiz!'}`;
+
+            await sendEvent({
+              type: 'status',
+              phase: 'Writing response',
+            });
+            await sendEvent({
+              type: 'text_delta',
+              delta: notice,
+            });
+
+            await db.insert(messages).values({
+              conversationId: activeConversationId!,
+              role: 'assistant',
+              content: notice,
+              citations: null,
+            });
+
+            await sendEvent({
+              type: 'done',
+              conversationId: activeConversationId!,
+              title: 'Quiz Mode Guidance',
+            });
+            await writer.close();
+            return;
+          }
+
+          // Generate structured quiz using AI model
+          await sendEvent({
+            type: 'status',
+            phase: 'Generating quiz questions',
+            detail: 'Formatting active recall assessment with citations...',
+          });
+
+          const aiModel = createProviderModel({
+            provider: creds.provider === 'custom' ? 'custom' : modelDef.provider,
+            apiKey: creds.apiKey,
+            modelId: modelDef.id,
+            customBaseUrl: creds.customBaseUrl,
+          });
+
+          let quizResult: QuizPayload;
+          try {
+            const { object } = await generateObject({
+              model: aiModel,
+              schema: QuizPayloadSchema,
+              system: assembled.systemPrompt,
+              prompt: `Generate an interactive quiz based on the user request and sources:\n"${message}"`,
+            });
+            quizResult = object;
+          } catch (firstErr) {
+            // Retry once on schema parsing failure
+            console.warn('Quiz generation retry attempt:', firstErr);
+            const { object } = await generateObject({
+              model: aiModel,
+              schema: QuizPayloadSchema,
+              system: assembled.systemPrompt,
+              prompt: `Generate an interactive quiz based on the user request and sources:\n"${message}"\nReturn strict valid JSON matching schema.`,
+            });
+            quizResult = object;
+          }
+
+          // Store quiz in outputs table as type 'quiz'
+          const [savedQuizOutput] = await db
+            .insert(outputs)
+            .values({
+              notebookId,
+              conversationId: activeConversationId!,
+              userId,
+              type: 'quiz',
+              title: quizResult.title,
+              content: JSON.stringify(quizResult),
+              model: modelDef.id,
+              status: 'ready',
+            })
+            .returning();
+
+          // Emit quiz data event to trigger QuizPlayView
+          await sendEvent({
+            type: 'quiz_data',
+            quiz: quizResult,
+          });
+
+          const summaryText = `### 🎯 ${quizResult.title}\n\nI have created an interactive quiz with **${quizResult.questions.length} questions** based on your sources. Use the interactive player to test your knowledge!`;
+
+          await sendEvent({
+            type: 'text_delta',
+            delta: summaryText,
+          });
+
           await db.insert(messages).values({
             conversationId: activeConversationId!,
             role: 'assistant',
-            content: text,
+            content: summaryText,
             citations: retrieval.citations,
           });
 
-          // Update conversation title if this is the first turn
-          if (pastMessages.length <= 1) {
-            const cleanTitle = message
-              .replace(/^(what is|who is|explain|summarize|how to)\s+/i, '')
-              .slice(0, 36)
-              .trim();
-            if (cleanTitle) {
-              await db
-                .update(conversations)
-                .set({
-                  title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
-                  updatedAt: new Date(),
-                })
-                .where(eq(conversations.id, activeConversationId!))
-                .catch(() => {});
-            }
-          }
-
-          // Auto-save key conversation context to conversation memory
-          try {
-            const memoryTitle = message.slice(0, 42).replace(/[*_#]/g, '').trim();
-            const memoryContent = `Q: ${message.trim()}\nA: ${text.slice(0, 360).trim()}...`;
-            await db.insert(notes).values({
-              notebookId,
-              conversationId: activeConversationId || null,
-              userId,
-              title: memoryTitle || 'Chat Context Takeaway',
-              content: memoryContent,
-            });
-          } catch (memErr) {
-            console.warn('Auto memory save warning:', memErr);
-          }
-
-          // Trigger background chunk backfill for any un-embedded chunks
-          backfillChunkEmbeddings(notebookId, userId).catch(() => {});
-        } catch (dbErr) {
-          console.error('Error saving assistant message to DB:', dbErr);
+          await sendEvent({
+            type: 'done',
+            conversationId: activeConversationId!,
+            title: quizResult.title,
+          });
+          await writer.close();
+          return;
         }
-      },
-    });
 
-    // 14. Return Text Stream Response with custom Citations & Conversation ID headers
-    return result.toTextStreamResponse({
+        // -------------------------------------------------------------
+        // CHAT & LEARNING MODE BRANCH: Streaming Grounded Responses
+        // -------------------------------------------------------------
+        const p3Start = Date.now();
+        await sendEvent({
+          type: 'status',
+          phase: 'Thinking',
+          detail: 'Formulating grounded synthesis...',
+          timestamp: p3Start,
+        });
+
+        // Resolve multimodal images into base64 data URLs if present
+        let userMessageParts: any = message.trim();
+        if (images.length > 0) {
+          const contentParts: any[] = [{ type: 'text', text: message.trim() || 'Please analyze this image based on our study sources.' }];
+          for (const img of images) {
+            let base64Url = img.url;
+            if (img.storageKey && !img.url.startsWith('http')) {
+              try {
+                const localPath = path.join(process.cwd(), '.storage', 'uploads', img.storageKey);
+                const buf = await fs.readFile(localPath);
+                base64Url = `data:${img.mimeType || 'image/jpeg'};base64,${buf.toString('base64')}`;
+              } catch (e) {
+                console.warn('Could not read local image buffer:', e);
+              }
+            }
+            contentParts.push({
+              type: 'image',
+              image: base64Url,
+            });
+          }
+          userMessageParts = contentParts;
+        }
+
+        const modelMessages = [
+          ...assembled.chatMessages.map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
+          {
+            role: 'user' as const,
+            content: userMessageParts,
+          },
+        ];
+
+        const aiModel = createProviderModel({
+          provider: creds.provider === 'custom' ? 'custom' : modelDef.provider,
+          apiKey: creds.apiKey,
+          modelId: modelDef.id,
+          customBaseUrl: creds.customBaseUrl,
+        });
+
+        // Trigger streamText
+        let accumulatedText = '';
+        try {
+          const textStream = streamText({
+            model: aiModel,
+            system: assembled.systemPrompt,
+            messages: modelMessages,
+            maxRetries: 2,
+          });
+
+          timeline.push({
+            phase: 'Thinking',
+            elapsedMs: Date.now() - p3Start,
+          });
+
+          await sendEvent({
+            type: 'status',
+            phase: 'Writing response',
+            timestamp: Date.now(),
+          });
+
+          for await (const chunk of textStream.textStream) {
+            accumulatedText += chunk;
+            await sendEvent({
+              type: 'text_delta',
+              delta: chunk,
+            });
+          }
+        } catch (initialErr: any) {
+          console.warn('Initial model stream failed, attempting fallback to gemini-3.5-flash:', initialErr);
+          if (modelDef.provider === 'google' || creds.provider === 'gemini') {
+            const fallbackModel = createProviderModel({
+              provider: 'google',
+              apiKey: creds.apiKey,
+              modelId: 'gemini-3.5-flash',
+              customBaseUrl: creds.customBaseUrl,
+            });
+            const fallbackStream = streamText({
+              model: fallbackModel,
+              system: assembled.systemPrompt,
+              messages: modelMessages,
+              maxRetries: 2,
+            });
+
+            for await (const chunk of fallbackStream.textStream) {
+              accumulatedText += chunk;
+              await sendEvent({
+                type: 'text_delta',
+                delta: chunk,
+              });
+            }
+          } else {
+            throw initialErr;
+          }
+        }
+
+        timeline.push({
+          phase: 'Writing response',
+          elapsedMs: Date.now() - startTime,
+        });
+
+        // Save assistant message to DB
+        const [savedAssistantMsg] = await db
+          .insert(messages)
+          .values({
+            conversationId: activeConversationId!,
+            role: 'assistant',
+            content: accumulatedText,
+            citations: retrieval.citations,
+            thoughtTimeline: timeline,
+          })
+          .returning();
+
+        // Index assistant message for retrieval
+        indexMessageChunk({
+          conversationId: activeConversationId!,
+          messageId: savedAssistantMsg?.id,
+          notebookId,
+          userId,
+          content: accumulatedText,
+        }).catch(() => { });
+
+        // Update conversation title if first exchange
+        if (pastMessages.length <= 1) {
+          const cleanTitle = message
+            .replace(/^(what is|who is|explain|summarize|how to)\s+/i, '')
+            .slice(0, 36)
+            .trim();
+          if (cleanTitle) {
+            await db
+              .update(conversations)
+              .set({
+                title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+                updatedAt: new Date(),
+              })
+              .where(eq(conversations.id, activeConversationId!))
+              .catch(() => { });
+          }
+        }
+
+        // Trigger background Memory Consolidation (debounced, non-blocking)
+        if (notebook.useMemory) {
+          consolidateNotebookMemory({
+            notebookId,
+            userId,
+            conversationId: activeConversationId!,
+            mode,
+            recentMessages: [
+              { id: 'u1', conversationId: activeConversationId!, role: 'user', content: message, citations: null, images: null, thoughtTimeline: null, reasoningSummary: null, createdAt: new Date() },
+              { id: 'a1', conversationId: activeConversationId!, role: 'assistant', content: accumulatedText, citations: retrieval.citations, images: null, thoughtTimeline: null, reasoningSummary: null, createdAt: new Date() },
+            ],
+          }).then(() => {
+            sendEvent({
+              type: 'memory_updated',
+              summary: 'Notebook memory consolidated with latest exchange',
+              itemsCount: memoryItems.length,
+            }).catch(() => { });
+          }).catch(() => { });
+        }
+
+        // Trigger background embedding backfill
+        backfillChunkEmbeddings(notebookId, userId).catch(() => { });
+
+        // Emit done event
+        await sendEvent({
+          type: 'done',
+          conversationId: activeConversationId!,
+        });
+
+        await writer.close();
+      } catch (streamErr: any) {
+        console.error('Streaming pipeline error:', streamErr);
+        await sendEvent({
+          type: 'error',
+          error: streamErr?.message || 'Failed to stream response from AI model.',
+        });
+        await writer.close();
+      }
+    })();
+
+    // Return text/event-stream response immediately
+    return new Response(readable, {
       headers: {
-        'X-Conversation-Id': activeConversationId,
-        'X-Citations': encodeURIComponent(JSON.stringify(retrieval.citations)),
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Conversation-Id': activeConversationId || '',
       },
     });
   } catch (error: any) {
-    console.error('Chat endpoint error:', error);
-
-    let errorMessage =
-      error?.message ||
-      'An unexpected error occurred while communicating with the AI model.';
-
-    if (
-      errorMessage.includes('usage_limit') ||
-      errorMessage.includes('subscription_sharing') ||
-      errorMessage.includes('cap')
-    ) {
-      errorMessage =
-        'Your ChatGPT plan allowance or weekly usage cap has been reached. You can check your cap in ChatGPT Settings or switch to a Gemini API key.';
-    } else if (
-      errorMessage.includes('high demand') ||
-      errorMessage.includes('overloaded') ||
-      errorMessage.includes('503') ||
-      errorMessage.includes('429') ||
-      errorMessage.includes('Failed after') ||
-      errorMessage.includes('RESOURCE_EXHAUSTED')
-    ) {
-      errorMessage =
-        'The AI model rate limit or capacity has been reached. If using a Google Gemini free-tier key, please wait a moment before sending another message, or switch models.';
-    } else if (errorMessage.includes('403') || errorMessage.includes('not_eligible')) {
-      errorMessage =
-        'Access denied: this model requires an eligible funded subscription (such as ChatGPT Plus or Pro) or a valid API key.';
-    }
-
+    console.error('Chat route top-level error:', error);
     return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        code: error?.code || 'CHAT_ERROR',
-      }),
+      JSON.stringify({ error: error?.message || 'Chat service encountered an error.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

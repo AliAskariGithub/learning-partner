@@ -31,7 +31,7 @@ export function CookieBanner() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 30, scale: 0.98 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="fixed bottom-4 left-4 z-50 w-[calc(100vw-2rem)] sm:w-[440px] p-5 rounded-2xl bg-[#1f1f1f]/95 border border-[#383838] shadow-2xl backdrop-blur-xl text-[#f4f4f2]"
+          className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:left-4 z-50 w-auto sm:w-[490px] max-w-[calc(100vw-2rem)] p-4 sm:p-5 rounded-2xl bg-[#1f1f1f]/95 border border-[#383838] shadow-2xl backdrop-blur-xl text-[#f4f4f2]"
         >
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
@@ -67,25 +67,25 @@ export function CookieBanner() {
             </p>
 
             {/* Three buttons with EQUAL visual prominence (clean borders, uniform weights, no dark patterns) */}
-            <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="flex flex-col sm:flex-row gap-2 pt-1 w-full items-stretch">
               <button
                 type="button"
                 onClick={acceptAll}
-                className="px-3 py-2 rounded-xl text-xs font-display font-semibold bg-[#2e2e2e] hover:bg-[#383838] text-[#f4f4f2] border border-[#444444] hover:border-brand-500/60 transition-all cursor-pointer text-center"
+                className="w-full sm:flex-1 h-10 px-3 py-2 rounded-xl text-xs font-display font-semibold bg-[#2e2e2e] hover:bg-[#383838] text-[#f4f4f2] border border-[#444444] hover:border-brand-500/60 transition-all cursor-pointer text-center flex items-center justify-center whitespace-nowrap"
               >
                 Accept all
               </button>
               <button
                 type="button"
                 onClick={rejectNonEssential}
-                className="px-3 py-2 rounded-xl text-xs font-display font-semibold bg-[#2e2e2e] hover:bg-[#383838] text-[#f4f4f2] border border-[#444444] hover:border-rose-500/60 transition-all cursor-pointer text-center"
+                className="w-full sm:flex-[1.4] h-10 px-3.5 py-2 rounded-xl text-xs font-display font-semibold bg-[#2e2e2e] hover:bg-[#383838] text-[#f4f4f2] border border-[#444444] hover:border-rose-500/60 transition-all cursor-pointer text-center flex items-center justify-center whitespace-nowrap"
               >
                 Reject non-essential
               </button>
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}
-                className="px-3 py-2 rounded-xl text-xs font-display font-semibold bg-[#2e2e2e] hover:bg-[#383838] text-[#f4f4f2] border border-[#444444] hover:border-amber-500/60 transition-all cursor-pointer text-center"
+                className="w-full sm:flex-1 h-10 px-3 py-2 rounded-xl text-xs font-display font-semibold bg-[#2e2e2e] hover:bg-[#383838] text-[#f4f4f2] border border-[#444444] hover:border-amber-500/60 transition-all cursor-pointer text-center flex items-center justify-center whitespace-nowrap"
               >
                 Customize
               </button>

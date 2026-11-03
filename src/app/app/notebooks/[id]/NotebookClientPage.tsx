@@ -2,7 +2,20 @@
 
 import React, { useState, useEffect, useCallback, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Notebook, Source, Note, Profile, Conversation, Message, Citation, StudioOutput } from '@/db/schema';
+import {
+  Notebook,
+  Source,
+  Note,
+  Profile,
+  Conversation,
+  Message,
+  Citation,
+  StudioOutput,
+  ChatImageAttachment,
+  ThoughtTimelineStep,
+} from '@/db/schema';
+import { QuizPayload } from '@/lib/ai/quiz';
+import { parseSSEBuffer } from '@/lib/streaming/protocol';
 import { NotebookSidebar } from '@/components/workspace/NotebookSidebar';
 import { WorkspaceThreePanelView } from '@/components/workspace/WorkspaceThreePanelView';
 import { AddSourceDialog } from '@/components/workspace/AddSourceDialog';
@@ -31,6 +44,9 @@ import {
   deleteSource,
   retrySource,
   getNotebookNotes,
+  updateNotebookMode,
+  recordQuizAttemptAction,
+  forgetConversationMemoryAction,
 } from '@/app/app/notebook-actions';
 import { UnverifiedBanner } from '@/components/auth/UnverifiedBanner';
 
@@ -82,13 +98,6 @@ export function NotebookClientPage({
   const [outputs, setOutputs] = useState<StudioOutput[]>(initialOutputs);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Open sidebar by default on desktop, keep closed on mobile & tablet
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
-      setSidebarOpen(true);
-    }
-  }, []);
-
   const refreshOutputs = useCallback(async () => {
     try {
       const fresh = await getNotebookOutputs(notebook.id);
@@ -101,12 +110,26 @@ export function NotebookClientPage({
   // BYOK API Keys & Model State
   const [userKeys, setUserKeys] = useState<SafeApiKey[]>(initialUserKeys);
   const [connections, setConnections] = useState<SafeConnection[]>(initialConnections);
-  const [selectedModelId, setSelectedModelId] = useState<string>(
-    notebook.lastModel || 'gemini-3.8-flash'
-  );
+  const [attachedImageFromDialog, setAttachedImageFromDialog] = useState<ChatImageAttachment | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string>(() => {
+    const last = notebook.lastModel;
+    if (last && !last.includes('2.5-flash')) return last;
+    return 'gemini-3.8-flash';
+  });
   const [selectedMode, setSelectedMode] = useState<'chat' | 'learn' | 'quiz'>(
     (initialConversations[0]?.mode as 'chat' | 'learn' | 'quiz') || 'chat'
   );
+
+  // Open sidebar by default on desktop for chat/quiz, keep closed in learn mode or mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      if (selectedMode !== 'learn') {
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
+      }
+    }
+  }, [selectedMode]);
 
   // Chat & Conversation State
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
@@ -120,7 +143,63 @@ export function NotebookClientPage({
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
+  const [streamingPhase, setStreamingPhase] = useState<string>('Thinking');
+  const [thoughtTimeline, setThoughtTimeline] = useState<ThoughtTimelineStep[]>([]);
+  const [reasoningSummary, setReasoningSummary] = useState<string | null>(null);
+  const [activeQuiz, setActiveQuiz] = useState<QuizPayload | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleUploadImages = async (files: File[]): Promise<ChatImageAttachment[]> => {
+    const uploaded: ChatImageAttachment[] = [];
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/chat/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to upload ${file.name}`);
+      }
+      const data = await res.json();
+      uploaded.push(data);
+    }
+    return uploaded;
+  };
+
+  const handleCompleteQuizAttempt = async (attemptData: any) => {
+    try {
+      await recordQuizAttemptAction({
+        quizId: attemptData.quizId,
+        notebookId: notebook.id,
+        answers: attemptData.answers,
+        durationSeconds: attemptData.durationSeconds,
+        perQuestionResults: attemptData.perQuestionResults,
+      });
+      toast({
+        title: 'Quiz Results Saved',
+        description: `Score: ${attemptData.score}/${attemptData.totalQuestions}`,
+        variant: 'success',
+      });
+      router.refresh();
+    } catch (err: any) {
+      toast({ title: 'Error saving quiz attempt', description: err.message, variant: 'error' });
+    }
+  };
+
+  const handleForgetConversation = async (convId: string) => {
+    try {
+      await forgetConversationMemoryAction(convId);
+      toast({
+        title: 'Memory Erased',
+        description: 'Conversation context was forgotten from notebook memory.',
+        variant: 'neutral',
+      });
+    } catch (err: any) {
+      toast({ title: 'Failed to erase memory', description: err.message, variant: 'error' });
+    }
+  };
 
   // Dialog States
   const [addSourceOpen, setAddSourceOpen] = useState(false);
@@ -294,7 +373,11 @@ export function NotebookClientPage({
     const conv = conversations.find((c) => c.id === convId);
     if (conv) {
       setSelectedModelId(conv.model);
-      setSelectedMode(conv.mode as 'chat' | 'learn' | 'quiz');
+      const nextMode = (conv.mode as 'chat' | 'learn' | 'quiz') || 'chat';
+      setSelectedMode(nextMode);
+      if (nextMode === 'learn') {
+        setSidebarOpen(false);
+      }
     }
 
     setIsLoadingMessages(true);
@@ -398,8 +481,13 @@ export function NotebookClientPage({
     }
   };
 
-  const handleSendMessage = async (prompt: string, modelId: string, mode: 'chat' | 'learn' | 'quiz') => {
-    if (!prompt.trim() || isStreaming) return;
+  const handleSendMessage = async (
+    prompt: string,
+    modelId: string,
+    mode: 'chat' | 'learn' | 'quiz',
+    images?: ChatImageAttachment[]
+  ) => {
+    if ((!prompt.trim() && (!images || images.length === 0)) || isStreaming) return;
 
     const userMsgId = 'temp-user-' + Date.now();
     const optimisticUserMessage: Message = {
@@ -408,6 +496,9 @@ export function NotebookClientPage({
       role: 'user',
       content: prompt.trim(),
       citations: null,
+      images: images && images.length > 0 ? images : null,
+      thoughtTimeline: null,
+      reasoningSummary: null,
       createdAt: new Date(),
     };
 
@@ -415,6 +506,9 @@ export function NotebookClientPage({
     setIsStreaming(true);
     setStreamingContent('');
     setStreamingCitations([]);
+    setStreamingPhase('Thinking');
+    setThoughtTimeline([]);
+    setReasoningSummary(null);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -429,6 +523,7 @@ export function NotebookClientPage({
           message: prompt.trim(),
           modelId,
           mode,
+          images: images && images.length > 0 ? images : undefined,
         }),
         signal: controller.signal,
       });
@@ -538,22 +633,8 @@ export function NotebookClientPage({
           }
         }
 
-        // Fallback for non-streaming response
-        if (!accumulatedText.trim() && sseBuffer.trim()) {
-          try {
-            const nonStreamJson = JSON.parse(sseBuffer.trim());
-            accumulatedText =
-              nonStreamJson.choices?.[0]?.message?.content ||
-              nonStreamJson.choices?.[0]?.text ||
-              '';
-            if (accumulatedText) {
-              setStreamingContent(accumulatedText);
-            }
-          } catch {}
-        }
-
         if (!accumulatedText.trim()) {
-          throw new Error('Local gateway completed without returning text. Please verify the model name and gateway logs.');
+          throw new Error('Local gateway completed without returning text.');
         }
 
         const finalConversationId = convId || 'pending';
@@ -563,13 +644,15 @@ export function NotebookClientPage({
           role: 'assistant',
           content: accumulatedText,
           citations: payload.citations || [],
+          images: null,
+          thoughtTimeline: null,
+          reasoningSummary: null,
           createdAt: new Date(),
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
         setStreamingContent('');
 
-        // Persist to Neon Postgres DB via server action
         await saveBrowserChatMessage({
           conversationId: finalConversationId,
           notebookId: notebook.id,
@@ -583,59 +666,123 @@ export function NotebookClientPage({
         return;
       }
 
-      const convIdHeader = res.headers.get('x-conversation-id');
-      const citationsHeader = res.headers.get('x-citations');
-      let parsedCitations: Citation[] = [];
-
-      if (citationsHeader) {
-        try {
-          parsedCitations = JSON.parse(decodeURIComponent(citationsHeader));
-          setStreamingCitations(parsedCitations);
-        } catch (e) {
-          console.warn('Failed to parse citations header:', e);
-        }
-      }
-
-      if (convIdHeader && convIdHeader !== activeConversationId) {
-        setActiveConversationId(convIdHeader);
-        try {
-          if (typeof window !== 'undefined') {
-            const url = new URL(window.location.href);
-            url.searchParams.set('chat', convIdHeader);
-            window.history.replaceState({ chatId: convIdHeader }, '', url.toString());
-          }
-        } catch (e) {}
-        getConversations(notebook.id).then(setConversations).catch(() => {});
-      }
-
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No readable stream received.');
 
       const decoder = new TextDecoder();
+      let rawBuffer = '';
       let accumulatedText = '';
+      let accumulatedCitations: Citation[] = [];
+      const currentThoughtTimeline: ThoughtTimelineStep[] = [];
+      let currentReasoningSummary: string | null = null;
+      let lastStreamError: string | null = null;
+      let finalConvId = activeConversationId;
+
+      let pendingTextDelta = '';
+      let rAFScheduled = false;
+
+      const flushText = () => {
+        if (pendingTextDelta) {
+          accumulatedText += pendingTextDelta;
+          pendingTextDelta = '';
+          setStreamingContent(accumulatedText);
+        }
+        rAFScheduled = false;
+      };
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+
         const chunk = decoder.decode(value, { stream: true });
-        accumulatedText += chunk;
-        setStreamingContent(accumulatedText);
+        rawBuffer += chunk;
+
+        rawBuffer = parseSSEBuffer(rawBuffer, (event) => {
+          switch (event.type) {
+            case 'status':
+              setStreamingPhase(event.phase);
+              currentThoughtTimeline.push({
+                phase: event.phase,
+                timestamp: event.timestamp || Date.now(),
+                detail: event.detail,
+              });
+              setThoughtTimeline([...currentThoughtTimeline]);
+              break;
+
+            case 'reasoning_summary':
+              currentReasoningSummary = event.text;
+              setReasoningSummary(event.text);
+              break;
+
+            case 'text_delta':
+              pendingTextDelta += event.delta;
+              if (!rAFScheduled) {
+                rAFScheduled = true;
+                if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+                  window.requestAnimationFrame(flushText);
+                } else {
+                  flushText();
+                }
+              }
+              break;
+
+            case 'citations':
+              accumulatedCitations = event.citations || [];
+              setStreamingCitations(event.citations || []);
+              break;
+
+            case 'quiz_data':
+              setActiveQuiz(event.quiz);
+              break;
+
+            case 'error':
+              lastStreamError = event.error;
+              toast({ title: 'AI Error', description: event.error, variant: 'error' });
+              break;
+
+            case 'done':
+              if (event.conversationId) {
+                finalConvId = event.conversationId;
+                if (event.conversationId !== activeConversationId) {
+                  setActiveConversationId(event.conversationId);
+                  try {
+                    if (typeof window !== 'undefined') {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('chat', event.conversationId);
+                      window.history.replaceState({ chatId: event.conversationId }, '', url.toString());
+                    }
+                  } catch (e) {}
+                }
+              }
+              break;
+          }
+        });
       }
 
-      if (!accumulatedText.trim()) {
-        throw new Error('The AI model finished without generating any text. Please verify your API key and model selection.');
+      if (pendingTextDelta) {
+        flushText();
       }
 
-      const assistantMsg: Message = {
-        id: 'assistant-' + Date.now(),
-        conversationId: convIdHeader || activeConversationId || 'pending',
-        role: 'assistant',
-        content: accumulatedText,
-        citations: parsedCitations,
-        createdAt: new Date(),
-      };
+      if (!accumulatedText.trim() && !activeQuiz) {
+        throw new Error(lastStreamError || 'The AI model finished without generating any text. Please verify your API key and model selection.');
+      }
 
-      setMessages((prev) => [...prev, assistantMsg]);
+      if (accumulatedText.trim()) {
+        const assistantMsg: Message = {
+          id: 'assistant-' + Date.now(),
+          conversationId: finalConvId || activeConversationId || 'pending',
+          role: 'assistant',
+          content: accumulatedText,
+          citations: accumulatedCitations.length > 0 ? accumulatedCitations : null,
+          images: null,
+          thoughtTimeline: currentThoughtTimeline.length > 0 ? currentThoughtTimeline : null,
+          reasoningSummary: currentReasoningSummary || null,
+          createdAt: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+      }
+
       setStreamingContent('');
       getConversations(notebook.id).then(setConversations).catch(() => {});
       getNotebookNotes(notebook.id).then(setNotes).catch(() => {});
@@ -647,7 +794,10 @@ export function NotebookClientPage({
             conversationId: activeConversationId || 'pending',
             role: 'assistant',
             content: streamingContent + ' *(Response stopped)*',
-            citations: streamingCitations,
+            citations: streamingCitations.length > 0 ? streamingCitations : null,
+            images: null,
+            thoughtTimeline: thoughtTimeline.length > 0 ? thoughtTimeline : null,
+            reasoningSummary: reasoningSummary || null,
             createdAt: new Date(),
           };
           setMessages((prev) => [...prev, partialMsg]);
@@ -660,6 +810,9 @@ export function NotebookClientPage({
           role: 'assistant',
           content: `⚠️ **Unable to complete response**\n\n${err.message}`,
           citations: null,
+          images: null,
+          thoughtTimeline: null,
+          reasoningSummary: null,
           createdAt: new Date(),
         };
         setMessages((prev) => [...prev, errorMsg]);
@@ -788,16 +941,16 @@ export function NotebookClientPage({
   };
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] w-full min-h-[100dvh] overflow-hidden bg-[#191919] text-[#f4f4f2]">
+    <div dir="ltr" className="flex flex-col h-screen h-[100dvh] w-full min-h-[100dvh] overflow-hidden bg-[#fbfbfd] text-zinc-900 dark:bg-[#191919] dark:text-[#f4f4f2]">
       {/* Top Red Alert Notification when user is not verified */}
       <UnverifiedBanner email={user.email || ''} isVerified={Boolean(user.emailVerified)} />
 
-      <div className="flex flex-1 w-full overflow-hidden min-h-0">
+      <div dir="ltr" className="flex flex-1 w-full overflow-hidden min-h-0">
         {/* Notebooks Sidebar (pinned first, list, add, rename, delete, and chats) */}
         <NotebookSidebar
           notebooks={allNotebooks}
           activeNotebookId={notebook.id}
-          sidebarOpen={sidebarOpen}
+          sidebarOpen={sidebarOpen && selectedMode !== 'learn'}
           setSidebarOpen={setSidebarOpen}
           onOpenSettings={() => router.push('/settings')}
           userDisplayName={profile?.displayName || user.name || user.email?.split('@')[0] || 'Scholar'}
@@ -827,10 +980,11 @@ export function NotebookClientPage({
           onRetrySource={handleRetrySource}
           hasApiKey={connections.some((c) => c.status === 'connected') || userKeys.length > 0}
           onOpenSettings={() => router.push('/settings')}
-          sidebarOpen={sidebarOpen}
+          sidebarOpen={sidebarOpen && selectedMode !== 'learn'}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           userKeys={userKeys}
           connections={connections}
+          attachedImage={attachedImageFromDialog}
           onOpenManageKeys={() => setManageKeysOpen(true)}
           conversations={conversations}
           activeConversationId={activeConversationId}
@@ -847,13 +1001,27 @@ export function NotebookClientPage({
           isStreaming={isStreaming}
           streamingContent={streamingContent}
           streamingCitations={streamingCitations}
+          streamingPhase={streamingPhase}
+          thoughtTimeline={thoughtTimeline}
+          reasoningSummary={reasoningSummary}
+          activeQuiz={activeQuiz}
+          onCompleteQuizAttempt={handleCompleteQuizAttempt}
+          onCloseQuiz={() => setActiveQuiz(null)}
+          onUploadImages={handleUploadImages}
+          onForgetConversation={handleForgetConversation}
           onStopStreaming={handleStopStreaming}
           onSaveNoteFromMessage={handleSaveNoteFromMessage}
           onCitationClick={handleCitationClick}
           selectedModelId={selectedModelId}
           onSelectModelId={setSelectedModelId}
           selectedMode={selectedMode}
-          onSelectMode={setSelectedMode}
+          onSelectMode={(mode) => {
+            setSelectedMode(mode);
+            if (mode === 'learn') {
+              setSidebarOpen(false);
+            }
+            updateNotebookMode(notebook.id, mode).catch(() => {});
+          }}
           outputs={outputs}
           onRefreshOutputs={refreshOutputs}
           onEnsureConversation={handleEnsureConversation}
@@ -869,6 +1037,9 @@ export function NotebookClientPage({
         onSourceAdded={() => {
           fetchLatestSources();
           router.refresh();
+        }}
+        onImageAttached={(image) => {
+          setAttachedImageFromDialog(image);
         }}
       />
 
@@ -887,11 +1058,17 @@ export function NotebookClientPage({
       <ConnectAiDialog
         open={manageKeysOpen}
         onOpenChange={setManageKeysOpen}
-        onConnected={() => {
+        onConnected={(newConn) => {
+          if (newConn) {
+            setConnections((prev) => [newConn, ...prev.filter((c) => c.id !== newConn.id)]);
+          }
           refreshConnections();
           router.refresh();
         }}
-        onKeysUpdated={() => {
+        onKeysUpdated={(newConn) => {
+          if (newConn) {
+            setConnections((prev) => [newConn, ...prev.filter((c) => c.id !== newConn.id)]);
+          }
           refreshConnections();
           router.refresh();
         }}

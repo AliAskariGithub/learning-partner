@@ -284,3 +284,116 @@ export async function getNotebookNotes(notebookId: string, conversationId?: stri
     )
     .orderBy(desc(notes.createdAt));
 }
+
+// -------------------------------------------------------------
+// Phase 6: Shared Notebook Memory Actions
+// -------------------------------------------------------------
+import {
+  getNotebookMemory,
+  getNotebookMemoryItems,
+  togglePinMemoryItem,
+  updateMemoryItemText,
+  deleteMemoryItem,
+  clearNotebookMemory,
+  exportNotebookMemoryMarkdown,
+  forgetConversationMemory,
+} from '@/lib/ai/memory';
+import {
+  getNotebookQuizHistory,
+  saveQuizAttempt,
+} from '@/lib/ai/quiz';
+
+export async function getNotebookMemoryData(notebookId: string) {
+  const user = await requireUser();
+  const memory = await getNotebookMemory(notebookId, user.id);
+  const items = await getNotebookMemoryItems(notebookId, user.id);
+  return { memory, items };
+}
+
+export async function toggleNotebookUseMemory(notebookId: string, enabled: boolean) {
+  const user = await requireUser();
+  await db
+    .update(notebooks)
+    .set({ useMemory: enabled, updatedAt: new Date() })
+    .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, user.id)));
+  return { success: true };
+}
+
+export async function updateNotebookMode(notebookId: string, mode: 'chat' | 'learn' | 'quiz') {
+  const user = await requireUser();
+  await db
+    .update(notebooks)
+    .set({ lastMode: mode, updatedAt: new Date() })
+    .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, user.id)));
+  return { success: true };
+}
+
+export async function updateNotebookLearningGrounding(
+  notebookId: string,
+  grounding: 'sources_only' | 'sources_first'
+) {
+  const user = await requireUser();
+  await db
+    .update(notebooks)
+    .set({ learningModeGrounding: grounding, updatedAt: new Date() })
+    .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, user.id)));
+  return { success: true };
+}
+
+export async function pinMemoryItemAction(id: string, pinned: boolean) {
+  const user = await requireUser();
+  await togglePinMemoryItem(id, user.id, pinned);
+  return { success: true };
+}
+
+export async function editMemoryItemAction(id: string, text: string) {
+  const user = await requireUser();
+  await updateMemoryItemText(id, user.id, text);
+  return { success: true };
+}
+
+export async function deleteMemoryItemAction(id: string) {
+  const user = await requireUser();
+  await deleteMemoryItem(id, user.id);
+  return { success: true };
+}
+
+export async function clearNotebookMemoryAction(notebookId: string) {
+  const user = await requireUser();
+  await clearNotebookMemory(notebookId, user.id);
+  return { success: true };
+}
+
+export async function exportNotebookMemoryAction(notebookId: string) {
+  const user = await requireUser();
+  return exportNotebookMemoryMarkdown(notebookId, user.id);
+}
+
+export async function forgetConversationMemoryAction(conversationId: string) {
+  const user = await requireUser();
+  await forgetConversationMemory(conversationId, user.id);
+  return { success: true };
+}
+
+// -------------------------------------------------------------
+// Phase 6: Quiz Attempts and Scoring Actions
+// -------------------------------------------------------------
+export async function getNotebookQuizHistoryAction(notebookId: string) {
+  const user = await requireUser();
+  return getNotebookQuizHistory(notebookId, user.id);
+}
+
+export async function recordQuizAttemptAction(params: {
+  quizId: string;
+  notebookId: string;
+  answers: Record<string, any>;
+  perQuestionResults: any[];
+  durationSeconds: number;
+}) {
+  const user = await requireUser();
+  return saveQuizAttempt({
+    ...params,
+    userId: user.id,
+  });
+}
+

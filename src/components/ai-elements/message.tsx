@@ -36,7 +36,7 @@ export function MessageContent({ from = 'assistant', className, children, ...pro
     return (
       <div
         className={cn(
-          'p-3.5 px-4 rounded-2xl bg-[#262626] border border-[#383838] text-sm font-sans leading-relaxed text-[#f4f4f2] w-fit max-w-[85%] sm:max-w-xl md:max-w-2xl text-left shadow-sm whitespace-pre-wrap break-words',
+          'p-3.5 px-4 rounded-2xl bg-zinc-100 text-zinc-900 border-zinc-200 dark:bg-[#262626] dark:border-[#383838] dark:text-[#f4f4f2] text-sm font-sans leading-relaxed w-fit max-w-[85%] sm:max-w-xl md:max-w-2xl text-left shadow-xs whitespace-pre-wrap break-words border',
           className
         )}
         {...props}
@@ -46,10 +46,11 @@ export function MessageContent({ from = 'assistant', className, children, ...pro
     );
   }
 
+  // AI Assistant response: Unboxed, rendered directly and openly on the canvas
   return (
     <div
       className={cn(
-        'w-full min-w-0 max-w-full p-4 sm:p-5 rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-md space-y-3',
+        'w-full min-w-0 max-w-full space-y-3 py-1',
         className
       )}
       {...props}
@@ -65,7 +66,7 @@ export function MessageActions({ className, children, ...props }: MessageActions
   return (
     <div
       className={cn(
-        'flex items-center justify-between pt-2.5 border-t border-[#2a2a2a] text-xs text-[#9a9a94]',
+        'flex items-center justify-between pt-2.5 border-t border-zinc-200 dark:border-[#2a2a2a] text-xs text-zinc-500 dark:text-[#9a9a94]',
         className
       )}
       {...props}
@@ -93,8 +94,8 @@ export function MessageAction({
       className={cn(
         'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-display transition cursor-pointer',
         active
-          ? 'bg-[#262626] text-[#f4f4f2]'
-          : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626]',
+          ? 'bg-zinc-200 text-zinc-900 dark:bg-[#262626] dark:text-[#f4f4f2]'
+          : 'text-zinc-500 dark:text-[#9a9a94] hover:text-zinc-900 dark:hover:text-[#f4f4f2] hover:bg-zinc-100 dark:hover:bg-[#262626]',
         className
       )}
       {...props}
@@ -105,7 +106,7 @@ export function MessageAction({
 
   if (tooltip) {
     return (
-      <Tooltip content={tooltip}>
+      <Tooltip content={tooltip} side="top">
         {button}
       </Tooltip>
     );
@@ -113,4 +114,3 @@ export function MessageAction({
 
   return button;
 }
-

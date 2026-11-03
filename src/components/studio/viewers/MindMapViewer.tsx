@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui';
+import { useToast } from '@/components/ui/toast';
 import {
   GitFork,
   ZoomIn,
@@ -10,12 +11,15 @@ import {
   ChevronRight,
   ChevronDown,
   FileText,
+  FileCode,
+  Printer,
   Sparkles,
   Info,
   X,
   FoldHorizontal,
   UnfoldHorizontal,
 } from 'lucide-react';
+import { exportToPdf, exportToMarkdown, printFormattedDocument } from '@/lib/export/export-helper';
 
 export interface MindMapNode {
   id: string;
@@ -39,6 +43,7 @@ export function MindMapViewer({
   onOpenSource?: (sourceId: string) => void;
   onClose?: () => void;
 }) {
+  const { toast } = useToast();
   const parsedData = useMemo<MindMapData>(() => {
     try {
       const data = JSON.parse(content);
@@ -108,7 +113,59 @@ export function MindMapViewer({
 
   const handleZoomIn = () => setZoom((z) => Math.min(2.0, +(z + 0.15).toFixed(2)));
   const handleZoomOut = () => setZoom((z) => Math.max(0.4, +(z - 0.15).toFixed(2)));
-  const handleResetZoom = () => setZoom(1);
+
+  const formatMindMapOutline = () => {
+    let md = `# ${parsedData.title || 'Mind Map Concept Hierarchy'}\n\n`;
+    md += `**Central Concept:** ${parsedData.root.label}\n\n---\n\n`;
+    md += `## Structured Concept Hierarchy\n\n`;
+    const walk = (node: MindMapNode, depth: number) => {
+      const indent = '  '.repeat(depth);
+      md += `${indent}- **${node.label}**`;
+      if (node.snippet) md += `: *${node.snippet}*`;
+      md += `\n`;
+      if (node.children) {
+        node.children.forEach((c) => walk(c, depth + 1));
+      }
+    };
+    if (parsedData.root.children) {
+      parsedData.root.children.forEach((c) => walk(c, 0));
+    }
+    return md;
+  };
+
+  const handleDownloadPdf = () => {
+    try {
+      const md = formatMindMapOutline();
+      exportToPdf({
+        filename: `${(parsedData.title || 'mind-map').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-outline.pdf`,
+        title: parsedData.title || 'Mind Map Concept Hierarchy',
+        content: md,
+        metadata: { type: 'MIND MAP OUTLINE' },
+      });
+      toast({ title: 'Downloaded PDF', description: 'Mind Map PDF saved to your device.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not download PDF.', variant: 'error' });
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    try {
+      const md = formatMindMapOutline();
+      exportToMarkdown(`${(parsedData.title || 'mind-map').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-outline.md`, md);
+      toast({ title: 'Downloaded Markdown', description: 'Mind Map Markdown saved.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not save Markdown.', variant: 'error' });
+    }
+  };
+
+  const handlePrint = () => {
+    try {
+      const md = formatMindMapOutline();
+      printFormattedDocument(parsedData.title || 'Mind Map Concept Hierarchy', md, { type: 'Mind Map Concept Graph' });
+    } catch (err: any) {
+      toast({ title: 'Print Failed', description: err.message || 'Could not open print preview.', variant: 'error' });
+    }
+  };
 
   // Recursive Tree Node Renderer
   const renderNode = (node: MindMapNode, depth = 0) => {
@@ -140,41 +197,28 @@ export function MindMapViewer({
               <Sparkles className="w-4 h-4" />
             </div>
           ) : (
-            <div className="w-2.5 h-2.5 rounded-full bg-current shrink-0 opacity-80" />
+            <div className="w-2.5 h-2.5 rounded-full bg-current opacity-60" />
           )}
 
-          <div className="flex flex-col">
-            <span className={`text-xs font-display ${depth === 0 ? 'font-bold text-sm text-[#f4f4f2]' : 'font-semibold'}`}>
-              {node.label}
-            </span>
-            {node.snippet && (
-              <span className="text-[10px] text-muted-foreground font-serif line-clamp-1 max-w-[220px]">
-                {node.snippet}
-              </span>
-            )}
-          </div>
+          <span className="font-display font-semibold text-xs sm:text-sm whitespace-nowrap">
+            {node.label}
+          </span>
 
           {hasChildren && (
             <button
               type="button"
               onClick={(e) => toggleCollapse(node.id, e)}
-              className="p-1 rounded-lg bg-black/25 hover:bg-black/40 transition-colors ml-1 text-[#9a9a94] hover:text-[#f4f4f2]"
-              title={isCollapsed ? 'Expand branches' : 'Collapse branches'}
+              className="p-1 rounded-lg hover:bg-black/20 text-current transition cursor-pointer ml-1"
+              title={isCollapsed ? 'Expand Children' : 'Collapse Children'}
             >
-              {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
-          )}
-
-          {hasChildren && isCollapsed && (
-            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono text-[#9a9a94]">
-              {node.children!.length}
-            </span>
           )}
         </div>
 
-        {/* Children Branches with dashed connector */}
+        {/* Children Column */}
         {hasChildren && !isCollapsed && (
-          <div className="pl-6 border-l-2 border-dashed border-[#383838] flex flex-col justify-center relative before:absolute before:left-0 before:top-1/2 before:w-6 before:h-0.5 before:bg-[#383838]">
+          <div className="flex flex-col relative pl-6 border-l-2 border-[#383838]">
             {node.children!.map((child) => renderNode(child, depth + 1))}
           </div>
         )}
@@ -184,7 +228,7 @@ export function MindMapViewer({
 
   return (
     <div className="flex flex-col h-full bg-[#191919] text-[#f4f4f2] relative overflow-hidden">
-      {/* Top Toolbar */}
+      {/* Top Header Toolbar */}
       <div className="h-14 border-b border-[#303030] bg-[#1f1f1f] px-6 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-2.5 min-w-0 pr-4">
           <GitFork className="w-4 h-4 text-brand-400 shrink-0" />
@@ -197,13 +241,13 @@ export function MindMapViewer({
         </div>
 
         {/* Graph Actions & Zoom Controls */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="hidden md:flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleExpandAll}
-              className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
+              className="text-xs h-8 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
               title="Expand All Branches"
             >
               <UnfoldHorizontal className="w-3.5 h-3.5 mr-1" />
@@ -213,7 +257,7 @@ export function MindMapViewer({
               variant="ghost"
               size="sm"
               onClick={handleCollapseAll}
-              className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
+              className="text-xs h-8 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
               title="Collapse Branches"
             >
               <FoldHorizontal className="w-3.5 h-3.5 mr-1" />
@@ -231,7 +275,7 @@ export function MindMapViewer({
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </Button>
-            <span className="text-[11px] font-mono text-[#9a9a94] px-1.5 min-w-[42px] text-center">
+            <span className="text-[11px] font-mono text-[#9a9a94] px-1 min-w-[38px] text-center">
               {Math.round(zoom * 100)}%
             </span>
             <Button
@@ -243,21 +287,44 @@ export function MindMapViewer({
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5 border-l border-[#303030] pl-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadPdf}
+              className="text-xs h-8 px-2 text-rose-300 border-rose-500/30 hover:bg-rose-950/30 flex items-center gap-1 font-display font-medium"
+              title="Download Outline as PDF"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">PDF</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadMarkdown}
+              className="text-xs h-8 px-2 text-blue-300 border-blue-500/30 hover:bg-blue-950/30 flex items-center gap-1 font-display font-medium"
+              title="Download Outline as Markdown"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">.md</span>
+            </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleResetZoom}
-              className="text-xs h-7 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
-              title="Reset 100%"
+              onClick={handlePrint}
+              className="text-xs h-8 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
+              title="Print Concept Graph"
             >
-              <Maximize2 className="w-3 h-3" />
+              <Printer className="w-3.5 h-3.5" />
             </Button>
           </div>
 
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer"
+              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
               title="Close Mind Map"
             >
               <X className="w-4 h-4" />
@@ -266,50 +333,55 @@ export function MindMapViewer({
         </div>
       </div>
 
-      {/* Interactive Workbench Canvas */}
-      <div className="flex-1 overflow-auto p-10 md:p-16 relative flex items-center min-h-[450px] bg-[#141414] bg-[radial-gradient(#2d2d2d_1px,transparent_1px)] [background-size:20px_20px] scrollbar-thin scrollbar-thumb-[#303030]">
+      {/* Main Canvas Area */}
+      <div className="flex-1 overflow-auto p-12 bg-[#171717] relative">
         <div
           style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
-          className="transition-transform duration-200 p-4"
+          className="transition-transform duration-150 inline-block min-w-full"
         >
-          {renderNode(parsedData.root, 0)}
+          {renderNode(parsedData.root)}
         </div>
       </div>
 
-      {/* Concept Inspector Slide-Over Drawer when a node is clicked */}
+      {/* Inspector Drawer for Selected Node */}
       {selectedNode && (
-        <div className="absolute bottom-6 right-6 max-w-sm w-full p-5 rounded-3xl bg-[#212121]/95 backdrop-blur-md border border-[#383838] shadow-2xl z-20 animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-brand-500/20 text-brand-300 flex items-center justify-center">
-                <Info className="w-3.5 h-3.5" />
-              </div>
-              <h4 className="font-display font-bold text-xs text-[#f4f4f2]">
-                {selectedNode.label}
-              </h4>
-            </div>
+        <div className="absolute right-6 bottom-6 w-80 rounded-2xl bg-[#1f1f1f] border border-[#383838] p-4 shadow-2xl z-20 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="flex items-center justify-between pb-2 border-b border-[#303030] mb-2.5">
+            <span className="font-display font-bold text-xs text-[#f4f4f2]">
+              Concept Details
+            </span>
             <button
               type="button"
               onClick={() => setSelectedNode(null)}
-              className="text-xs text-[#9a9a94] hover:text-[#f4f4f2] p-1 rounded-lg hover:bg-[#2a2a2a]"
+              className="text-[#9a9a94] hover:text-[#f4f4f2] transition p-1"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <p className="text-xs font-serif text-[#dcdcd8] leading-relaxed mb-4">
-            {selectedNode.snippet || 'Key conceptual theme synthesized from active notebook sources.'}
+          <p className="font-display font-semibold text-sm text-[#f4f4f2] mb-1">
+            {selectedNode.label}
           </p>
+
+          {selectedNode.snippet ? (
+            <p className="text-xs font-serif text-[#dcdcd8] leading-relaxed mb-3">
+              {selectedNode.snippet}
+            </p>
+          ) : (
+            <p className="text-xs font-serif text-[#9a9a94] italic mb-3">
+              Key concept generated from your sources.
+            </p>
+          )}
 
           {selectedNode.sourceId && onOpenSource && (
             <Button
               variant="secondary"
               size="sm"
               onClick={() => onOpenSource(selectedNode.sourceId!)}
-              className="text-xs h-8 w-full font-display"
+              className="w-full text-xs font-display flex items-center justify-center gap-1.5"
             >
-              <FileText className="w-3 h-3 mr-1.5" />
-              Open Source Document
+              <FileText className="w-3.5 h-3.5 text-brand-400" />
+              View Grounded Source
             </Button>
           )}
         </div>

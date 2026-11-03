@@ -37,10 +37,24 @@ import {
   Zap,
   X,
   Bot,
+  ImageIcon,
+  ZoomIn,
 } from 'lucide-react';
 import { Button, Input, Textarea, Badge, Dialog, Tooltip, GlidingHighlight } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
-import { Notebook, Source, Note, Conversation, Message, Citation, StudioOutput } from '@/db/schema';
+import {
+  Notebook,
+  Source,
+  Note,
+  Conversation,
+  Message,
+  Citation,
+  StudioOutput,
+  ChatImageAttachment,
+  ThoughtTimelineStep,
+  MemoryItem,
+} from '@/db/schema';
 import { STORAGE_LIMITS } from '@/config/limits';
 import { StudioPanel } from '@/components/studio/StudioPanel';
 import {
@@ -54,6 +68,14 @@ import { CapabilityGate } from '@/components/ai/CapabilityGate';
 import { useSpeechToText } from '@/hooks/useSpeechToText';
 import { MessageContent as MessageMarkdown } from '@/components/chat/MessageContent';
 import { getModelDefinition } from '@/lib/ai/providers';
+import { ResponseProgress } from '@/components/chat/ResponseProgress';
+import { ImageLightbox } from '@/components/chat/ImageLightbox';
+import { QuizPlayView } from '@/components/chat/QuizPlayView';
+import { QuizSetupCard, QuizSetupConfig } from '@/components/chat/QuizSetupCard';
+import { InlineMiniCheck } from '@/components/chat/InlineMiniCheck';
+import { ExportDropdown } from '@/components/chat/ExportDropdown';
+import { GeneratedDocumentCard } from '@/components/chat/GeneratedDocumentCard';
+import { QuizPayload } from '@/lib/ai/quiz';
 import {
   Message as AIMessage,
   MessageContent as AIMessageContent,
@@ -128,10 +150,23 @@ interface WorkspaceThreePanelViewProps {
   onDeleteConversation?: (id: string) => void;
   onRenameConversation?: (id: string, newTitle: string) => Promise<void>;
   messages?: Message[];
-  onSendMessage?: (content: string, modelId: string, mode: 'chat' | 'learn' | 'quiz') => Promise<void>;
+  onSendMessage?: (
+    content: string,
+    modelId: string,
+    mode: 'chat' | 'learn' | 'quiz',
+    images?: ChatImageAttachment[]
+  ) => Promise<void>;
   isStreaming?: boolean;
   streamingContent?: string;
   streamingCitations?: Citation[];
+  streamingPhase?: string;
+  thoughtTimeline?: ThoughtTimelineStep[];
+  reasoningSummary?: string | null;
+  activeQuiz?: QuizPayload | null;
+  onCompleteQuizAttempt?: (results: any) => Promise<void>;
+  onCloseQuiz?: () => void;
+  onUploadImages?: (files: File[]) => Promise<ChatImageAttachment[]>;
+  onForgetConversation?: (conversationId: string) => Promise<void>;
   onStopStreaming?: () => void;
   onSaveNoteFromMessage?: (content: string, title?: string) => Promise<void>;
   onCitationClick?: (citation: Citation) => void;
@@ -142,6 +177,7 @@ interface WorkspaceThreePanelViewProps {
   onSelectModelId?: (modelId: string) => void;
   selectedMode?: 'chat' | 'learn' | 'quiz';
   onSelectMode?: (mode: 'chat' | 'learn' | 'quiz') => void;
+  attachedImage?: ChatImageAttachment | null;
   outputs?: StudioOutput[];
   onRefreshOutputs?: () => void;
   isLoadingMessages?: boolean;
@@ -169,7 +205,7 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
   return (
     <div
       onMouseLeave={() => setHoveredTab(null)}
-      className="relative flex items-center bg-[#191919] p-0.5 rounded-xl border border-[#303030]"
+      className="relative flex items-center bg-zinc-100 dark:bg-[#191919] p-0.5 rounded-xl border border-zinc-200 dark:border-[#303030]"
     >
       <Tooltip content="Notebook instructions, memory & sources" side="bottom">
         <div
@@ -181,18 +217,18 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
             hoverId={hoveredTab}
             itemId="context"
             layoutId="right-panel-tab"
-            className={studioTab === 'context' ? 'bg-[#262626] border border-[#383838]' : 'bg-[#222222]'}
+            className={studioTab === 'context' ? 'bg-white border border-zinc-200 dark:bg-[#262626] dark:border-[#383838]' : 'bg-zinc-200/60 dark:bg-[#222222]'}
           />
           <button
             onClick={() => setStudioTab('context')}
             className={`relative z-10 px-3 py-1.5 text-xs font-display font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
-              studioTab === 'context' ? 'text-[#f4f4f2]' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+              studioTab === 'context' ? 'text-zinc-900 dark:text-[#f4f4f2]' : 'text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-brand-400" />
+            <Layers className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
             <span>{t('context')}</span>
             {sourcesCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-600 dark:text-brand-300 font-mono">
                 {enabledCount}
               </span>
             )}
@@ -210,15 +246,15 @@ const RightPanelTabSwitcher = React.memo(function RightPanelTabSwitcher({
             hoverId={hoveredTab}
             itemId="studio"
             layoutId="right-panel-tab"
-            className={studioTab === 'studio' ? 'bg-[#262626] border border-[#383838]' : 'bg-[#222222]'}
+            className={studioTab === 'studio' ? 'bg-white border border-zinc-200 dark:bg-[#262626] dark:border-[#383838]' : 'bg-zinc-200/60 dark:bg-[#222222]'}
           />
           <button
             onClick={() => setStudioTab('studio')}
             className={`relative z-10 px-3 py-1.5 text-xs font-display font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
-              studioTab === 'studio' ? 'text-[#f4f4f2]' : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+              studioTab === 'studio' ? 'text-zinc-900 dark:text-[#f4f4f2]' : 'text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-brand-400" />
+            <Sparkles className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
             <span>{t('studio')}</span>
           </button>
         </div>
@@ -297,15 +333,14 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
         <button
           type="button"
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display font-medium text-[#f4f4f2] bg-[#262626] hover:bg-[#303030] border border-[#3a3a3a] transition-all cursor-pointer shadow-sm"
+          className="h-8 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-display font-medium text-zinc-800 hover:text-zinc-950 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:text-[#f4f4f2] dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:border-[#333333] transition-colors cursor-pointer shadow-xs shrink-0"
           aria-haspopup="listbox"
           aria-expanded={dropdownOpen}
         >
-          <CurrentIcon className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-          <span className="text-[#9a9a94] text-[11px] hidden xs:inline">{t('mode')}:</span>
-          <span className="capitalize font-semibold text-[#f4f4f2]">{currentModeObj.label}</span>
+          <CurrentIcon className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
+          <span className="capitalize font-semibold text-zinc-900 dark:text-[#f4f4f2]">{currentModeObj.label}</span>
           <ChevronDown
-            className={`w-3.5 h-3.5 text-[#9a9a94] transition-transform duration-200 ${
+            className={`w-3.5 h-3.5 text-zinc-500 dark:text-[#9a9a94] transition-transform duration-200 ${
               dropdownOpen ? 'rotate-180' : ''
             }`}
           />
@@ -315,10 +350,10 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
       {/* Mode Dropdown Popover */}
       {dropdownOpen && (
         <div
-          className="absolute left-0 bottom-full mb-2 w-64 rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-2xl p-2 z-50 text-xs text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          className="absolute left-0 bottom-full mb-2 w-64 rounded-2xl bg-white border border-zinc-200 shadow-2xl p-2 z-50 text-xs text-zinc-900 dark:bg-[#1f1f1f] dark:border-[#303030] dark:text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
           onMouseLeave={() => setHoveredMode(null)}
         >
-          <div className="px-2 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-[#9a9a94]">
+          <div className="px-2 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94]">
             Select Mode
           </div>
 
@@ -340,8 +375,8 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
                     layoutId="mode-dropdown-glide"
                     className={
                       isSelected
-                        ? 'bg-brand-500/20 border border-brand-500/40'
-                        : 'bg-[#262626] border border-[#383838]'
+                        ? 'bg-brand-500/15 border border-brand-500/30 dark:bg-brand-500/20 dark:border-brand-500/40'
+                        : 'bg-zinc-100 border border-zinc-200 dark:bg-[#262626] dark:border-[#383838]'
                     }
                   />
                   <button
@@ -355,18 +390,18 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
                     }}
                     className={`relative z-10 w-full flex items-center justify-between p-2 rounded-xl text-left transition-colors cursor-pointer ${
                       isSelected
-                        ? 'text-brand-300 font-semibold'
+                        ? 'text-brand-700 dark:text-brand-300 font-semibold'
                         : mode.disabled
-                        ? 'opacity-40 cursor-not-allowed text-[#9a9a94]'
-                        : 'text-[#f4f4f2]'
+                        ? 'opacity-40 cursor-not-allowed text-zinc-400 dark:text-[#9a9a94]'
+                        : 'text-zinc-800 dark:text-[#f4f4f2]'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 pr-2">
                       <div
                         className={`p-1.5 rounded-lg shrink-0 ${
                           isSelected
-                            ? 'bg-brand-500/25 text-brand-300'
-                            : 'bg-[#191919] text-[#9a9a94]'
+                            ? 'bg-brand-500/20 text-brand-700 dark:bg-brand-500/25 dark:text-brand-300'
+                            : 'bg-zinc-100 text-zinc-500 dark:bg-[#191919] dark:text-[#9a9a94]'
                         }`}
                       >
                         <Icon className="w-3.5 h-3.5" />
@@ -377,10 +412,10 @@ const ModeDropdownSwitcher = React.memo(function ModeDropdownSwitcher({
                             {mode.label}
                           </span>
                           {isSelected && (
-                            <Check className="w-3 h-3 text-brand-400 shrink-0" />
+                            <Check className="w-3 h-3 text-brand-600 dark:text-brand-400 shrink-0" />
                           )}
                         </div>
-                        <p className="text-[10px] text-[#9a9a94] truncate">
+                        <p className="text-[10px] text-zinc-500 dark:text-[#9a9a94] truncate">
                           {mode.description}
                         </p>
                       </div>
@@ -433,6 +468,14 @@ export function WorkspaceThreePanelView({
   isStreaming = false,
   streamingContent = '',
   streamingCitations = [],
+  streamingPhase = 'Thinking',
+  thoughtTimeline = [],
+  reasoningSummary = null,
+  activeQuiz = null,
+  onCompleteQuizAttempt,
+  onCloseQuiz,
+  onUploadImages,
+  onForgetConversation,
   onStopStreaming,
   onSaveNoteFromMessage,
   onCitationClick,
@@ -440,6 +483,7 @@ export function WorkspaceThreePanelView({
   onSelectModelId,
   selectedMode = 'chat',
   onSelectMode,
+  attachedImage,
   outputs = [],
   onRefreshOutputs,
   onEnsureConversation,
@@ -500,14 +544,13 @@ export function WorkspaceThreePanelView({
     return messages.reduce((acc, m) => acc + Math.round((m.content?.length || 0) / 4), 0);
   }, [messages]);
 
-  const chatNotes = React.useMemo(() => {
-    if (!activeConversationId) return [];
-    return notes.filter((n) => n.conversationId === activeConversationId);
-  }, [notes, activeConversationId]);
+  const notebookNotes = React.useMemo(() => {
+    return notes; // Unified memory across all chats for this notebook
+  }, [notes]);
 
   const memoryTokens = React.useMemo(() => {
-    return chatNotes.reduce((acc, n) => acc + Math.round(((n.title?.length || 0) + (n.content?.length || 0)) / 4), 0);
-  }, [chatNotes]);
+    return notebookNotes.reduce((acc, n) => acc + Math.round(((n.title?.length || 0) + (n.content?.length || 0)) / 4), 0);
+  }, [notebookNotes]);
 
   const totalUsedTokens = sourcesTokens + chatTokens + memoryTokens;
   const usedPercentage = Math.min(100, (totalUsedTokens / contextWindowLimit) * 100);
@@ -583,6 +626,7 @@ export function WorkspaceThreePanelView({
   };
 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [savedMessageIds, setSavedMessageIds] = useState<string[]>([]);
   const [feedbackMap, setFeedbackMap] = useState<Record<string, 'up' | 'down'>>({});
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
@@ -626,11 +670,68 @@ export function WorkspaceThreePanelView({
     });
   };
 
+  // Learning Mode & Vision State
+  const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([]);
+
+  // Sync image attached via AddSourceDialog
+  React.useEffect(() => {
+    if (attachedImage) {
+      setPendingImages((prev) => {
+        if (prev.some((img) => img.id === attachedImage.id)) return prev;
+        return [...prev, attachedImage].slice(0, 5);
+      });
+    }
+  }, [attachedImage]);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleSelectFiles = async (files: FileList | File[]) => {
+    if (!files || files.length === 0 || !onUploadImages) return;
+    const fileArray = Array.from(files).slice(0, 5);
+    setIsUploadingImage(true);
+    try {
+      const uploaded = await onUploadImages(fileArray);
+      setPendingImages((prev) => [...prev, ...uploaded].slice(0, 5));
+      toast({ title: 'Image Uploaded', description: 'Attached to current study turn.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Image Upload Error', description: err.message, variant: 'error' });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    if (selectedMode !== 'learn') return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      handleSelectFiles(imageFiles);
+    }
+  };
+
+  const tutorQuickActions = [
+    { label: 'Explain simpler', prompt: 'Please explain the previous concept in simpler, intuitive terms with an everyday analogy.' },
+    { label: 'Go deeper', prompt: 'Can you go deeper into the underlying mechanisms and edge cases based on our sources?' },
+    { label: 'Give an example', prompt: 'Can you give a practical, concrete example from the sources illustrating this?' },
+    { label: 'Test me', prompt: 'Test my understanding: ask me 3 short check questions about what we just discussed.' },
+  ];
+
   const handleSendAction = (textToSend?: string) => {
     const text = (textToSend || chatPrompt).trim();
-    if (!text || isStreaming) return;
+    if ((!text && pendingImages.length === 0) || isStreaming) return;
     setChatPrompt('');
-    onSendMessage?.(text, selectedModelId, selectedMode);
+    const imagesToSend = [...pendingImages];
+    setPendingImages([]);
+    onSendMessage?.(text, selectedModelId, selectedMode, imagesToSend.length > 0 ? imagesToSend : undefined);
     setTimeout(() => scrollToBottom(true), 30);
   };
 
@@ -766,9 +867,9 @@ export function WorkspaceThreePanelView({
     ];
 
     return (
-      <div className="flex flex-col h-full bg-[#1f1f1f] border-l border-[#303030] text-[#f4f4f2] min-h-0 overflow-hidden" data-lenis-prevent>
-        {/* Header with Segmented Tab Control: Matches h-14 border-b border-[#303030] across all 3 panels */}
-        <div className="h-14 px-3.5 border-b border-[#303030] flex items-center justify-between gap-2 bg-[#1f1f1f]/95 backdrop-blur-sm shrink-0">
+      <div className="flex flex-col h-full bg-[#fbfbfd] border-l border-zinc-200 text-zinc-900 dark:bg-[#1f1f1f] dark:border-[#303030] dark:text-[#f4f4f2] min-h-0 overflow-hidden" data-lenis-prevent>
+        {/* Header with Segmented Tab Control: Matches h-14 border-b border-zinc-200 / border-[#303030] across all 3 panels */}
+        <div className="h-14 px-3.5 border-b border-zinc-200 flex items-center justify-between gap-2 bg-white/95 backdrop-blur-sm shrink-0 dark:border-[#303030] dark:bg-[#1f1f1f]/95">
           <RightPanelTabSwitcher
             studioTab={studioTab}
             setStudioTab={setStudioTab}
@@ -781,7 +882,7 @@ export function WorkspaceThreePanelView({
               <Tooltip content="Collapse right panel" side="bottom">
                 <button
                   onClick={() => setStudioPanelOpen(false)}
-                  className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
                 >
                 <PanelRightClose className="w-4 h-4" />
                 </button>
@@ -793,7 +894,7 @@ export function WorkspaceThreePanelView({
                   setTabletDrawerOpen(false);
                   setMobileTab('chat');
                 }}
-                className="p-1.5 text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] rounded-lg transition-colors cursor-pointer"
                 title="Back to chat"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -805,72 +906,72 @@ export function WorkspaceThreePanelView({
         {/* Tab 1: Image 2 Card (Instructions, Memory, Context) */}
         {studioTab === 'context' && (
           <div
-            className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-[#303030] overscroll-contain"
+            className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#303030] overscroll-contain"
             data-lenis-prevent
           >
             {/* The Unified Claude Card from Image 2 */}
-            <div className="rounded-2xl border border-[#303030] bg-[#262626] overflow-hidden shadow-lg">
+            <div className="rounded-2xl border border-zinc-200 bg-white dark:border-[#303030] dark:bg-[#262626] overflow-hidden shadow-xs dark:shadow-lg">
               {/* 1. Instructions Section */}
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-display font-bold text-[#f4f4f2]">{t('instructions')}</span>
+                  <span className="text-sm font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">{t('instructions')}</span>
                   <Tooltip content={t('edit_instructions')} side="top">
                     <button
                       onClick={() => setEditInstructionsOpen(true)}
-                      className="p-1.5 rounded-lg text-[#9a9a94] hover:text-brand-400 hover:bg-[#191919] transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-zinc-500 hover:text-brand-600 hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-brand-400 dark:hover:bg-[#191919] transition-colors cursor-pointer"
                     >
                     <Pencil className="w-3.5 h-3.5" />
                     </button>
                   </Tooltip>
                 </div>
-                <p className="text-xs text-[#9a9a94] font-serif leading-relaxed line-clamp-3">
+                <p className="text-xs text-zinc-600 dark:text-[#9a9a94] font-serif leading-relaxed line-clamp-3">
                   {instructionsText ||
                     'ROLE You are my personal study partner. Answer questions strictly grounded in uploaded sources...'}
                 </p>
               </div>
 
               {/* Divider */}
-              <div className="border-t border-[#303030]" />
+              <div className="border-t border-zinc-200 dark:border-[#303030]" />
 
               {/* 2. Memory Section */}
               <div className="p-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-display font-bold text-[#f4f4f2]">{t('memory')}</span>
-                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] text-[10px] border border-[#303030]">
+                    <span className="text-sm font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">{t('memory')}</span>
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-[#191919] dark:text-[#9a9a94] text-[10px] border border-zinc-200 dark:border-[#303030]">
                       <Lock className="w-2.5 h-2.5" />
                       <span>{t('only_you')}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => setViewMemoryOpen(true)}
-                    className="text-xs font-display font-semibold text-brand-400 hover:text-brand-300 transition-colors cursor-pointer"
+                    className="text-xs font-display font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors cursor-pointer"
                   >
                     {t('view_memory')}
                   </button>
                 </div>
-                <p className="text-xs text-[#9a9a94] font-serif leading-relaxed">
-                  {t('memory_desc')}
+                <p className="text-xs text-zinc-600 dark:text-[#9a9a94] font-serif leading-relaxed">
+                  View what your study partner automatically remembers across all chats in this notebook.
                 </p>
 
-                {chatNotes.length > 0 && (
+                {notebookNotes.length > 0 && (
                   <div className="mt-3 space-y-1.5">
-                    {chatNotes.slice(0, 2).map((note) => (
+                    {notebookNotes.slice(0, 3).map((note) => (
                       <div
                         key={note.id}
                         onClick={() => setViewMemoryOpen(true)}
-                        className="text-[11.5px] p-2.5 rounded-xl bg-[#191919] border border-[#303030] text-[#9a9a94] truncate cursor-pointer hover:border-brand-500/40 hover:text-[#f4f4f2] transition"
+                        className="text-[11.5px] p-2.5 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-700 dark:bg-[#191919] dark:border-[#303030] dark:text-[#9a9a94] truncate cursor-pointer hover:border-brand-500/40 hover:text-zinc-950 dark:hover:text-[#f4f4f2] transition"
                       >
-                        <span className="font-semibold text-[#f4f4f2] mr-1.5">{note.title}:</span>
+                        <span className="font-semibold text-zinc-900 dark:text-[#f4f4f2] mr-1.5">{note.title}:</span>
                         {note.content}
                       </div>
                     ))}
-                    {chatNotes.length > 2 && (
+                    {notebookNotes.length > 3 && (
                       <button
                         onClick={() => setViewMemoryOpen(true)}
-                        className="text-[11px] font-display text-brand-400 hover:underline pt-0.5"
+                        className="text-[11px] font-display text-brand-600 dark:text-brand-400 hover:underline pt-0.5"
                       >
-                        +{chatNotes.length - 2} more notes
+                        +{notebookNotes.length - 3} more notes
                       </button>
                     )}
                   </div>
@@ -878,15 +979,15 @@ export function WorkspaceThreePanelView({
               </div>
 
               {/* Divider */}
-              <div className="border-t border-[#303030]" />
+              <div className="border-t border-zinc-200 dark:border-[#303030]" />
 
               {/* 3. Context / Sources Section */}
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-display font-bold text-[#f4f4f2]">{t('context')}</span>
+                    <span className="text-sm font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">{t('context')}</span>
                     {sources.length > 0 && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#191919] text-[#9a9a94] border border-[#303030]">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-[#191919] dark:text-[#9a9a94] dark:border-[#303030]">
                         {enabledCount}/{sources.length} {t('active')}
                       </span>
                     )}
@@ -897,31 +998,31 @@ export function WorkspaceThreePanelView({
                 {sources.length === 0 ? (
                   <div
                     onClick={onOpenAddSource}
-                    className="rounded-xl bg-[#191919] border border-[#303030] p-6 text-center cursor-pointer hover:border-brand-500/50 hover:bg-[#191919]/80 transition group shadow-inner"
+                    className="rounded-xl bg-zinc-50 border border-zinc-200 dark:bg-[#191919] dark:border-[#303030] p-6 text-center cursor-pointer hover:border-brand-500/50 hover:bg-zinc-100/80 dark:hover:bg-[#191919]/80 transition group shadow-inner"
                   >
                     {/* Overlapping Document Icons exactly as in Image 2 */}
                     <div className="relative w-24 h-16 mx-auto mb-3 flex items-center justify-center">
                       {/* Left document card */}
-                      <div className="absolute left-1 bottom-1 w-11 h-12 rounded-lg bg-[#262626] border border-[#3a3a3a] p-1.5 flex flex-col gap-1 opacity-70">
-                        <div className="w-full h-1 rounded bg-[#52525b]" />
-                        <div className="w-4/5 h-1 rounded bg-[#52525b]" />
-                        <div className="w-2/3 h-1 rounded bg-[#52525b]" />
+                      <div className="absolute left-1 bottom-1 w-11 h-12 rounded-lg bg-zinc-100 border border-zinc-200 dark:bg-[#262626] dark:border-[#3a3a3a] p-1.5 flex flex-col gap-1 opacity-70">
+                        <div className="w-full h-1 rounded bg-zinc-300 dark:bg-[#52525b]" />
+                        <div className="w-4/5 h-1 rounded bg-zinc-300 dark:bg-[#52525b]" />
+                        <div className="w-2/3 h-1 rounded bg-zinc-300 dark:bg-[#52525b]" />
                       </div>
                       {/* Right background dashed doc card */}
-                      <div className="absolute right-1 bottom-2 w-11 h-12 rounded-lg bg-[#262626] border border-dashed border-[#3a3a3a] opacity-40" />
+                      <div className="absolute right-1 bottom-2 w-11 h-12 rounded-lg bg-zinc-100 border border-dashed border-zinc-300 dark:bg-[#262626] dark:border-[#3a3a3a] opacity-40" />
                       {/* Center foreground doc card with + */}
-                      <div className="absolute left-6 top-0 w-12 h-14 rounded-lg bg-[#1f1f1f] border border-brand-500/50 p-2 flex flex-col justify-between shadow-xl group-hover:scale-105 transition-transform">
+                      <div className="absolute left-6 top-0 w-12 h-14 rounded-lg bg-white border border-brand-500/50 dark:bg-[#1f1f1f] p-2 flex flex-col justify-between shadow-xl group-hover:scale-105 transition-transform">
                         <div className="space-y-1">
-                          <div className="w-full h-1 rounded bg-[#71717a]" />
-                          <div className="w-3/4 h-1 rounded bg-[#71717a]" />
+                          <div className="w-full h-1 rounded bg-zinc-400 dark:bg-[#71717a]" />
+                          <div className="w-3/4 h-1 rounded bg-zinc-400 dark:bg-[#71717a]" />
                         </div>
-                        <div className="w-5 h-5 rounded-full bg-brand-500/20 border border-brand-500/60 flex items-center justify-center mx-auto text-brand-400">
+                        <div className="w-5 h-5 rounded-full bg-brand-500/20 border border-brand-500/60 flex items-center justify-center mx-auto text-brand-600 dark:text-brand-400">
                           <Plus className="w-3 h-3" />
                         </div>
                       </div>
                     </div>
 
-                    <p className="text-xs text-[#9a9a94] font-serif leading-relaxed max-w-[210px] mx-auto">
+                    <p className="text-xs text-zinc-500 dark:text-[#9a9a94] font-serif leading-relaxed max-w-[210px] mx-auto">
                       {t('add_source_empty')}
                     </p>
                   </div>
@@ -932,15 +1033,15 @@ export function WorkspaceThreePanelView({
                         key={source.id}
                         className={`group flex items-center gap-2 p-2 rounded-xl text-xs border transition-all ${
                           source.enabled
-                            ? 'bg-[#191919] border-[#303030] hover:bg-[#1f1f1f] text-[#f4f4f2]'
-                            : 'bg-transparent border-transparent opacity-60 hover:opacity-100 hover:bg-[#191919]/40 text-[#9a9a94]'
+                            ? 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100 text-zinc-900 dark:bg-[#191919] dark:border-[#303030] dark:hover:bg-[#1f1f1f] dark:text-[#f4f4f2]'
+                            : 'bg-transparent border-transparent opacity-60 hover:opacity-100 hover:bg-zinc-100/50 dark:hover:bg-[#191919]/40 text-zinc-500 dark:text-[#9a9a94]'
                         }`}
                       >
                         {/* Checkbox */}
                         <button
                           type="button"
                           onClick={() => onToggleSourceEnabled(source.id, !source.enabled)}
-                          className="text-[#9a9a94] hover:text-brand-400 transition-colors flex-shrink-0 cursor-pointer"
+                          className="text-zinc-500 hover:text-brand-600 dark:text-[#9a9a94] dark:hover:text-brand-400 transition-colors flex-shrink-0 cursor-pointer"
                         >
                           {source.enabled ? (
                             <CheckSquare className="w-4 h-4 text-brand-400" />
@@ -958,25 +1059,25 @@ export function WorkspaceThreePanelView({
                           className="flex-1 min-w-0 cursor-pointer"
                           title={`${source.title} (${source.wordCount || 0} words)`}
                         >
-                          <p className="truncate font-display font-medium text-xs text-[#f4f4f2] group-hover:text-brand-300 transition-colors">
+                          <p className="truncate font-display font-medium text-xs text-zinc-900 group-hover:text-brand-600 dark:text-[#f4f4f2] dark:group-hover:text-brand-300 transition-colors">
                             {source.title}
                           </p>
-                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-[#9a9a94]">
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-500 dark:text-[#9a9a94]">
                             <span>{source.wordCount?.toLocaleString() || 0} {t('words')}</span>
                             {source.status === 'processing' && (
-                              <span className="flex items-center gap-1 text-amber-400">
+                              <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400">
                                 <RefreshCw className="w-2.5 h-2.5 animate-spin" />
                                 {t('processing')}...
                               </span>
                             )}
                             {source.status === 'failed' && (
-                              <span className="text-red-400 flex items-center gap-1">
+                              <span className="text-rose-500 dark:text-rose-400 flex items-center gap-1">
                                 <AlertTriangle className="w-2.5 h-2.5" />
                                 {t('error')}
                               </span>
                             )}
                             {source.status === 'ready' && (
-                              <span className="text-emerald-400 font-medium">{t('ready')}</span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t('ready')}</span>
                             )}
                           </div>
                         </div>
@@ -986,7 +1087,7 @@ export function WorkspaceThreePanelView({
                           {source.status === 'failed' && (
                             <button
                               onClick={() => onRetrySource(source.id)}
-                              className="p-1 hover:text-amber-400 transition-colors text-[#9a9a94] cursor-pointer"
+                              className="p-1 hover:text-amber-500 dark:hover:text-amber-400 transition-colors text-zinc-400 dark:text-[#9a9a94] cursor-pointer"
                               title="Retry ingestion"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
@@ -997,14 +1098,14 @@ export function WorkspaceThreePanelView({
                               setRenamingSource(source);
                               setNewSourceTitle(source.title);
                             }}
-                            className="p-1 hover:text-[#f4f4f2] transition-colors text-[#9a9a94] cursor-pointer"
+                            className="p-1 hover:text-zinc-900 dark:hover:text-[#f4f4f2] transition-colors text-zinc-400 dark:text-[#9a9a94] cursor-pointer"
                             title="Rename"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setDeletingSource(source)}
-                            className="p-1 hover:text-red-400 transition-colors text-[#9a9a94] cursor-pointer"
+                            className="p-1 hover:text-rose-600 dark:hover:text-rose-400 transition-colors text-zinc-400 dark:text-[#9a9a94] cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1017,7 +1118,7 @@ export function WorkspaceThreePanelView({
                       size="sm"
                       variant="secondary"
                       onClick={onOpenAddSource}
-                      className="w-full mt-2 text-xs border-[#303030] text-brand-400 hover:text-brand-300 hover:bg-[#191919] flex items-center justify-center gap-1.5 font-display font-semibold transition cursor-pointer"
+                      className="w-full mt-2 text-xs border-zinc-200 dark:border-[#303030] text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:bg-zinc-100 dark:hover:bg-[#191919] flex items-center justify-center gap-1.5 font-display font-semibold transition cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5 shrink-0" />
                       <span>{t('add_source')}</span>
@@ -1053,206 +1154,321 @@ export function WorkspaceThreePanelView({
   // ----------------------------------------------------
 
   const renderCentreContent = () => (
-    <div className="flex flex-col h-full w-full min-w-0 min-h-0 bg-[#191919] relative overflow-hidden text-[#f4f4f2]">
-      {/* Workspace Subheader Nav: Matches h-14 border-b border-[#303030] across all 3 panels */}
-      <div className="h-14 shrink-0 border-b border-[#303030] px-3 sm:px-6 flex items-center justify-between bg-[#191919]/90 backdrop-blur-sm z-10">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          {/* Re-open Left Sidebar button if closed (or always toggleable on mobile) */}
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              className={`p-1.5 rounded-lg text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-[#303030] transition-colors cursor-pointer mr-1 shrink-0 ${
-                !sidebarOpen ? 'flex' : 'flex md:hidden'
-              }`}
-              title="Toggle sidebar"
-            >
-              <PanelLeftOpen className="w-4 h-4 text-brand-400" />
-            </button>
-          )}
-
+    <div className="flex flex-col h-full w-full min-w-0 min-h-0 bg-[#fbfbfd] text-zinc-900 dark:bg-[#191919] dark:text-[#f4f4f2] relative overflow-hidden">
+      {/* Workspace Header Nav */}
+      {selectedMode === 'learn' ? (
+        <div className="h-14 shrink-0 border-b border-zinc-200 dark:border-[#303030] px-4 sm:px-6 flex items-center justify-between bg-white/95 dark:bg-[#191919]/95 backdrop-blur-sm z-10 shadow-xs">
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Active Chat Title with Inline Click-to-Rename */}
-            {isEditingChatTitle ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSaveChatTitle();
-                }}
-                className="flex items-center gap-1.5 min-w-0"
-              >
-                <input
-                  type="text"
-                  value={currentChatTitleDraft}
-                  onChange={(e) => setCurrentChatTitleDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
+            <span className="text-sm font-display font-medium text-zinc-900 dark:text-[#f4f4f2] truncate max-w-sm">{notebook.title}</span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const allAssistantTexts = messages
+                  .filter((msg) => msg.role === 'assistant')
+                  .map((msg) => msg.content)
+                  .join('\n\n---\n\n');
+                if (allAssistantTexts) {
+                  onSaveNoteFromMessage?.(allAssistantTexts, `${notebook.title} Focus Notes`);
+                  toast({ title: 'Saved to Notes', variant: 'success' });
+                } else {
+                  toast({ title: 'No notes yet', description: 'Ask a question first.', variant: 'info' });
+                }
+              }}
+              className="h-8 px-3 text-xs font-medium rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-200 dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:text-[#f4f4f2] dark:border-[#333333] transition cursor-pointer flex items-center gap-1.5"
+            >
+              <Bookmark className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+              <span>Save to Notes</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectMode?.('chat')}
+              className="h-8 px-3 text-xs font-medium rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 border border-zinc-200 dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:border-[#333333] transition cursor-pointer"
+            >
+              Exit Focus
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="h-14 shrink-0 border-b border-zinc-200 dark:border-[#303030] px-3 sm:px-6 flex items-center justify-between bg-white/90 dark:bg-[#191919]/90 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Re-open Left Sidebar button if closed (or always toggleable on mobile) */}
+            {onToggleSidebar && (
+              <Tooltip content={sidebarOpen ? "Collapse sidebar" : "Open sidebar"} side="bottom">
+                <button
+                  onClick={onToggleSidebar}
+                  className={`p-1.5 rounded-lg text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] dark:border-[#303030] transition-colors cursor-pointer mr-1 shrink-0 ${
+                    !sidebarOpen ? 'flex' : 'flex md:hidden'
+                  }`}
+                  aria-label={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+                >
+                  <PanelLeftOpen className="w-4 h-4 text-brand-400" />
+                </button>
+              </Tooltip>
+            )}
+
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* Active Chat Title with Inline Click-to-Rename */}
+              {isEditingChatTitle ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSaveChatTitle();
+                  }}
+                  className="flex items-center gap-1.5 min-w-0"
+                >
+                  <input
+                    type="text"
+                    value={currentChatTitleDraft}
+                    onChange={(e) => setCurrentChatTitleDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setIsEditingChatTitle(false);
+                        setCurrentChatTitleDraft(activeConversation?.title || '');
+                      }
+                    }}
+                    autoFocus
+                    className="bg-white border border-brand-500/50 rounded-lg px-2.5 py-1 text-sm text-zinc-900 dark:bg-[#141414] dark:text-[#f4f4f2] outline-none font-serif w-[140px] xs:w-[180px] sm:w-[240px] max-w-[280px] focus:ring-1 focus:ring-brand-500/50"
+                  />
+                  <button
+                    type="submit"
+                    className="p-1 rounded-md text-brand-600 hover:text-brand-700 hover:bg-zinc-100 dark:text-brand-400 dark:hover:text-brand-300 dark:hover:bg-[#262626] transition cursor-pointer shrink-0"
+                    title="Save title"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setIsEditingChatTitle(false);
                       setCurrentChatTitleDraft(activeConversation?.title || '');
-                    }
-                  }}
-                  autoFocus
-                  className="bg-[#141414] border border-brand-500/50 rounded-lg px-2.5 py-1 text-sm text-[#f4f4f2] outline-none font-serif w-[140px] xs:w-[180px] sm:w-[240px] max-w-[280px] focus:ring-1 focus:ring-brand-500/50"
-                />
-                <button
-                  type="submit"
-                  className="p-1 rounded-md text-brand-400 hover:text-brand-300 hover:bg-[#262626] transition cursor-pointer shrink-0"
-                  title="Save title"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
+                    }}
+                    className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] transition cursor-pointer shrink-0"
+                    title="Cancel"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              ) : (
                 <button
                   type="button"
                   onClick={() => {
-                    setIsEditingChatTitle(false);
-                    setCurrentChatTitleDraft(activeConversation?.title || '');
+                    if (activeConversation) {
+                      setCurrentChatTitleDraft(activeConversation.title);
+                      setIsEditingChatTitle(true);
+                    }
                   }}
-                  className="p-1 rounded-md text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] transition cursor-pointer shrink-0"
-                  title="Cancel"
+                  className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-xl hover:bg-zinc-100 text-zinc-900 dark:hover:bg-[#262626] dark:text-[#f4f4f2] transition-colors cursor-pointer text-left border border-transparent hover:border-zinc-200 dark:hover:border-[#383838] min-w-0"
+                  title={activeConversation ? 'Click to rename this chat' : undefined}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <MessageSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                  <span className="text-sm font-serif italic truncate max-w-[120px] xs:max-w-[180px] sm:max-w-[280px] font-medium">
+                    {activeConversation?.title || (activeConversationId ? 'Chat' : notebook.title)}
+                  </span>
+                  {activeConversation && onRenameConversation && (
+                    <Pencil className="w-3 h-3 text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  )}
                 </button>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeConversation) {
-                    setCurrentChatTitleDraft(activeConversation.title);
-                    setIsEditingChatTitle(true);
-                  }
-                }}
-                className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-xl hover:bg-[#262626] text-[#f4f4f2] transition-colors cursor-pointer text-left border border-transparent hover:border-[#383838] min-w-0"
-                title={activeConversation ? 'Click to rename this chat' : undefined}
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-                <span className="text-sm font-serif italic truncate max-w-[120px] xs:max-w-[180px] sm:max-w-[280px] font-medium">
-                  {activeConversation?.title || (activeConversationId ? 'Chat' : notebook.title)}
+              )}
+            </div>
+          </div>
+
+          {/* Download Entire Conversation Button */}
+            {messages.length > 0 && (
+              <ExportDropdown
+                title={activeConversation?.title || notebook.title}
+                messages={messages}
+                notebookTitle={notebook.title}
+                type="conversation"
+                variant="button"
+                label="Download Chat"
+                className="hidden xs:inline-flex"
+              />
+            )}
+
+            {/* Right Sidebar Trigger & Context Window Meter */}
+          <div className="flex items-center gap-2">
+            {/* Context Window Limit Meter */}
+            <Tooltip
+              side="bottom"
+              align="end"
+              className="max-w-[340px] w-auto"
+              content={
+                <div className="p-1.5 space-y-2 text-left min-w-[240px]">
+                  <div className="flex items-center justify-between border-b tooltip-border pb-1.5">
+                    <span className="font-display font-bold text-xs tooltip-title">Context Window</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border tooltip-model-badge">
+                      {activeModelDef.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-medium tooltip-subtext">Total Used:</span>
+                    <span className="font-mono font-bold tooltip-value">
+                      {totalUsedTokens.toLocaleString()} / {contextWindowLimit.toLocaleString()} ({usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1' : usedPercentage.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 tooltip-track rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-500' : 'bg-brand-600'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(3, usedPercentage))}%` }}
+                    />
+                  </div>
+                  <div className="pt-1.5 border-t tooltip-border space-y-1.5 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-medium tooltip-subtext">
+                        <BookOpen className="w-3.5 h-3.5 text-brand-500 shrink-0" /> Sources ({enabledCount} active)
+                      </span>
+                      <span className="font-mono font-semibold tooltip-value">{sourcesTokens.toLocaleString()} tokens</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-medium tooltip-subtext">
+                        <MessageSquare className="w-3.5 h-3.5 text-cyan-500 shrink-0" /> Current Chat ({messages.length} msgs)
+                      </span>
+                      <span className="font-mono font-semibold tooltip-value">{chatTokens.toLocaleString()} tokens</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-medium tooltip-subtext">
+                        <Brain className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Notebook Memory ({notebookNotes.length} notes)
+                      </span>
+                      <span className="font-mono font-semibold tooltip-value">{memoryTokens.toLocaleString()} tokens</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1.5 border-t tooltip-border">
+                      <span className="flex items-center gap-1.5 font-bold tooltip-title">
+                        <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" /> Remaining
+                      </span>
+                      <span className="font-mono font-bold tooltip-remaining">
+                        {Math.max(0, contextWindowLimit - totalUsedTokens).toLocaleString()} tokens free
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              }
+            >
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-900 hover:border-brand-500/40 dark:bg-[#262626] dark:border-[#303030] dark:text-[#f4f4f2] transition-colors cursor-pointer text-xs">
+                <Activity className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
+                <div className="hidden sm:flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] leading-tight">
+                    <span className="text-zinc-900 dark:text-[#f4f4f2] font-semibold">{formatTokens(totalUsedTokens)}</span>
+                    <span className="text-zinc-400 dark:text-[#9a9a94]">/</span>
+                    <span className="text-zinc-500 dark:text-[#9a9a94]">{formatTokens(contextWindowLimit)}</span>
+                  </div>
+                  <div className="w-16 h-1 bg-zinc-200 dark:bg-[#191919] rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-500'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(4, usedPercentage))}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-200/80 text-brand-700 border border-zinc-300 dark:bg-[#191919] dark:text-brand-300 dark:border-[#303030]">
+                  {usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1%' : `${usedPercentage.toFixed(1)}%`}
                 </span>
-                {activeConversation && onRenameConversation && (
-                  <Pencil className="w-3 h-3 text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                )}
-              </button>
+              </div>
+            </Tooltip>
+            {/* Tablet right drawer trigger */}
+            <button
+              onClick={() => setTabletDrawerOpen(true)}
+              className="hidden md:flex lg:hidden items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-900 p-1.5 rounded-lg hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] transition-colors cursor-pointer"
+            >
+              <Layers className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+              <span>Studio</span>
+            </button>
+
+            {/* Desktop Expand Right Panel if closed */}
+            {!studioPanelOpen && (
+              <Tooltip content="Open Context & Studio Panel" side="bottom">
+                <button
+                  onClick={() => setStudioPanelOpen(true)}
+                  className="hidden lg:flex items-center gap-2 text-xs font-display font-semibold text-zinc-700 hover:text-zinc-900 px-3 py-1.5 rounded-xl bg-zinc-100 border border-zinc-200 hover:border-brand-500/40 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:bg-[#262626] dark:border-[#303030] transition-colors cursor-pointer"
+                  aria-label="Open Context & Studio Panel"
+                >
+                  <Layers className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                  <span>Context & Studio</span>
+                  <PanelRightOpen className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>
+      )}
 
-        {/* Right Sidebar Trigger & Context Window Meter */}
-        <div className="flex items-center gap-2">
-          {/* Context Window Limit Meter (Image 2 Green Box) */}
-          <Tooltip
-            content={
-              <div className="p-1 space-y-1.5 text-left min-w-[220px]">
-                <div className="flex items-center justify-between border-b border-[#303030] pb-1">
-                  <span className="font-display font-bold text-xs text-[#f4f4f2]">Context Window</span>
-                  <span className="text-[10px] text-brand-300 font-mono font-semibold">
-                    {activeModelDef.name}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#9a9a94]">
-                  <span>Total Used:</span>
-                  <span className="font-mono text-[#f4f4f2] font-semibold">
-                    {totalUsedTokens.toLocaleString()} / {contextWindowLimit.toLocaleString()} ({usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1' : usedPercentage.toFixed(1)}%)
-                  </span>
-                </div>
-                <div className="w-full h-1.5 bg-[#303030] rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-400'
-                    }`}
-                    style={{ width: `${Math.min(100, Math.max(3, usedPercentage))}%` }}
-                  />
-                </div>
-                <div className="pt-1 border-t border-[#303030] space-y-1 text-[10.5px]">
-                  <div className="flex items-center justify-between text-[#9a9a94]">
-                    <span className="flex items-center gap-1.5">
-                      <BookOpen className="w-3 h-3 text-brand-400" /> Sources ({enabledCount} active)
-                    </span>
-                    <span className="font-mono text-[#f4f4f2]">{sourcesTokens.toLocaleString()} tokens</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[#9a9a94]">
-                    <span className="flex items-center gap-1.5">
-                      <MessageSquare className="w-3 h-3 text-cyan-400" /> Current Chat ({messages.length} msgs)
-                    </span>
-                    <span className="font-mono text-[#f4f4f2]">{chatTokens.toLocaleString()} tokens</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[#9a9a94]">
-                    <span className="flex items-center gap-1.5">
-                      <Brain className="w-3 h-3 text-emerald-400" /> Chat Memory ({chatNotes.length} notes)
-                    </span>
-                    <span className="font-mono text-[#f4f4f2]">{memoryTokens.toLocaleString()} tokens</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[#9a9a94] pt-0.5 border-t border-[#262626]">
-                    <span className="flex items-center gap-1.5">
-                      <Zap className="w-3 h-3 text-brand-300" /> Remaining
-                    </span>
-                    <span className="font-mono text-emerald-400">
-                      {Math.max(0, contextWindowLimit - totalUsedTokens).toLocaleString()} tokens free
-                    </span>
-                  </div>
-                </div>
-              </div>
-            }
-            side="bottom"
-          >
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-[#262626] border border-[#303030] hover:border-brand-500/40 transition-colors cursor-pointer text-xs">
-              <Activity className="w-3.5 h-3.5 text-brand-400 shrink-0" />
-              <div className="hidden sm:flex flex-col gap-0.5">
-                <div className="flex items-center gap-1.5 font-mono text-[11px] leading-tight">
-                  <span className="text-[#f4f4f2] font-semibold">{formatTokens(totalUsedTokens)}</span>
-                  <span className="text-[#9a9a94]">/</span>
-                  <span className="text-[#9a9a94]">{formatTokens(contextWindowLimit)}</span>
-                </div>
-                <div className="w-16 h-1 bg-[#191919] rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-400'
-                    }`}
-                    style={{ width: `${Math.min(100, Math.max(4, usedPercentage))}%` }}
-                  />
-                </div>
-              </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-[#191919] text-brand-300 border border-[#303030]">
-                {usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1%' : `${usedPercentage.toFixed(1)}%`}
-              </span>
-            </div>
-          </Tooltip>
-          {/* Tablet right drawer trigger */}
-          <button
-            onClick={() => setTabletDrawerOpen(true)}
-            className="hidden md:flex lg:hidden items-center gap-1.5 text-xs text-[#9a9a94] hover:text-[#f4f4f2] p-1.5 rounded-lg hover:bg-[#262626] transition-colors cursor-pointer"
-          >
-            <Layers className="w-4 h-4 text-brand-400" />
-            <span>Studio</span>
-          </button>
 
-          {/* Desktop Expand Right Panel if closed */}
-          {!studioPanelOpen && (
-            <button
-              onClick={() => setStudioPanelOpen(true)}
-              className="hidden lg:flex items-center gap-2 text-xs font-display font-semibold text-[#9a9a94] hover:text-[#f4f4f2] px-3 py-1.5 rounded-xl bg-[#262626] border border-[#303030] hover:border-brand-500/40 transition-colors cursor-pointer"
-              title="Expand right sidebar"
-            >
-              <Layers className="w-4 h-4 text-brand-400" />
-              <span>Context & Studio</span>
-              <PanelRightOpen className="w-4 h-4 text-brand-400" />
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Chat Messages / Stage Area */}
       <div
         ref={chatScrollContainerRef}
-        className="flex-1 min-h-0 min-w-0 w-full overflow-y-auto p-4 md:p-6 flex flex-col scrollbar-thin scrollbar-thumb-[#303030] overscroll-contain"
+        className="flex-1 min-h-0 min-w-0 w-full overflow-y-auto p-4 md:p-6 flex flex-col scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#303030] overscroll-contain"
         data-lenis-prevent
       >
-        {isLoadingMessages ? (
+        {activeQuiz ? (
+          /* Active Quiz Interactive Session */
+          <div className="max-w-2xl w-full mx-auto my-auto py-4">
+            <QuizPlayView
+              quiz={activeQuiz}
+              notebookId={notebook.id}
+              onCompleteAttempt={async (attempt: any) => {
+                if (onCompleteQuizAttempt) {
+                  await onCompleteQuizAttempt(attempt);
+                }
+              }}
+              onClose={onCloseQuiz}
+            />
+          </div>
+        ) : isLoadingMessages ? (
           /* Loading conversation messages */
           <div className="max-w-xl w-full mx-auto my-auto py-16 text-center space-y-3">
             <div className="w-8 h-8 border-2 border-brand-500/30 border-t-brand-400 rounded-full animate-spin mx-auto" />
             <p className="text-xs text-[#9a9a94] font-serif">Loading conversation...</p>
           </div>
         ) : messages.length === 0 && !isStreaming ? (
+          selectedMode === 'quiz' ? (
+            /* Quiz Mode Setup & Topic Prompt */
+            <div className="max-w-xl w-full mx-auto my-auto py-6">
+              <QuizSetupCard
+                sources={sources}
+                onStartQuiz={(config) => {
+                  const prompt = config.topic
+                    ? `Generate a quiz with ${config.questionCount} questions on "${config.topic}" at ${config.difficulty} difficulty`
+                    : `Generate a quiz with ${config.questionCount} questions based on my sources at ${config.difficulty} difficulty`;
+                  handleSendAction(prompt);
+                }}
+              />
+            </div>
+          ) : selectedMode === 'learn' ? (
+            /* Learning Mode Empty State */
+            <div className="max-w-xl w-full mx-auto my-auto py-8 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
+                <Sparkles className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-serif font-bold text-[#f4f4f2]">What do you want to learn?</h2>
+                <p className="text-xs sm:text-sm text-[#9a9a94] font-serif max-w-md mx-auto leading-relaxed">
+                  Ask any question, paste a problem or diagram image, and your patient tutor will guide you step by step.
+                </p>
+              </div>
+              <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                <div
+                  onClick={() => handleSendAction('Teach me the foundational concepts step by step with an easy analogy.')}
+                  className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-emerald-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all group"
+                >
+                  <p className="text-xs font-semibold text-[#f4f4f2] group-hover:text-emerald-300">“Teach step-by-step”</p>
+                  <p className="text-[11px] text-[#9a9a94] mt-1 leading-snug">Foundational concepts & analogies</p>
+                </div>
+                <div
+                  onClick={() => handleSendAction('Walk me through solving the core problems covered in these sources.')}
+                  className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-emerald-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all group"
+                >
+                  <p className="text-xs font-semibold text-[#f4f4f2] group-hover:text-emerald-300">“Walk through a problem”</p>
+                  <p className="text-[11px] text-[#9a9a94] mt-1 leading-snug">Guided problem-solving with hints</p>
+                </div>
+              </div>
+            </div>
+          ) : (
           /* Empty State: Greeting, Prompt suggestions, and Recents List */
           <div className="max-w-xl w-full mx-auto my-auto py-6 text-center space-y-4">
             {/* Brand-Accented Brain Badge */}
@@ -1411,17 +1627,34 @@ export function WorkspaceThreePanelView({
               </div>
             )}
           </div>
-        ) : (
+        )
+      ) : (
           /* Conversation Thread */
-          <div className="max-w-3xl w-full min-w-0 mx-auto space-y-5 pb-6 mt-auto">
+          <div className={cn('max-w-3xl w-full min-w-0 mx-auto space-y-5 pb-6', selectedMode !== 'learn' && 'mt-auto')}>
             {messages
               .filter((m) => m.content && m.content.trim().length > 0)
-              .map((m, index) => {
+              .map((m, index, arr) => {
                 const isUser = m.role === 'user';
                 const isCopied = copiedMessageId === m.id;
                 const feedback = feedbackMap[m.id];
-
                 const isEditing = editingMessageId === m.id;
+
+                // Detect if user explicitly requested a PDF or document in the preceding prompt
+                const priorUserMsg = arr
+                  .slice(0, index)
+                  .reverse()
+                  .find((item) => item.role === 'user');
+
+                const isPdfRequested = (() => {
+                  if (!priorUserMsg?.content) return false;
+                  const q = priorUserMsg.content.toLowerCase();
+                  return (
+                    q.includes('pdf') ||
+                    q.includes('.md') ||
+                    q.includes('markdown') ||
+                    /\b(download|export|print|give me|generate|make|create)\b.*\b(pdf|md|document|file|sheet|notes|summary|guide)\b/i.test(q)
+                  );
+                })();
 
                 return (
                   <AIMessage from={isUser ? 'user' : 'assistant'} key={m.id || index}>
@@ -1479,6 +1712,27 @@ export function WorkspaceThreePanelView({
                           </div>
                         ) : (
                           <AIMessageContent from="user" className="w-fit max-w-full text-left">
+                            {m.images && m.images.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {m.images.map((img, i) => (
+                                  <button
+                                    key={img.id || i}
+                                    type="button"
+                                    onClick={() => setLightboxSrc(img.url)}
+                                    className="relative rounded-lg overflow-hidden border border-[#383838] group cursor-pointer hover:border-brand-500 transition shrink-0"
+                                  >
+                                    <img
+                                      src={img.url}
+                                      alt={img.fileName || 'Attachment'}
+                                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                                      <ZoomIn className="w-4 h-4 text-white" />
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                             {m.content}
                           </AIMessageContent>
                         )}
@@ -1559,21 +1813,43 @@ export function WorkspaceThreePanelView({
                       </div>
                     ) : (
                       <AIMessageContent from="assistant">
+                          {/* Completed Turn Response Progress */}
+                          {(m.thoughtTimeline?.length || m.reasoningSummary) ? (
+                            <div className="mb-3 w-full">
+                              <ResponseProgress
+                                isStreaming={false}
+                                timeline={m.thoughtTimeline || []}
+                                reasoningSummary={m.reasoningSummary || null}
+                                currentPhase="Completed"
+                              />
+                            </div>
+                          ) : null}
+
                           {/* shadcn AI-Elements Sources Component */}
-                          {m.citations && m.citations.length > 0 && (
-                            <AISources defaultOpen={false}>
-                              <AISourcesTrigger count={m.citations.length} />
-                              <AISourcesContent>
-                                {m.citations.map((c) => (
-                                  <AISourceItem
-                                    key={`${c.sourceId}-${c.chunkId || c.citationNumber}`}
-                                    citation={c}
-                                    onCitationClick={onCitationClick}
-                                  />
-                                ))}
-                              </AISourcesContent>
-                            </AISources>
-                          )}
+                          {(() => {
+                            const cits = m.citations || [];
+                            if (cits.length === 0) return null;
+                            const uniqueSources = Array.from(
+                              new Set(cits.map((c) => c.sourceId || c.sourceTitle))
+                            );
+                            const count = uniqueSources.length;
+                            if (count === 0) return null;
+
+                            return (
+                              <AISources defaultOpen={false}>
+                                <AISourcesTrigger count={count} />
+                                <AISourcesContent>
+                                  {cits.map((c) => (
+                                    <AISourceItem
+                                      key={`${c.sourceId}-${c.chunkId || c.citationNumber}`}
+                                      citation={c}
+                                      onCitationClick={onCitationClick}
+                                    />
+                                  ))}
+                                </AISourcesContent>
+                              </AISources>
+                            );
+                          })()}
 
                           {/* Response Markdown */}
                           <MessageMarkdown
@@ -1587,69 +1863,110 @@ export function WorkspaceThreePanelView({
                           />
 
                           {/* shadcn AI-Elements MessageActions */}
+                          {/* Prominent Download Banner ONLY when user explicitly requested a PDF or document */}
+                          {isPdfRequested && (
+                            <GeneratedDocumentCard
+                              title={activeConversation?.title || "Generated Document"}
+                              content={m.content}
+                              notebookTitle={notebook.title}
+                            />
+                          )}
+
                           <AIMessageActions>
                             <div className="flex items-center gap-1.5">
                               {onSaveNoteFromMessage && (
                                 <AIMessageAction
-                                  tooltip="Save response to notebook memory notes"
-                                  onClick={() =>
+                                  tooltip={savedMessageIds.includes(m.id) ? "Saved to notebook memory" : "Save response to notebook memory notes"}
+                                  active={savedMessageIds.includes(m.id)}
+                                  onClick={() => {
+                                    setSavedMessageIds((prev) =>
+                                      prev.includes(m.id) ? prev : [...prev, m.id]
+                                    );
                                     onSaveNoteFromMessage(
                                       m.content,
                                       `${selectedMode.toUpperCase()} Insight`
-                                    )
-                                  }
+                                    );
+                                  }}
                                 >
-                                  <Bookmark className="w-3.5 h-3.5 text-brand-400" />
-                                  <span>Save to note</span>
+                                  <Bookmark
+                                    className={cn(
+                                      'w-3.5 h-3.5 text-brand-400 transition-colors',
+                                      savedMessageIds.includes(m.id) && 'fill-brand-400'
+                                    )}
+                                  />
+                                  <span>{savedMessageIds.includes(m.id) ? 'Saved' : 'Save to note'}</span>
                                 </AIMessageAction>
                               )}
 
                               <AIMessageAction
-                                tooltip="Copy text"
+                                tooltip={isCopied ? "Copied to clipboard" : "Copy text"}
+                                active={isCopied}
                                 onClick={() => handleCopyMessage(m.id, m.content)}
                               >
                                 {isCopied ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
-                                <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                                <span className={cn(isCopied && "text-emerald-400 font-medium")}>
+                                  {isCopied ? 'Copied' : 'Copy'}
+                                </span>
                               </AIMessageAction>
+
+                              <ExportDropdown
+                                title={activeConversation?.title || `${selectedMode.toUpperCase()} Response`}
+                                content={m.content}
+                                notebookTitle={notebook.title}
+                                type="message"
+                                variant="icon"
+                              />
                             </div>
 
-                            <div className="flex items-center gap-1">
-                              <AIMessageAction
-                                tooltip="Helpful response"
-                                active={feedback === 'up'}
-                                onClick={() => handleFeedback(m.id, 'up')}
-                              >
-                                <ThumbsUp className="w-3.5 h-3.5" />
-                              </AIMessageAction>
-                              <AIMessageAction
-                                tooltip="Unhelpful response"
-                                active={feedback === 'down'}
-                                onClick={() => handleFeedback(m.id, 'down')}
-                              >
-                                <ThumbsDown className="w-3.5 h-3.5" />
-                              </AIMessageAction>
-
-                              {index === messages.length - 1 && (
+                            {selectedMode !== 'learn' && (
+                              <div className="flex items-center gap-1">
                                 <AIMessageAction
-                                  tooltip="Regenerate response"
-                                  onClick={() => {
-                                    const lastUserMsg = messages
-                                      .slice()
-                                      .reverse()
-                                      .find((msg) => msg.role === 'user');
-                                    if (lastUserMsg) {
-                                      handleSendAction(lastUserMsg.content);
-                                    }
-                                  }}
+                                  tooltip="Helpful response"
+                                  active={feedback === 'up'}
+                                  onClick={() => handleFeedback(m.id, 'up')}
                                 >
-                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <ThumbsUp
+                                    className={cn(
+                                      'w-3.5 h-3.5 transition-colors',
+                                      feedback === 'up' && 'fill-brand-400 text-brand-400'
+                                    )}
+                                  />
                                 </AIMessageAction>
-                              )}
-                            </div>
+                                <AIMessageAction
+                                  tooltip="Unhelpful response"
+                                  active={feedback === 'down'}
+                                  onClick={() => handleFeedback(m.id, 'down')}
+                                >
+                                  <ThumbsDown
+                                    className={cn(
+                                      'w-3.5 h-3.5 transition-colors',
+                                      feedback === 'down' && 'fill-rose-400 text-rose-400'
+                                    )}
+                                  />
+                                </AIMessageAction>
+
+                                {index === messages.length - 1 && (
+                                  <AIMessageAction
+                                    tooltip="Regenerate response"
+                                    onClick={() => {
+                                      const lastUserMsg = messages
+                                        .slice()
+                                        .reverse()
+                                        .find((msg) => msg.role === 'user');
+                                      if (lastUserMsg) {
+                                        handleSendAction(lastUserMsg.content);
+                                      }
+                                    }}
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </AIMessageAction>
+                                )}
+                              </div>
+                            )}
                           </AIMessageActions>
                         </AIMessageContent>
                       )}
@@ -1657,46 +1974,49 @@ export function WorkspaceThreePanelView({
                 );
               })}
 
-            {/* Real-time Streaming Turn with shadcn AI-Elements */}
+            {/* Real-time Streaming Turn with ResponseProgress */}
             {isStreaming && (
               <AIMessage from="assistant">
                 <AIMessageContent from="assistant">
-                  {/* Top Header Row while streaming: Reasoning with Shimmer */}
-                  <div className="w-full min-w-0">
-                    <AIReasoning isStreaming={!streamingContent.trim()}>
-                      <AIReasoningTrigger
-                        title={
-                          streamingCitations && streamingCitations.length > 0
-                            ? `Synthesizing ${streamingCitations.length} source passages...`
-                            : 'Thinking & analyzing notebook sources...'
-                        }
-                      />
-                      <AIReasoningContent>
-                        <p>
-                          Searching source chunks, retrieving grounded evidence, and synthesizing insights with citations.
-                        </p>
-                      </AIReasoningContent>
-                    </AIReasoning>
+                  {/* Claude-style animated progress indicator */}
+                  <div className="w-full min-w-0 mb-3">
+                    <ResponseProgress
+                      isStreaming={isStreaming}
+                      timeline={thoughtTimeline}
+                      reasoningSummary={reasoningSummary}
+                      currentPhase={streamingPhase}
+                      onStop={onStopStreaming}
+                    />
                   </div>
 
                   {/* AI-Elements Sources while streaming */}
-                  {streamingCitations && streamingCitations.length > 0 && (
-                    <AISources defaultOpen={false}>
-                      <AISourcesTrigger count={streamingCitations.length} />
-                      <AISourcesContent>
-                        {streamingCitations.map((c) => (
-                          <AISourceItem
-                            key={`streaming-${c.sourceId}-${c.chunkId || c.citationNumber}`}
-                            citation={c}
-                            onCitationClick={onCitationClick}
-                          />
-                        ))}
-                      </AISourcesContent>
-                    </AISources>
-                  )}
+                  {(() => {
+                    const cits = streamingCitations || [];
+                    if (cits.length === 0) return null;
+                    const uniqueSources = Array.from(
+                      new Set(cits.map((c) => c.sourceId || c.sourceTitle))
+                    );
+                    const count = uniqueSources.length;
+                    if (count === 0) return null;
+
+                    return (
+                      <AISources defaultOpen={false}>
+                        <AISourcesTrigger count={count} />
+                        <AISourcesContent>
+                          {cits.map((c) => (
+                            <AISourceItem
+                              key={`streaming-${c.sourceId}-${c.chunkId || c.citationNumber}`}
+                              citation={c}
+                              onCitationClick={onCitationClick}
+                            />
+                          ))}
+                        </AISourcesContent>
+                      </AISources>
+                    );
+                  })()}
 
                   {streamingContent.trim() ? (
-                    <div className="relative w-full min-w-0">
+                    <div className="relative w-full min-w-0 mt-3">
                       <MessageMarkdown
                         content={streamingContent}
                         citations={streamingCitations}
@@ -1705,30 +2025,7 @@ export function WorkspaceThreePanelView({
                       />
                       <span className="inline-block w-2 h-4 ml-1.5 rounded-sm bg-brand-400 align-middle animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
                     </div>
-                  ) : (
-                    /* Professional Shimmer Generating State matching Claude / ChatGPT / Gemini */
-                    <div className="space-y-3 py-2.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex items-center justify-center shrink-0 w-2.5 h-2.5">
-                          <span className="absolute w-2.5 h-2.5 rounded-full bg-brand-400/50 animate-ping" />
-                          <span className="relative w-1.5 h-1.5 rounded-full bg-brand-400 shadow-[0_0_8px_rgba(168,85,247,0.9)]" />
-                        </div>
-                        <AIShimmer
-                          as="span"
-                          duration={2}
-                          baseColor="#9ca3af"
-                          highlightColor="#ffffff"
-                          className="text-xs font-display font-medium tracking-wide"
-                        >
-                          Generating grounded response...
-                        </AIShimmer>
-                      </div>
-                      <div className="space-y-2 max-w-md pt-0.5 opacity-40">
-                        <div className="h-2 w-full rounded-full bg-gradient-to-r from-[#262626] via-[#3a3a3a] to-[#262626] bg-[length:200%_100%] animate-pulse" />
-                        <div className="h-2 w-4/5 rounded-full bg-gradient-to-r from-[#262626] via-[#3a3a3a] to-[#262626] bg-[length:200%_100%] animate-pulse" />
-                      </div>
-                    </div>
-                  )}
+                  ) : null}
                 </AIMessageContent>
               </AIMessage>
             )}
@@ -1738,10 +2035,10 @@ export function WorkspaceThreePanelView({
         )}
       </div>
 
-      {/* Docked Large Rounded Input Card (Claude Warm Charcoal #262626) with shadcn AI-Elements */}
-      <div className="shrink-0 p-2 sm:p-4 md:px-8 pb-2.5 sm:pb-4 border-t border-[#303030] bg-gradient-to-t from-[#191919] via-[#191919] to-transparent relative z-20">
+      {/* Docked Large Rounded Input Card with shadcn AI-Elements */}
+      <div className="shrink-0 p-2 sm:p-4 md:px-8 pb-2.5 sm:pb-4 border-t border-zinc-200 dark:border-[#303030] bg-gradient-to-t from-[#fbfbfd] via-[#fbfbfd] to-transparent dark:from-[#191919] dark:via-[#191919] relative z-20">
         {/* Suggestion Chips */}
-        {sources.length > 0 && (
+        {sources.length > 0 && messages.length === 0 && selectedMode === 'chat' && (
           <div className="max-w-3xl w-full min-w-0 mx-auto mb-2.5 px-1">
             <AISuggestions>
               <AISuggestion
@@ -1764,143 +2061,166 @@ export function WorkspaceThreePanelView({
           </div>
         )}
 
-        <AIPromptInput>
-          {/* Text Input Area */}
-          <AIPromptInputTextarea
-            value={chatPrompt}
-            onChange={(e) => setChatPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && isStreaming && onStopStreaming) {
-                e.preventDefault();
-                onStopStreaming();
-                return;
+        <div
+          onPaste={handlePaste}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files) handleSelectFiles(e.dataTransfer.files);
+          }}
+        >
+          <AIPromptInput>
+            {/* Pending Image Attachments Preview */}
+            {pendingImages.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-2.5 border-b border-zinc-200 dark:border-[#303030] bg-zinc-100 dark:bg-[#1f1f1f]">
+                {pendingImages.map((img, i) => (
+                  <div
+                    key={img.id || i}
+                    className="relative group w-14 h-14 rounded-lg overflow-hidden border border-zinc-300 dark:border-[#3a3a3a]"
+                  >
+                    <img src={img.url} alt={img.fileName || 'Attachment'} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/80 hover:bg-black text-white cursor-pointer"
+                      title="Remove image"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Text Input Area */}
+            <AIPromptInputTextarea
+              value={chatPrompt}
+              onChange={(e) => setChatPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && isStreaming && onStopStreaming) {
+                  e.preventDefault();
+                  onStopStreaming();
+                  return;
+                }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendAction();
+                }
+              }}
+              placeholder={
+                !hasActiveAi
+                  ? 'Connect your AI (Gemini key or ChatGPT) to start chatting...'
+                  : sources.length === 0
+                  ? 'Add sources in Context sidebar, then ask questions...'
+                  : selectedMode === 'learn'
+                  ? t('placeholder_learn')
+                  : selectedMode === 'quiz'
+                  ? t('placeholder_quiz')
+                  : t('placeholder_chat')
               }
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendAction();
-              }
-            }}
-            placeholder={
-              !hasActiveAi
-                ? 'Connect your AI (Gemini key or ChatGPT) to start chatting...'
-                : sources.length === 0
-                ? 'Add sources in Context sidebar, then ask questions...'
-                : selectedMode === 'learn'
-                ? t('placeholder_learn')
-                : selectedMode === 'quiz'
-                ? t('placeholder_quiz')
-                : t('placeholder_chat')
-            }
-          />
+            />
 
-          {/* Bottom Action Controls */}
-          <AIPromptInputTools>
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              {/* Add Source Fast Button */}
-              <Tooltip content={t('attach_source')} side="top">
-                <button
-                  type="button"
-                  onClick={onOpenAddSource}
-                  className="p-1.5 rounded-xl bg-[#191919] hover:bg-[#303030] text-[#9a9a94] hover:text-brand-400 border border-[#303030] transition-colors cursor-pointer shrink-0"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-              </Tooltip>
-
-              <ModeDropdownSwitcher
-                selectedMode={selectedMode}
-                onSelectMode={onSelectMode}
-                selectedModelId={selectedModelId}
-              />
-
-              {/* Model Selector Dropdown with connected keys & Phase 5 connections */}
-              <ModelSwitcher
-                selectedModelId={selectedModelId}
-                onSelectModel={(mId) => onSelectModelId?.(mId)}
-                userKeys={userKeys}
-                connections={connections}
-                onOpenManageKeys={onOpenManageKeys || onOpenSettings}
-                notebookId={notebook.id}
-              />
-
-              {/* Sources Count Badge */}
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-display text-[#9a9a94] shrink-0">
-                <BookOpen className="w-3 h-3" />
-                {enabledCount === 0
-                  ? t('source_chip_none')
-                  : enabledCount === 1
-                  ? t('source_chip_single')
-                  : t('source_chip_multi', enabledCount)}
-              </span>
-            </div>
-
-            {/* Mic & Send Controls */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Speech-to-Text Mic Input */}
-              <Tooltip
-                content={isVoiceListening ? 'Listening to voice... Click to stop' : t('voice_input')}
-                side="top"
-              >
-                <button
-                  type="button"
-                  onClick={handleToggleVoice}
-                  className={`p-2 rounded-xl transition-all cursor-pointer ${
-                    isVoiceListening
-                      ? 'text-rose-400 bg-rose-500/20 border border-rose-500/40 shadow-lg shadow-rose-500/20 animate-pulse'
-                      : 'text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#191919]'
-                  }`}
-                  aria-label={isVoiceListening ? 'Stop voice recording' : 'Start voice input'}
-                >
-                  <Mic className={`w-4 h-4 ${isVoiceListening ? 'text-rose-400' : ''}`} />
-                </button>
-              </Tooltip>
-
-              {/* Send / Stop Button */}
-              {isStreaming ? (
-                <Tooltip content={`${t('stop_generating')} (Esc)`} side="top">
+            {/* Bottom Action Controls */}
+            <AIPromptInputTools>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Add Source Fast Button (Opens Dialog with Upload, Study Image, Web Link, Paste Text) */}
+                <Tooltip content={t('attach_source')} side="top">
                   <button
                     type="button"
-                    onClick={onStopStreaming}
-                    className="h-8 w-8 rounded-full bg-[#2a2a2a] hover:bg-[#333333] border border-[#383838] flex items-center justify-center cursor-pointer transition-colors shadow-sm"
-                    title={t('stop_generating')}
-                    aria-label={t('stop_generating')}
+                    onClick={onOpenAddSource}
+                    className="h-8 w-8 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-brand-600 border border-zinc-200 dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:text-[#9a9a94] dark:hover:text-brand-300 dark:border-[#333333] flex items-center justify-center transition-colors cursor-pointer shrink-0"
                   >
-                    <span className="w-3 h-3 rounded-[2px] bg-[#ef4444]" />
+                    <Paperclip className="w-4 h-4" />
                   </button>
                 </Tooltip>
-              ) : (
-                <div className="relative group">
-                  <Tooltip content={t('send_message')} side="top">
-                    <Button
-                      size="sm"
-                      disabled={!hasActiveAi || !chatPrompt.trim()}
-                      onClick={() => handleSendAction()}
-                      className="h-8 w-8 p-0 rounded-xl bg-brand-600 text-white hover:bg-brand-500 shadow-md shadow-brand-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </Button>
-                  </Tooltip>
+              </div>
 
-                  {!hasActiveAi && (
-                    <div
-                      onClick={onOpenManageKeys || onOpenSettings}
-                      className="absolute right-0 bottom-full mb-2 hidden group-hover:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#191919] border border-[#303030] text-xs text-[#f4f4f2] shadow-2xl whitespace-nowrap cursor-pointer hover:border-purple-500/50"
+              {/* Right Controls: Mode Button beside Model Button beside Voice Button beside Send Button */}
+              <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+                {/* Assistant Mode Button: immediately beside the model button */}
+                <ModeDropdownSwitcher
+                  selectedMode={selectedMode}
+                  onSelectMode={onSelectMode}
+                  selectedModelId={selectedModelId}
+                />
+
+                {/* Model Selector Dropdown: beside the voice button */}
+                <ModelSwitcher
+                  selectedModelId={selectedModelId}
+                  onSelectModel={(mId) => onSelectModelId?.(mId)}
+                  userKeys={userKeys}
+                  connections={connections}
+                  onOpenManageKeys={onOpenManageKeys || onOpenSettings}
+                  notebookId={notebook.id}
+                />
+
+                {/* Speech-to-Text Mic Input */}
+                <Tooltip
+                  content={isVoiceListening ? 'Listening to voice... Click to stop' : t('voice_input')}
+                  side="top"
+                >
+                  <button
+                    type="button"
+                    onClick={handleToggleVoice}
+                    className={cn(
+                      'h-8 w-8 rounded-xl flex items-center justify-center transition-all cursor-pointer shrink-0',
+                      isVoiceListening
+                        ? 'text-rose-400 bg-rose-500/20 border border-rose-500/40 shadow-lg shadow-rose-500/20 animate-pulse'
+                        : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 border border-zinc-200 dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:border-[#333333]'
+                    )}
+                    aria-label={isVoiceListening ? 'Stop voice recording' : 'Start voice input'}
+                  >
+                    <Mic className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+
+                {/* Send / Stop Button */}
+                {isStreaming ? (
+                  <Tooltip content={`${t('stop_generating')} (Esc)`} side="top">
+                    <button
+                      type="button"
+                      onClick={onStopStreaming}
+                      className="h-8 w-8 rounded-full bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 dark:bg-[#2a2a2a] dark:hover:bg-[#333333] dark:border-[#383838] flex items-center justify-center cursor-pointer transition-colors shadow-xs"
+                      title={t('stop_generating')}
+                      aria-label={t('stop_generating')}
                     >
-                      <Bot className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Connect AI to start chatting</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </AIPromptInputTools>
+                      <span className="w-3 h-3 rounded-[2px] bg-[#ef4444]" />
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <div className="relative group">
+                    <Tooltip content={t('send_message')} side="top">
+                      <Button
+                        size="sm"
+                        disabled={!hasActiveAi || (!chatPrompt.trim() && pendingImages.length === 0)}
+                        onClick={() => handleSendAction()}
+                        className="h-8 w-8 p-0 rounded-xl bg-brand-600 text-white hover:bg-brand-500 shadow-md shadow-brand-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                    </Tooltip>
+
+                    {!hasActiveAi && (
+                      <div
+                        onClick={onOpenManageKeys || onOpenSettings}
+                        className="absolute right-0 bottom-full mb-2 hidden group-hover:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#191919] border border-[#303030] text-xs text-[#f4f4f2] shadow-2xl whitespace-nowrap cursor-pointer hover:border-purple-500/50"
+                      >
+                        <Bot className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Connect AI to start chatting</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AIPromptInputTools>
         </AIPromptInput>
       </div>
     </div>
-  );
+  </div>
+);
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-[#191919]">
+    <div dir="ltr" className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-[#fbfbfd] dark:bg-[#191919]">
       {/* ---------------------------------------------------- */}
       {/* DESKTOP LAYOUT (>= lg): Center Chat + Right Sidebar   */}
       {/* Left Sources panel REMOVED completely!               */}
@@ -1913,7 +2233,7 @@ export function WorkspaceThreePanelView({
 
         {/* Right Sidebar: Context & Studio */}
         <AnimatePresence initial={false}>
-          {studioPanelOpen && (
+          {studioPanelOpen && selectedMode !== 'learn' && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 360, opacity: 1 }}
@@ -1972,13 +2292,13 @@ export function WorkspaceThreePanelView({
           {mobileTab === 'studio' && renderRightSidebarContent(true)}
         </div>
 
-        <div className="shrink-0 h-14 border-t border-[#303030] bg-[#1f1f1f] flex items-center justify-around px-2 z-20 pb-[max(0.25rem,env(safe-area-inset-bottom))] box-content">
+        <div className="shrink-0 h-14 border-t border-zinc-200 bg-white dark:border-[#303030] dark:bg-[#1f1f1f] flex items-center justify-around px-2 z-20 pb-[max(0.25rem,env(safe-area-inset-bottom))] box-content">
           <button
             onClick={() => setMobileTab('chat')}
             className={`flex flex-col items-center gap-1 py-1 px-4 text-xs rounded-xl transition-colors ${
               mobileTab === 'chat'
-                ? 'text-brand-400 font-semibold'
-                : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+                ? 'text-brand-600 dark:text-brand-400 font-semibold'
+                : 'text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
             }`}
           >
             <Brain className="w-5 h-5" />
@@ -1992,8 +2312,8 @@ export function WorkspaceThreePanelView({
             }}
             className={`flex flex-col items-center gap-1 py-1 px-3 text-xs rounded-xl transition-colors ${
               mobileTab === 'context'
-                ? 'text-brand-400 font-semibold'
-                : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+                ? 'text-brand-600 dark:text-brand-400 font-semibold'
+                : 'text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
             }`}
           >
             <Layers className="w-4 h-4" />
@@ -2063,28 +2383,28 @@ export function WorkspaceThreePanelView({
           {/* Header Action / Badge: Read-Only */}
           <div className="flex items-center justify-between pb-2 border-b border-[#303030]">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[#9a9a94] font-mono">{chatNotes.length} saved memories</span>
+              <span className="text-xs text-[#9a9a94] font-mono">{notebookNotes.length} saved memories</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium">
                 <Lock className="w-2.5 h-2.5" /> Read-Only · Auto-Saved
               </span>
             </div>
             <span className="text-[11px] text-[#9a9a94] font-serif">
-              Scoped to this chat
+              Unified across all chats
             </span>
           </div>
 
           {/* Notes List (Strictly Read-Only: No Add, No Edit, No Delete) */}
           <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-[#303030]">
-            {chatNotes.length === 0 ? (
+            {notebookNotes.length === 0 ? (
               <div className="py-12 text-center text-[#9a9a94] text-xs font-serif space-y-2">
                 <Brain className="w-8 h-8 text-[#9a9a94] mx-auto opacity-40" />
-                <p className="text-[#f4f4f2] font-semibold">No memories stored for this chat yet</p>
+                <p className="text-[#f4f4f2] font-semibold">No memories stored for this notebook yet</p>
                 <p className="max-w-md mx-auto text-[#9a9a94]">
-                  As you chat with your learning partner, key insights and context from this chat are automatically extracted and remembered here.
+                  As you chat and study with your learning partner, key insights across all chats in this notebook are automatically preserved here.
                 </p>
               </div>
             ) : (
-              chatNotes.map((note) => (
+              notebookNotes.map((note) => (
                 <div
                   key={note.id}
                   className="p-3.5 rounded-2xl bg-[#191919] border border-[#303030] hover:border-brand-500/40 transition group"
@@ -2202,6 +2522,11 @@ export function WorkspaceThreePanelView({
           </div>
         </div>
       </Dialog>
+
+      {/* Lightbox for zooming attached study images */}
+      {lightboxSrc && (
+        <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+      )}
     </div>
   );
 }

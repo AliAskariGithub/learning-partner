@@ -150,14 +150,18 @@ export function LandingClient({ isLoggedIn }: { isLoggedIn: boolean }) {
     <div ref={heroRef} className="min-h-screen bg-background text-foreground flex flex-col font-sans overflow-x-hidden">
       {/* Top Navigation Bar */}
       <header className="h-16 border-b border-border bg-surface/85 backdrop-blur-md sticky top-0 z-40 px-3.5 sm:px-6 lg:px-12 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center font-display font-extrabold text-white text-sm shadow-md shadow-brand-600/30 shrink-0">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 sm:gap-3 min-w-0 group hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg cursor-pointer"
+          title="Learning Partner — Return to home"
+        >
+          <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center font-display font-extrabold text-white text-sm shadow-md shadow-brand-600/30 shrink-0 group-hover:scale-105 transition-transform">
             LP
           </div>
-          <span className="font-display font-bold text-base sm:text-lg text-foreground tracking-tight whitespace-nowrap">
+          <span className="font-display font-bold text-base sm:text-lg text-foreground tracking-tight whitespace-nowrap group-hover:text-brand-300 transition-colors">
             Learning Partner
           </span>
-        </div>
+        </Link>
 
         <nav className="flex items-center gap-2 sm:gap-4 shrink-0">
           <ThemeToggle />

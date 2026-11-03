@@ -17,6 +17,8 @@ import {
   FastForward,
   Headphones,
   Sparkles,
+  FileText,
+  FileCode,
 } from 'lucide-react';
 
 export interface VoiceTurn {
@@ -268,30 +270,75 @@ export function VoicePlayer({
     }
   };
 
-  const handleDownload = () => {
-    if (isWebSpeech) {
-      // Download text transcript
-      const text = safeScript.map((t) => `${t.speaker}: ${t.text}`).join('\n\n');
-      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-transcript.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast({ title: 'Downloaded Transcript', description: 'Web Speech transcript saved.', variant: 'success' });
-    } else if (safeAudioKeys.length > 0) {
-      // Download first segment or link
-      const key = safeAudioKeys[0];
+  const handleDownloadAudio = () => {
+    const key = voiceConfig?.fullAudioKey || safeAudioKeys[0];
+    if (key) {
       const a = document.createElement('a');
       a.href = `/api/storage/${key}`;
       a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.mp3`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      toast({ title: 'Download Started', description: 'Audio segment downloading.', variant: 'success' });
+      toast({
+        title: 'Downloaded Audio',
+        description: `${title}.mp3 saved to your device.`,
+        variant: 'success',
+      });
+    } else {
+      toast({
+        title: 'Audio File Unavailable',
+        description: 'Audio is generated in-browser via Web Speech. You can download the transcript below.',
+        variant: 'info',
+      });
+    }
+  };
+
+  const handleDownloadTranscript = (format: 'txt' | 'md' = 'txt') => {
+    const isUrdu =
+      (voiceConfig as any)?.language?.toLowerCase().includes('urdu') ||
+      (voiceConfig as any)?.language === 'ur' ||
+      safeScript.some((t) => /[\u0600-\u06FF]/.test(t.text));
+
+    let content = '';
+    if (format === 'md') {
+      content = `# ${title}\n\n`;
+      content += `> **Podcast Format:** ${(voiceConfig as any)?.format || 'Deep Dive'} · **Language:** ${
+        isUrdu ? 'Urdu (اردو)' : 'English'
+      } · **Hosts:** ${(voiceConfig as any)?.speaker1Name || 'Alex'} & ${(voiceConfig as any)?.speaker2Name || 'Jordan'}\n\n---\n\n`;
+      content += safeScript
+        .map((t) => `### **${t.speaker}**\n\n${t.text}\n`)
+        .join('\n');
+    } else {
+      content = `${title}\n${'='.repeat(title.length)}\n\n`;
+      content += `Format: ${(voiceConfig as any)?.format || 'Deep Dive'} | Language: ${
+        isUrdu ? 'Urdu (اردو)' : 'English'
+      } | Hosts: ${(voiceConfig as any)?.speaker1Name || 'Alex'} & ${(voiceConfig as any)?.speaker2Name || 'Jordan'}\n\n`;
+      content += safeScript.map((t) => `[${t.speaker}]:\n${t.text}\n`).join('\n');
+    }
+
+    const blob = new Blob([content], {
+      type: format === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-transcript.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({
+      title: 'Downloaded Transcript',
+      description: `${title}-transcript.${format} saved.`,
+      variant: 'success',
+    });
+  };
+
+  const handleDownload = () => {
+    if (safeAudioKeys.length > 0) {
+      handleDownloadAudio();
+    } else {
+      handleDownloadTranscript('txt');
     }
   };
 
@@ -336,18 +383,18 @@ export function VoicePlayer({
   // Mini-player view (floating at bottom of notebook workspace)
   if (isMiniPlayer) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 w-80 md:w-96 rounded-2xl bg-[#1f1f1f] border border-[#383838] shadow-2xl p-3.5 backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200">
+      <div className="fixed bottom-4 right-4 z-50 w-80 md:w-96 rounded-2xl bg-white border border-zinc-200 text-zinc-900 shadow-2xl p-3.5 backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200 dark:bg-[#1f1f1f] dark:border-[#383838] dark:text-[#f4f4f2]">
         <audio ref={audioRef} className="hidden" />
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2 overflow-hidden">
-            <div className="w-7 h-7 rounded-lg bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-400 shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
               <Headphones className="w-3.5 h-3.5" />
             </div>
             <div className="truncate">
-              <p className="font-display font-semibold text-xs text-[#f4f4f2] truncate">
+              <p className="font-display font-semibold text-xs text-zinc-900 dark:text-[#f4f4f2] truncate">
                 {title}
               </p>
-              <p className="text-[10px] text-[#9a9a94] font-mono">
+              <p className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono">
                 {formatTime(currentTime)} / {formatTime(totalSeconds)} · {isWebSpeech ? 'Basic Voice' : 'Studio TTS'}
               </p>
             </div>
@@ -359,7 +406,7 @@ export function VoicePlayer({
                 variant="ghost"
                 size="sm"
                 onClick={onToggleMini}
-                className="h-6 w-6 p-0 text-[#9a9a94] hover:text-[#f4f4f2]"
+                className="h-6 w-6 p-0 text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]"
                 title="Expand Player"
               >
                 <Maximize2 className="w-3 h-3" />
@@ -370,7 +417,7 @@ export function VoicePlayer({
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
-                className="h-6 w-6 p-0 text-[#9a9a94] hover:text-[#f4f4f2]"
+                className="h-6 w-6 p-0 text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]"
                 title="Close Player"
               >
                 <X className="w-3 h-3" />
@@ -380,7 +427,7 @@ export function VoicePlayer({
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full h-1 bg-[#2b2b2b] rounded-full overflow-hidden mb-2.5">
+        <div className="w-full h-1 bg-zinc-200 dark:bg-[#2b2b2b] rounded-full overflow-hidden mb-2.5">
           <div
             className="h-full bg-brand-500 transition-all duration-300"
             style={{ width: `${Math.min(100, (currentTime / totalSeconds) * 100)}%` }}
@@ -392,7 +439,7 @@ export function VoicePlayer({
           <button
             type="button"
             onClick={handleSpeedChange}
-            className="text-[10px] font-mono font-bold text-[#9a9a94] hover:text-[#f4f4f2] px-1.5 py-0.5 rounded bg-[#262626] border border-[#303030]"
+            className="text-[10px] font-mono font-bold text-zinc-600 hover:text-zinc-900 px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:bg-[#262626] dark:border-[#303030]"
           >
             {playbackSpeed}x
           </button>
@@ -401,7 +448,7 @@ export function VoicePlayer({
             <button
               type="button"
               onClick={() => handleSkipSeconds(-15)}
-              className="text-[#9a9a94] hover:text-[#f4f4f2] p-1"
+              className="text-zinc-500 hover:text-zinc-900 p-1 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]"
               title="Rewind 15 seconds"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -418,7 +465,7 @@ export function VoicePlayer({
             <button
               type="button"
               onClick={() => handleSkipSeconds(15)}
-              className="text-[#9a9a94] hover:text-[#f4f4f2] p-1"
+              className="text-zinc-500 hover:text-zinc-900 p-1 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]"
               title="Fast forward 15 seconds"
             >
               <RotateCw className="w-3.5 h-3.5" />
@@ -428,7 +475,7 @@ export function VoicePlayer({
           <button
             type="button"
             onClick={() => setIsMuted((m) => !m)}
-            className="text-[#9a9a94] hover:text-[#f4f4f2] p-1"
+            className="text-zinc-500 hover:text-zinc-900 p-1 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]"
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
@@ -439,38 +486,50 @@ export function VoicePlayer({
 
   // Full Screen / Dialog View with Interactive Live Transcript
   return (
-    <div className="flex flex-col h-full bg-[#191919] text-[#f4f4f2]">
+    <div className="flex flex-col h-full bg-[#fbfbfd] text-zinc-900 dark:bg-[#191919] dark:text-[#f4f4f2]">
       <audio ref={audioRef} className="hidden" />
 
       {/* Top Header */}
-      <div className="h-14 border-b border-[#303030] bg-[#1f1f1f] px-6 flex items-center justify-between shrink-0">
+      <div className="h-14 border-b border-zinc-200 bg-zinc-50 dark:border-[#303030] dark:bg-[#1f1f1f] px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <Headphones className="w-4 h-4 text-brand-400" />
-          <h2 className="font-display font-bold text-sm text-[#f4f4f2] truncate max-w-sm sm:max-w-md">
+          <Headphones className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+          <h2 className="font-display font-bold text-sm text-zinc-900 dark:text-[#f4f4f2] truncate max-w-sm sm:max-w-md">
             {title}
           </h2>
-          <span className="text-[10px] font-display font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
+          <span className="text-[10px] font-display font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 border border-brand-500/20 dark:text-brand-400">
             {isWebSpeech ? 'Basic Voice' : 'Studio Multi-Speaker'}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
+          {safeAudioKeys.length > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDownloadAudio}
+              className="text-xs h-8 px-2.5 shadow-sm flex items-center gap-1.5 font-display font-medium"
+              title="Download complete audio podcast as MP3"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download Audio (.mp3)</span>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleDownload}
-            className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
-            title="Download Audio or Script"
+            onClick={() => handleDownloadTranscript('txt')}
+            className="text-xs h-8 px-2.5 text-zinc-600 hover:text-zinc-900 border border-zinc-200 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:border-[#303030] flex items-center gap-1.5 font-display"
+            title="Download formatted dialogue transcript"
           >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Download
+            <FileText className="w-3.5 h-3.5" />
+            <span>Transcript</span>
           </Button>
           {onToggleMini && (
             <Button
               variant="ghost"
               size="sm"
               onClick={onToggleMini}
-              className="text-xs h-8 px-2 text-[#9a9a94] hover:text-[#f4f4f2]"
+              className="text-xs h-8 px-2 text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]"
               title="Minimize to Mini Player"
             >
               <Minimize2 className="w-3.5 h-3.5" />
@@ -479,7 +538,7 @@ export function VoicePlayer({
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
+              className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/60 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] border border-transparent dark:hover:border-[#383838] transition cursor-pointer ml-1"
               title="Close Voice Player"
             >
               <X className="w-4 h-4" />
@@ -489,7 +548,7 @@ export function VoicePlayer({
       </div>
 
       {/* Audio Player Controller Card */}
-      <div className="p-6 border-b border-[#303030] bg-[#212121]/80 backdrop-blur-sm shrink-0">
+      <div className="p-6 border-b border-zinc-200 bg-zinc-100/80 backdrop-blur-sm shrink-0 dark:border-[#303030] dark:bg-[#212121]/80">
         <div className="max-w-xl mx-auto flex flex-col items-center">
           {/* Waveform / Visualizer Bar */}
           <div className="flex items-center justify-center gap-1.5 h-10 mb-4 w-full">
@@ -499,7 +558,7 @@ export function VoicePlayer({
                 <div
                   key={i}
                   className={`w-1 rounded-full transition-all duration-200 ${
-                    active ? 'bg-brand-400 h-8' : 'bg-[#383838] h-3'
+                    active ? 'bg-brand-500 h-8' : 'bg-zinc-300 dark:bg-[#383838] h-3'
                   }`}
                 />
               );
@@ -507,10 +566,10 @@ export function VoicePlayer({
           </div>
 
           {/* Seek Bar */}
-          <div className="w-full flex items-center gap-3 text-xs font-mono text-[#9a9a94] mb-4">
+          <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-500 dark:text-[#9a9a94] mb-4">
             <span>{formatTime(currentTime)}</span>
             <div
-              className="flex-1 h-2 bg-[#2d2d2d] rounded-full overflow-hidden cursor-pointer relative"
+              className="flex-1 h-2 bg-zinc-200 dark:bg-[#2d2d2d] rounded-full overflow-hidden cursor-pointer relative"
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const clickX = e.clientX - rect.left;
@@ -532,7 +591,7 @@ export function VoicePlayer({
             <button
               type="button"
               onClick={handleSpeedChange}
-              className="text-xs font-mono font-bold text-[#9a9a94] hover:text-[#f4f4f2] px-2.5 py-1 rounded-xl bg-[#282828] border border-[#383838]"
+              className="text-xs font-mono font-bold text-zinc-600 hover:text-zinc-900 px-2.5 py-1 rounded-xl bg-zinc-200/70 border border-zinc-300 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:bg-[#282828] dark:border-[#383838]"
               title="Playback Speed"
             >
               {playbackSpeed}x
@@ -541,7 +600,7 @@ export function VoicePlayer({
             <button
               type="button"
               onClick={() => handleSkipSeconds(-15)}
-              className="text-[#9a9a94] hover:text-[#f4f4f2] p-2 rounded-xl hover:bg-[#282828]"
+              className="text-zinc-600 hover:text-zinc-900 p-2 rounded-xl hover:bg-zinc-200/60 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#282828]"
               title="Rewind 15 seconds"
             >
               <RotateCcw className="w-5 h-5" />
@@ -558,7 +617,7 @@ export function VoicePlayer({
             <button
               type="button"
               onClick={() => handleSkipSeconds(15)}
-              className="text-[#9a9a94] hover:text-[#f4f4f2] p-2 rounded-xl hover:bg-[#282828]"
+              className="text-zinc-600 hover:text-zinc-900 p-2 rounded-xl hover:bg-zinc-200/60 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#282828]"
               title="Skip 15 seconds forward"
             >
               <RotateCw className="w-5 h-5" />
@@ -567,7 +626,7 @@ export function VoicePlayer({
             <button
               type="button"
               onClick={() => setIsMuted((m) => !m)}
-              className="text-[#9a9a94] hover:text-[#f4f4f2] p-2 rounded-xl hover:bg-[#282828]"
+              className="text-zinc-600 hover:text-zinc-900 p-2 rounded-xl hover:bg-zinc-200/60 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#282828]"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
@@ -578,14 +637,24 @@ export function VoicePlayer({
 
       {/* Live Interactive Transcript */}
       <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-2xl mx-auto w-full space-y-4">
-        <p className="text-[11px] font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-2">
+        <p className="text-[11px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94] mb-2">
           Live Interactive Transcript (Click line to jump)
         </p>
 
         {safeScript.map((turn, tIdx) => {
           const isActive = tIdx === currentTurnIndex;
-          const isAlex = turn.speaker.toLowerCase().includes('alex') || turn.speaker.toLowerCase().includes('host 1');
-          const isUrduTurn = /[\u0600-\u06FF]/.test(turn.text) || (voiceConfig as any)?.language?.toLowerCase().includes('urdu');
+          const sLower = turn.speaker.toLowerCase();
+          const isAlex =
+            sLower.includes('alex') ||
+            sLower.includes('host 1') ||
+            sLower.includes('ایلکس') ||
+            sLower.includes('مریم') ||
+            sLower.includes('سارہ') ||
+            sLower.includes('female');
+
+          const isUrduTurn =
+            /[\u0600-\u06FF]/.test(turn.text) ||
+            (voiceConfig as any)?.language?.toLowerCase().includes('urdu');
 
           return (
             <div
@@ -594,25 +663,30 @@ export function VoicePlayer({
               dir={isUrduTurn ? 'rtl' : 'ltr'}
               className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-brand-950/30 border-brand-500/50 shadow-md ring-1 ring-brand-500/30'
-                  : 'bg-[#212121] border-[#2f2f2f] hover:border-[#404040]'
+                  ? 'bg-brand-500/10 border-brand-500/50 shadow-md ring-1 ring-brand-500/30'
+                  : 'bg-white border-zinc-200 hover:border-zinc-300 dark:bg-[#212121] dark:border-[#2f2f2f] dark:hover:border-[#404040]'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className={`text-xs font-display font-bold ${
-                  isAlex ? 'text-amber-400' : 'text-cyan-400'
+                  isAlex ? 'text-amber-500 dark:text-amber-400' : 'text-cyan-600 dark:text-cyan-400'
                 }`}>
                   {turn.speaker}
                 </span>
                 {isActive && (
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300">
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-600 dark:text-brand-300">
                     Playing Now
                   </span>
                 )}
               </div>
-              <p className={`text-sm leading-relaxed ${
-                isUrduTurn ? 'text-right font-serif' : 'text-left font-sans'
-              } ${isActive ? 'text-[#f4f4f2] font-medium' : 'text-[#a4a49e]'}`}>
+              <p
+                style={isUrduTurn ? { fontFamily: "'Noto Nastaliq Urdu', 'Noto Sans Arabic', serif" } : undefined}
+                className={`text-sm ${
+                  isUrduTurn
+                    ? 'text-right font-urdu text-base sm:text-lg leading-[2.6] py-1'
+                    : 'text-left font-sans leading-relaxed'
+                } ${isActive ? 'text-zinc-900 dark:text-[#f4f4f2] font-semibold' : 'text-zinc-700 dark:text-[#a4a49e]'}`}
+              >
                 {turn.text}
               </p>
             </div>

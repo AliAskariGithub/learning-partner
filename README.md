@@ -50,6 +50,42 @@ Exactly seven studio synthesizers:
 - **Data Portability**: One-click "Export All My Data" creates a complete JSON backup archive of all notebooks, sources, notes, and studio outputs.
 - **Permanent Account Deletion**: Typed confirmation dialog (`delete my account`) guarantees irreversible data removal from Neon Postgres.
 
+### 5. Three Distinct Chat Modes (Phase 6)
+- **Chat Mode (Simple Conversation)**:
+  - Clean, minimal layout inspired by Claude with soft user bubbles and readable serif assistant typography.
+  - Natural answers grounded strictly in the notebook's enabled sources with citation chips.
+  - Clear semantic labeling when content draws from beyond sources: `[Not from your sources]`.
+  - Empty state with cached source-derived prompt ideas and auto-titled conversations.
+- **Learning Mode (Focus Mode)**:
+  - Distraction-free single-column study view via Framer Motion layout transition (collapses Context and Studio sidebars).
+  - Study toolbar with topic indicator, "Save to Notes" session button, and "Exit Focus" trigger.
+  - Multimodal image uploads (PNG, JPEG, WebP) via "+" button, drag-and-drop, and clipboard paste.
+  - Full-screen zoomable lightbox for inspection of attached homework, diagrams, and textbook pages.
+  - Vision capability gating with `<CapabilityGate>` for non-vision models.
+  - Patient Socratic tutor persona with step-by-step breakdowns, hints before answers, and checks for understanding.
+  - Tutor quick-action chips under assistant messages: "Explain simpler", "Go deeper", "Give an example", and "Test me" (3 short inline check questions).
+- **Quiz Mode (Interactive Quizzes with Live Scoring)**:
+  - Dedicated mode that exclusively produces interactive quizzes. Non-quiz conversational requests prompt friendly guidance to switch modes.
+  - Setup card: customize question count (5, 10, 15, 20), difficulty, question types, and countdown timer.
+  - Play UI centerpiece: full-width card flow with slim progress bar, streak counter, live score chip, and letter badges (A–D). Full keyboard shortcut navigation (`A`–`D`, `1`–`4`, `Enter` to confirm/next).
+  - Instant answer validation with green/red semantic feedback and expandable explanation panel with source citations.
+  - Comprehensive results screen: animated score ring, time taken, accuracy percentage, best streak, topic breakdown, and "Retry Missed Questions". Weak topics are automatically recorded in notebook memory.
+
+### 6. Shared Notebook Memory (Phase 6)
+- **One Shared Context Per Notebook**:
+  - Unifies memory across Chat, Learning, and Quiz modes within a single notebook.
+  - Durable item types: `goal`, `preference`, `knowledge_level`, `misconception`, `weak_topic`, `strong_topic`, `decision`, `fact`.
+- **Consolidation Pipeline**:
+  - Non-blocking background extraction and summarization using the cheapest suitable connected model (e.g. Gemini Flash or Groq).
+  - Automatically deduplicates items, resolves conflicts, and keeps the notebook memory summary under a strict 1,500 token budget.
+- **Strict Priority Context Assembly (`assembleContext`)**:
+  - Multi-tier priority ordering: P1 (Grounding rules) → P2 (User custom instructions) → P3 (Notebook instructions) → P4 (Memory summary & pinned items) → P5 (Source chunks) → P6 (Past conversation snippets) → P7 (Recent messages).
+  - Bottom-up token budgeting ensures safety, custom instructions, and memory are never trimmed during long study sessions.
+- **Notebook Memory UI & Management**:
+  - Dedicated "Notebook Memory" card on the notebook home page with filter chips, pinned items, and live summary.
+  - Interactive item controls: pin, edit, delete, "Clear All Memory", and Markdown export.
+  - Individual message action: "Forget this" button on assistant messages to remove a conversation's influence from memory.
+
 ---
 
 ## 🛠️ Tech Stack & Architecture

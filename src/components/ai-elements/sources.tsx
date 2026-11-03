@@ -14,7 +14,7 @@ export function Sources({ className, defaultOpen = false, children, ...props }: 
   return (
     <Collapsible
       defaultOpen={defaultOpen}
-      className={cn('not-prose mb-3 text-xs text-[#9a9a94]', className)}
+      className={cn('not-prose mb-3 text-xs text-zinc-600 dark:text-[#9a9a94]', className)}
       {...props}
     >
       {children}
@@ -32,19 +32,23 @@ export function SourcesTrigger({
   children,
   ...props
 }: SourcesTriggerProps) {
+  if (count <= 0) return null;
+
   return (
     <CollapsibleTrigger
       className={cn(
-        'group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#262626] hover:bg-[#303030] text-[#9a9a94] hover:text-[#f4f4f2] border border-[#383838] transition-all cursor-pointer shadow-sm text-xs font-display font-medium',
+        'group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-xs text-xs font-display font-medium border',
+        'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900',
+        'dark:bg-[#1f1f1f] dark:text-[#a0a09a] dark:border-[#383838] dark:hover:bg-[#282828] dark:hover:text-[#f4f4f2]',
         className
       )}
       {...props}
     >
       {children ?? (
         <>
-          <BookOpen className="w-3.5 h-3.5 text-brand-400 group-hover:text-brand-300" />
-          <span>Used {count} source{count === 1 ? '' : 's'}</span>
-          <ChevronDown className="w-3 h-3 text-[#9a9a94] transition-transform duration-200 group-data-[state=open]:rotate-180 group-aria-expanded:rotate-180" />
+          <BookOpen className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 group-hover:text-brand-700 dark:group-hover:text-brand-300" />
+          <span>Used {count} {count === 1 ? 'source' : 'sources'}</span>
+          <ChevronDown className="w-3 h-3 text-zinc-400 dark:text-[#9a9a94] transition-transform duration-200 group-data-[state=open]:rotate-180 group-aria-expanded:rotate-180" />
         </>
       )}
     </CollapsibleTrigger>
@@ -81,25 +85,26 @@ export function Source({
       type="button"
       onClick={() => onCitationClick?.(citation)}
       className={cn(
-        'flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#262626] hover:bg-[#303030] border border-[#3a3a3a] hover:border-brand-500/50 text-[#d4d4ce] hover:text-white transition-all text-left text-xs cursor-pointer shadow-sm max-w-sm group',
+        'flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all text-left text-xs cursor-pointer shadow-xs max-w-sm group border',
+        'bg-white border-zinc-200 text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300 hover:text-zinc-950',
+        'dark:bg-[#1f1f1f] dark:border-[#383838] dark:text-[#d4d4ce] dark:hover:bg-[#282828] dark:hover:border-brand-500/40 dark:hover:text-white',
         className
       )}
       title={citation.snippet ? `"${citation.snippet}"` : citation.sourceTitle}
       {...props}
     >
-      <span className="flex items-center justify-center w-4 h-4 rounded-md bg-brand-500/20 text-brand-300 font-mono text-[10px] font-bold shrink-0">
+      <span className="flex items-center justify-center w-4 h-4 rounded-md font-mono text-[10px] font-bold shrink-0 bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
         {citation.citationNumber}
       </span>
-      <span className="truncate font-medium text-[11px] text-[#f4f4f2]">
+      <span className="truncate font-medium text-[11px] text-zinc-900 dark:text-[#f4f4f2]">
         {citation.sourceTitle}
       </span>
       {citation.pageNumber && (
-        <span className="text-[10px] text-[#9a9a94] font-mono shrink-0">
+        <span className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono shrink-0">
           p. {citation.pageNumber}
         </span>
       )}
-      <ExternalLink className="w-3 h-3 text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0" />
+      <ExternalLink className="w-3 h-3 text-zinc-400 dark:text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0" />
     </button>
   );
 }
-

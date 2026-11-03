@@ -138,8 +138,14 @@ export function Tooltip({
                   exit={{ opacity: 0, scale: 0.94 }}
                   transition={{ duration: 0.12, ease: 'easeOut' }}
                   role="tooltip"
+                  style={{
+                    backgroundColor: 'var(--tooltip-bg, #ffffff)',
+                    color: 'var(--tooltip-text, #0a0a0a)',
+                    borderColor: 'var(--tooltip-border, #e5e5e5)',
+                    boxShadow: 'var(--tooltip-shadow)',
+                  }}
                   className={cn(
-                    'select-none max-w-[280px] rounded-lg border border-[#383838] bg-[#1e1e1e]/98 text-[#f4f4f2] px-2.5 py-1 text-[11px] font-display font-medium shadow-2xl backdrop-blur-md leading-snug break-words',
+                    'select-none max-w-[280px] rounded-lg border px-2.5 py-1 text-[11px] font-display font-semibold leading-snug break-words transition-colors',
                     className
                   )}
                 >

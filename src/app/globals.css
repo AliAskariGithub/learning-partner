@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     /* 1) Brand Colour: Single Electric Violet (50-950 scale). Used ONLY for highlights */
@@ -44,11 +46,18 @@
     --muted-foreground: #9a9a94;
     --foreground: #f4f4f2;
     --focus-ring: #8b5cf6;
+
+    /* High-Contrast Tooltip Theme: White bg, Black text in Dark mode */
+    --tooltip-bg: #ffffff;
+    --tooltip-text: #0a0a0a;
+    --tooltip-border: #e5e5e5;
+    --tooltip-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
   }
 
   /* Light Theme Variant */
+  html:not(.dark),
   [data-theme="light"],
-  :root:not(.dark)[data-theme="light"] {
+  :root:not(.dark) {
     --background: #fbfbfd;
     --surface: #ffffff;
     --surface-raised: #f2f3f7;
@@ -61,6 +70,12 @@
     --semantic-error-text: #dc2626;
     --semantic-warning-text: #b45309;
     --focus-ring: #7c3aed;
+
+    /* High-Contrast Tooltip Theme: Charcoal bg, White text in Light mode */
+    --tooltip-bg: #222222;
+    --tooltip-text: #f4f4f2;
+    --tooltip-border: #383838;
+    --tooltip-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
   }
 
   * {
@@ -137,13 +152,23 @@
 
   --font-display: var(--font-display);
   --font-serif: var(--font-serif);
+  --font-urdu: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', serif;
+}
+
+/* Urdu Nastaliq Typography */
+.font-urdu,
+[data-language="ur"],
+:lang(ur),
+[dir="rtl"] {
+  font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', serif;
 }
 
 /* Custom Utilities for Design System Primitives */
+/* Reference / Citation Chips: Dark charcoal in dark mode, White shade in light mode */
 .citation-chip {
-  background-color: var(--brand-950);
-  color: var(--brand-300);
-  border: 1px solid var(--brand-700);
+  background-color: #ffffff;
+  color: #18181b;
+  border: 1px solid #e4e4e7;
   font-family: var(--font-display);
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;
@@ -153,11 +178,135 @@
   align-items: center;
   gap: 0.25rem;
   transition: all 0.15s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .citation-chip:hover {
-  background-color: var(--brand-800);
+  background-color: #f4f4f5;
+  color: #09090b;
+}
+
+.dark .citation-chip,
+[data-theme="dark"] .citation-chip {
+  background-color: #1f1f1f;
+  color: var(--brand-300);
+  border: 1px solid #383838;
+}
+
+.dark .citation-chip:hover,
+[data-theme="dark"] .citation-chip:hover {
+  background-color: #282828;
   color: #ffffff;
+}
+
+/* Global Light Mode Overrides for Full-Website Theme Application */
+html:not(.dark),
+[data-theme="light"] {
+  --background: #fbfbfd;
+  --surface: #ffffff;
+  --surface-raised: #f2f3f7;
+  --border: #e2e5eb;
+  --muted-foreground: #606677;
+  --foreground: #121419;
+}
+
+html:not(.dark) body {
+  background-color: #fbfbfd !important;
+  color: #121419 !important;
+}
+
+/* Light mode translation for commonly used dark charcoal container hexes */
+html:not(.dark) .bg-\[\#191919\],
+html:not(.dark) .bg-\[\#181818\],
+html:not(.dark) .bg-\[\#121212\],
+html:not(.dark) .bg-\[\#141415\],
+html:not(.dark) .bg-\[\#0f0f10\] {
+  background-color: var(--background) !important;
+}
+
+html:not(.dark) .bg-\[\#1f1f1f\],
+html:not(.dark) .bg-\[\#202020\],
+html:not(.dark) .bg-\[\#212121\],
+html:not(.dark) .bg-\[\#1e1e1e\] {
+  background-color: var(--surface) !important;
+}
+
+html:not(.dark) .bg-\[\#262626\],
+html:not(.dark) .bg-\[\#282828\],
+html:not(.dark) .bg-\[\#2a2a2a\],
+html:not(.dark) .bg-\[\#242424\] {
+  background-color: var(--surface-raised) !important;
+}
+
+html:not(.dark) .border-\[\#303030\],
+html:not(.dark) .border-\[\#383838\],
+html:not(.dark) .border-\[\#333333\],
+html:not(.dark) .border-\[\#3a3a3a\],
+html:not(.dark) .border-\[\#2f2f2f\],
+html:not(.dark) .border-\[\#2a2a2a\],
+html:not(.dark) .border-\[\#262626\] {
+  border-color: var(--border) !important;
+}
+
+html:not(.dark) .text-\[\#f4f4f2\],
+html:not(.dark) .text-\[\#d4d4ce\],
+html:not(.dark) .text-\[\#a4a49e\] {
+  color: var(--foreground) !important;
+}
+
+html:not(.dark) .text-\[\#9a9a94\],
+html:not(.dark) .text-\[\#71717a\] {
+  color: var(--muted-foreground) !important;
+}
+
+.old-citation-chip {
+  background-color: #ffffff;
+  color: #18181b;
+  border: 1px solid #e4e4e7;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.citation-chip:hover {
+  background-color: #f4f4f5;
+  color: #09090b;
+}
+
+.dark .citation-chip,
+[data-theme="dark"] .citation-chip {
+  background-color: #1f1f1f;
+  color: var(--brand-300);
+  border: 1px solid #383838;
+}
+
+.dark .citation-chip:hover,
+[data-theme="dark"] .citation-chip:hover {
+  background-color: #282828;
+  color: #ffffff;
+}
+
+/* Global Light Mode Overrides for Full-Website Theme Application */
+html:not(.dark),
+[data-theme="light"] {
+  --background: #fbfbfd;
+  --surface: #ffffff;
+  --surface-raised: #f2f3f7;
+  --border: #e2e5eb;
+  --muted-foreground: #606677;
+  --foreground: #121419;
+}
+
+html:not(.dark) body {
+  background-color: #fbfbfd !important;
+  color: #121419 !important;
 }
 
 /* Lenis recommended css */
@@ -241,3 +390,36 @@ html.lenis, html.lenis body {
 .animate-shimmer-slide {
   animation: shimmer-slide 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+
+/* Google Fonts Noto Urdu Typography */
+[lang="ur"],
+[dir="rtl"],
+.font-urdu {
+  font-family: "Noto Nastaliq Urdu", "Noto Sans Arabic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.85;
+}
+
+/* Context Window & Rich Tooltip Adaptive Styles */
+.dark [role="tooltip"] .tooltip-title { color: #0a0a0a !important; }
+.dark [role="tooltip"] .tooltip-subtext { color: #52525b !important; }
+.dark [role="tooltip"] .tooltip-value { color: #18181b !important; }
+.dark [role="tooltip"] .tooltip-border { border-color: #e4e4e7 !important; }
+.dark [role="tooltip"] .tooltip-track { background-color: #e4e4e7 !important; }
+.dark [role="tooltip"] .tooltip-model-badge { background-color: #f3e8ff !important; color: #6b21a8 !important; border-color: #d8b4fe !important; }
+.dark [role="tooltip"] .tooltip-remaining { color: #059669 !important; }
+
+:root:not(.dark) [role="tooltip"] .tooltip-title,
+[data-theme="light"] [role="tooltip"] .tooltip-title { color: #f4f4f2 !important; }
+:root:not(.dark) [role="tooltip"] .tooltip-subtext,
+[data-theme="light"] [role="tooltip"] .tooltip-subtext { color: #9a9a94 !important; }
+:root:not(.dark) [role="tooltip"] .tooltip-value,
+[data-theme="light"] [role="tooltip"] .tooltip-value { color: #f4f4f2 !important; }
+:root:not(.dark) [role="tooltip"] .tooltip-border,
+[data-theme="light"] [role="tooltip"] .tooltip-border { border-color: #383838 !important; }
+:root:not(.dark) [role="tooltip"] .tooltip-track,
+[data-theme="light"] [role="tooltip"] .tooltip-track { background-color: #383838 !important; }
+:root:not(.dark) [role="tooltip"] .tooltip-model-badge,
+[data-theme="light"] [role="tooltip"] .tooltip-model-badge { background-color: rgba(139, 92, 246, 0.2) !important; color: #c4b5fd !important; border-color: rgba(139, 92, 246, 0.4) !important; }
+:root:not(.dark) [role="tooltip"] .tooltip-remaining,
+[data-theme="light"] [role="tooltip"] .tooltip-remaining { color: #34d399 !important; }

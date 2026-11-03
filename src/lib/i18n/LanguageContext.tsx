@@ -37,6 +37,14 @@ export function LanguageProvider({
     return translations[normalized] ? normalized : 'en';
   });
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.lang = language;
+      // Keep application layout and panel positions fixed LTR; content text handles Urdu styling
+      document.documentElement.dir = 'ltr';
+    }
+  }, [language]);
+
   // Sync to localStorage and cookie on language change
   const setLanguage = useCallback(async (newLang: string) => {
     const normalized = newLang.toLowerCase().slice(0, 2) as SupportedLanguage;

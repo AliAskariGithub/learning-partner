@@ -7,7 +7,6 @@ export * from './dialog';
 export * from './tooltip';
 export * from './dropdown';
 export * from './tabs';
-export * from './skeleton';
 export * from './toast';
 export * from './collapsible';
 export * from './DirectionalHover';

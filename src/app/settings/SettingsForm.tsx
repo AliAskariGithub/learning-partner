@@ -18,7 +18,7 @@ import { useToast } from '@/components/ui/toast';
 import { Profile } from '@/db/schema';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth/client';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/theme-provider';
 import {
   Save,
   Key,
@@ -61,17 +61,7 @@ import { COOKIE_CATEGORIES, COOKIE_REGISTRY, CookieCategory } from '@/config/coo
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English (English)' },
-  { code: 'es', label: 'Español (Spanish)' },
-  { code: 'fr', label: 'Français (French)' },
-  { code: 'de', label: 'Deutsch (German)' },
-  { code: 'ar', label: 'العربية (Arabic)' },
   { code: 'ur', label: 'اردو (Urdu)' },
-  { code: 'zh', label: '中文 (Chinese)' },
-  { code: 'ja', label: '日本語 (Japanese)' },
-  { code: 'hi', label: 'हिन्दी (Hindi)' },
-  { code: 'pt', label: 'Português (Portuguese)' },
-  { code: 'it', label: 'Italiano (Italian)' },
-  { code: 'ru', label: 'Русский (Russian)' },
 ];
 
 const EXAMPLE_INSTRUCTIONS = [
@@ -832,13 +822,13 @@ export function SettingsForm({
                 <button
                   type="button"
                   onClick={() => setTheme('dark')}
-                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer ${
                     theme === 'dark'
-                      ? 'bg-brand-950/30 border-brand-500 text-white shadow-md'
-                      : 'bg-[#262626] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
+                      ? 'bg-brand-500/15 border-brand-500 text-brand-500 dark:text-white shadow-md ring-1 ring-brand-500/30'
+                      : 'bg-white dark:bg-[#262626] border-zinc-200 dark:border-[#303030] text-zinc-600 dark:text-[#9a9a94] hover:text-zinc-900 dark:hover:text-[#f4f4f2] hover:border-zinc-300 dark:hover:border-[#404040]'
                   }`}
                 >
-                  <Moon className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-brand-400" />
+                  <Moon className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-brand-500 dark:text-brand-400" />
                   <p className="font-display font-bold text-xs">Dark Mode</p>
                   <p className="text-[10px] mt-0.5 opacity-80">Warm Claude Charcoal</p>
                 </button>
@@ -846,13 +836,13 @@ export function SettingsForm({
                 <button
                   type="button"
                   onClick={() => setTheme('light')}
-                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer ${
                     theme === 'light'
-                      ? 'bg-brand-950/30 border-brand-500 text-white shadow-md'
-                      : 'bg-[#262626] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
+                      ? 'bg-brand-500/15 border-brand-500 text-brand-600 dark:text-white shadow-md ring-1 ring-brand-500/30'
+                      : 'bg-white dark:bg-[#262626] border-zinc-200 dark:border-[#303030] text-zinc-600 dark:text-[#9a9a94] hover:text-zinc-900 dark:hover:text-[#f4f4f2] hover:border-zinc-300 dark:hover:border-[#404040]'
                   }`}
                 >
-                  <Sun className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-amber-400" />
+                  <Sun className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-amber-500 dark:text-amber-400" />
                   <p className="font-display font-bold text-xs">Light Mode</p>
                   <p className="text-[10px] mt-0.5 opacity-80">Clean Crisp Ivory</p>
                 </button>
@@ -860,13 +850,13 @@ export function SettingsForm({
                 <button
                   type="button"
                   onClick={() => setTheme('system')}
-                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all ${
+                  className={`p-3.5 sm:p-4 rounded-2xl border text-center transition-all cursor-pointer ${
                     theme === 'system'
-                      ? 'bg-brand-950/30 border-brand-500 text-white shadow-md'
-                      : 'bg-[#262626] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
+                      ? 'bg-brand-500/15 border-brand-500 text-cyan-600 dark:text-white shadow-md ring-1 ring-brand-500/30'
+                      : 'bg-white dark:bg-[#262626] border-zinc-200 dark:border-[#303030] text-zinc-600 dark:text-[#9a9a94] hover:text-zinc-900 dark:hover:text-[#f4f4f2] hover:border-zinc-300 dark:hover:border-[#404040]'
                   }`}
                 >
-                  <Laptop className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-cyan-400" />
+                  <Laptop className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-2 text-cyan-500 dark:text-cyan-400" />
                   <p className="font-display font-bold text-xs">System Match</p>
                   <p className="text-[10px] mt-0.5 opacity-80">Sync with OS Theme</p>
                 </button>

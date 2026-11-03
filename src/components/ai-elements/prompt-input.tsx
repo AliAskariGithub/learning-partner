@@ -9,7 +9,7 @@ export function PromptInput({ className, children, ...props }: PromptInputProps)
   return (
     <div
       className={cn(
-        'max-w-3xl w-full min-w-0 mx-auto rounded-3xl bg-[#262626] border border-[#303030] shadow-2xl p-2.5 sm:p-3.5 focus-within:border-brand-500/60 focus-within:ring-1 focus-within:ring-brand-500/30 transition-all',
+        'max-w-3xl w-full min-w-0 mx-auto rounded-3xl bg-white dark:bg-[#262626] border border-zinc-200 dark:border-[#303030] shadow-xl p-2.5 sm:p-3.5 focus-within:border-brand-500/60 focus-within:ring-1 focus-within:ring-brand-500/30 transition-all',
         className
       )}
       {...props}
@@ -31,7 +31,7 @@ export function PromptInputTextarea({
     <textarea
       rows={rows}
       className={cn(
-        'w-full bg-transparent border-0 text-sm text-[#f4f4f2] placeholder-[#9a9a94] resize-none focus:outline-none px-2 pt-1 font-sans leading-relaxed',
+        'w-full bg-transparent border-0 text-sm text-zinc-900 placeholder:text-zinc-400 dark:text-[#f4f4f2] dark:placeholder-[#9a9a94] resize-none focus:outline-none px-2 pt-1 font-sans leading-relaxed',
         className
       )}
       {...props}
@@ -45,7 +45,7 @@ export function PromptInputTools({ className, children, ...props }: PromptInputT
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-1.5 sm:gap-2 pt-2 sm:pt-2.5 border-t border-[#303030] px-0.5 sm:px-1 min-w-0',
+        'flex items-center justify-between gap-1.5 sm:gap-2 pt-2 sm:pt-2.5 border-t border-zinc-200 dark:border-[#303030] px-0.5 sm:px-1 min-w-0',
         className
       )}
       {...props}

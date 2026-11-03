@@ -13,7 +13,10 @@ import {
   List,
   Check,
   X,
+  FileText,
+  FileCode,
 } from 'lucide-react';
+import { exportToPdf, exportToMarkdown, printFormattedDocument } from '@/lib/export/export-helper';
 
 export function StudyGuideViewer({
   title,
@@ -60,27 +63,34 @@ export function StudyGuideViewer({
     }
   };
 
+  const handleDownloadPdf = () => {
+    try {
+      exportToPdf({
+        filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-study-guide.pdf`,
+        title,
+        content,
+        metadata: { type: 'STUDY GUIDE' },
+      });
+      toast({ title: 'Downloaded PDF', description: 'Study Guide PDF saved to your device.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not download PDF.', variant: 'error' });
+    }
+  };
+
   const handleDownloadMarkdown = () => {
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-study-guide.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: 'Markdown file saved.', variant: 'success' });
+    try {
+      exportToMarkdown(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-study-guide.md`, content);
+      toast({ title: 'Downloaded Markdown', description: 'Markdown file saved.', variant: 'success' });
+    } catch (err: any) {
+      toast({ title: 'Download Failed', description: err.message || 'Could not save Markdown.', variant: 'error' });
+    }
   };
 
-  const handlePrintPdf = () => {
-    window.print();
-  };
-
-  const handleScrollToHeading = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const handlePrint = () => {
+    try {
+      printFormattedDocument(title, content, { type: 'Structured Curriculum Study Guide' });
+    } catch (err: any) {
+      toast({ title: 'Print Failed', description: err.message || 'Could not open print preview.', variant: 'error' });
     }
   };
 
@@ -98,13 +108,13 @@ export function StudyGuideViewer({
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {onListen && (
             <Button
               variant="secondary"
               size="sm"
               onClick={() => onListen(content)}
-              className="text-xs h-8 px-2.5 text-brand-300 border-brand-500/30 hover:bg-brand-950/20"
+              className="text-xs h-8 px-2.5 text-brand-300 border-brand-500/30 hover:bg-brand-950/20 mr-1"
             >
               <Headphones className="w-3.5 h-3.5 mr-1.5" />
               Listen
@@ -122,19 +132,31 @@ export function StudyGuideViewer({
           </Button>
 
           <Button
-            variant="ghost"
+            variant="secondary"
+            size="sm"
+            onClick={handleDownloadPdf}
+            className="text-xs h-8 px-2.5 text-rose-300 border-rose-500/30 hover:bg-rose-950/30 flex items-center gap-1.5 font-display font-medium"
+            title="Download PDF"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">PDF</span>
+          </Button>
+
+          <Button
+            variant="secondary"
             size="sm"
             onClick={handleDownloadMarkdown}
-            className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
+            className="text-xs h-8 px-2.5 text-blue-300 border-blue-500/30 hover:bg-blue-950/30 flex items-center gap-1.5 font-display font-medium"
             title="Download Markdown"
           >
-            <Download className="w-3.5 h-3.5" />
+            <FileCode className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">.md</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            onClick={handlePrintPdf}
+            onClick={handlePrint}
             className="text-xs h-8 px-2.5 text-[#9a9a94] hover:text-[#f4f4f2]"
             title="Print or Save as PDF"
           >
@@ -145,7 +167,7 @@ export function StudyGuideViewer({
             <button
               onClick={onClose}
               className="p-1.5 rounded-xl text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] border border-transparent hover:border-[#383838] transition cursor-pointer ml-1"
-              title="Close Guide"
+              title="Close Study Guide"
             >
               <X className="w-4 h-4" />
             </button>
@@ -153,23 +175,26 @@ export function StudyGuideViewer({
         </div>
       </div>
 
-      {/* Main Body with Sidebar TOC */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sticky TOC Sidebar */}
+      {/* Main Layout: TOC sidebar on desktop + Reading Canvas */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Table of Contents Column (desktop) */}
         {toc.length > 0 && (
-          <aside className="w-64 border-r border-[#303030] bg-[#1a1a1a] p-5 overflow-y-auto hidden lg:block shrink-0">
-            <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-[#9a9a94] mb-3">
+          <aside className="w-64 border-r border-[#303030] bg-[#1a1a1a] p-4 overflow-y-auto hidden lg:block shrink-0 scrollbar-thin scrollbar-thumb-[#303030]">
+            <div className="flex items-center gap-2 mb-3 text-xs font-display font-semibold text-[#9a9a94] uppercase tracking-wider">
               <List className="w-3.5 h-3.5" />
-              Table of Contents
+              <span>Table of Contents</span>
             </div>
-            <nav className="space-y-1.5">
+            <nav className="space-y-1">
               {toc.map((item, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleScrollToHeading(item.id)}
-                  className={`text-left w-full text-xs transition-colors hover:text-brand-300 block truncate cursor-pointer ${
-                    item.level === 3 ? 'pl-3 text-[#7a7a74]' : 'font-display font-medium text-[#9a9a94]'
+                  onClick={() => {
+                    const el = document.getElementById(item.id);
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className={`w-full text-left text-xs py-1 px-2 rounded-lg transition-colors cursor-pointer truncate ${
+                    item.level === 3 ? 'pl-5 text-[#9a9a94] hover:text-[#f4f4f2]' : 'text-[#f4f4f2] font-medium hover:bg-[#262626]'
                   }`}
                 >
                   {item.text}
@@ -179,7 +204,7 @@ export function StudyGuideViewer({
           </aside>
         )}
 
-        {/* Serif Reading View */}
+        {/* Content Body */}
         <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-3xl mx-auto w-full print:p-0 print:bg-white print:text-black">
           <article className="prose prose-invert prose-brand max-w-none font-serif text-sm md:text-base leading-relaxed text-[#dcdcd8]">
             <MessageContent content={content} />

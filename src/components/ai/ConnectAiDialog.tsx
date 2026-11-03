@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Check,
   AlertCircle,
+  CheckCircle2,
   AlertTriangle,
   Lock,
   ChevronDown,
@@ -45,8 +46,8 @@ interface ConnectAiDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isOnboarding?: boolean;
-  onConnected?: () => void;
-  onKeysUpdated?: () => void;
+  onConnected?: (connection?: SafeConnection) => void;
+  onKeysUpdated?: (connection?: SafeConnection) => void;
   onModelSelected?: (modelId: string) => void;
 }
 
@@ -156,14 +157,12 @@ export function ConnectAiDialog({
         });
         setGeminiKeyInput('');
         loadConnections();
-        if (onConnected) onConnected();
-        if (onKeysUpdated) onKeysUpdated();
+        if (onConnected) onConnected(res.connection);
+        if (onKeysUpdated) onKeysUpdated(res.connection);
         if (onModelSelected) onModelSelected('gemini-3.8-flash');
 
-        // Automatically close the popup after completing an action
-        setTimeout(() => {
-          onOpenChange(false);
-        }, 500);
+        // Automatically close the dialog immediately
+        onOpenChange(false);
       }
     } catch (err: any) {
       setGeminiFeedback({ success: false, message: err.message || 'An unexpected error occurred.' });
@@ -188,16 +187,16 @@ export function ConnectAiDialog({
       if (res.healthy) {
         setGeminiFeedback({
           success: true,
-          message: '✓ Connection Test Successful: Google Gemini API key is valid and working!',
+          message: 'Connection test successful: Gemini API key is valid and working!',
         });
       } else {
         setGeminiFeedback({
           success: false,
-          message: `✗ Test Failed: ${res.error || 'Invalid Gemini API key.'}`,
+          message: `Test failed: ${res.error || 'Invalid Gemini API key.'}`,
         });
       }
     } catch (err: any) {
-      setGeminiFeedback({ success: false, message: `✗ Error testing connection: ${err.message}` });
+      setGeminiFeedback({ success: false, message: `Error testing connection: ${err.message}` });
     } finally {
       setGeminiTesting(false);
     }
@@ -218,12 +217,12 @@ export function ConnectAiDialog({
         if (res.ok) {
           setSecondaryFeedback({
             success: true,
-            message: '✓ Connection Test Successful: Local browser endpoint is reachable and responding!',
+            message: 'Connection test successful: Local browser endpoint is reachable and responding!',
           });
         } else {
           setSecondaryFeedback({
             success: false,
-            message: `✗ Test Failed: Could not reach endpoint (${(res as any).statusText || 'Connection refused'}). Ensure your local server is running with CORS enabled.`,
+            message: `Test failed: Could not reach endpoint (${(res as any).statusText || 'Connection refused'}). Ensure your local server is running with CORS enabled.`,
           });
         }
       } else {
@@ -238,19 +237,19 @@ export function ConnectAiDialog({
         if (res.healthy) {
           setSecondaryFeedback({
             success: true,
-            message: `✓ Connection Test Successful: ${provider.toUpperCase()} credentials and endpoint are verified!`,
+            message: `Connection test successful: ${provider.toUpperCase()} credentials and endpoint are verified!`,
           });
         } else {
           setSecondaryFeedback({
             success: false,
-            message: `✗ Test Failed: ${res.error || 'Verification failed. Please check your credentials.'}`,
+            message: `Test failed: ${res.error || 'Verification failed. Please check your credentials.'}`,
           });
         }
       }
     } catch (err: any) {
       setSecondaryFeedback({
         success: false,
-        message: `✗ Test Error: ${err.message || 'Network error'}`,
+        message: `Test error: ${err.message || 'Network error'}`,
       });
     } finally {
       setTestingCredentials(false);
@@ -283,14 +282,12 @@ export function ConnectAiDialog({
           });
           toast({ title: 'Connected', description: 'Browser mode endpoint ready.', variant: 'success' });
           loadConnections();
-          if (onConnected) onConnected();
-          if (onKeysUpdated) onKeysUpdated();
+          if (onConnected) onConnected(res.connection);
+          if (onKeysUpdated) onKeysUpdated(res.connection);
           if (onModelSelected) {
             onModelSelected(secondaryModelInput.trim() || 'custom-model');
           }
-          setTimeout(() => {
-            onOpenChange(false);
-          }, 500);
+          onOpenChange(false);
         } else {
           setSecondaryFeedback({ success: false, message: res.error || 'Failed to register connection.' });
         }
@@ -320,13 +317,11 @@ export function ConnectAiDialog({
           setSecondaryUrlInput('');
           setSecondaryModelInput('');
           loadConnections();
-          if (onConnected) onConnected();
-          if (onKeysUpdated) onKeysUpdated();
+          if (onConnected) onConnected(res.connection);
+          if (onKeysUpdated) onKeysUpdated(res.connection);
           if (onModelSelected) onModelSelected(chosenModel);
 
-          setTimeout(() => {
-            onOpenChange(false);
-          }, 500);
+          onOpenChange(false);
         } else {
           setSecondaryFeedback({ success: false, message: res.error || 'Failed to validate connection.' });
         }
@@ -491,18 +486,18 @@ export function ConnectAiDialog({
                 {/* Validation Feedback */}
                 {geminiFeedback && (
                   <div
-                    className={`p-2 rounded-xl text-[11px] flex items-start gap-1.5 font-sans leading-tight ${
+                    className={`p-3 rounded-xl text-xs flex items-center gap-2.5 font-sans leading-snug shadow-sm ${
                       geminiFeedback.success
-                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                        : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                        ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-100'
+                        : 'bg-rose-950/70 border border-rose-500/40 text-rose-100'
                     }`}
                   >
                     {geminiFeedback.success ? (
-                      <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : (
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     )}
-                    <span>{geminiFeedback.message}</span>
+                    <span className="flex-1 min-w-0">{geminiFeedback.message}</span>
                   </div>
                 )}
               </div>
@@ -979,18 +974,18 @@ export function ConnectAiDialog({
 
                     {secondaryFeedback && (
                       <div
-                        className={`p-2.5 rounded-xl text-xs flex items-start gap-1.5 leading-snug ${
+                        className={`p-3 rounded-xl text-xs flex items-center gap-2.5 font-sans leading-snug shadow-sm ${
                           secondaryFeedback.success
-                            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                            : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                            ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-100'
+                            : 'bg-rose-950/70 border border-rose-500/40 text-rose-100'
                         }`}
                       >
                         {secondaryFeedback.success ? (
-                          <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         ) : (
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                         )}
-                        <span>{secondaryFeedback.message}</span>
+                        <span className="flex-1 min-w-0">{secondaryFeedback.message}</span>
                       </div>
                     )}
 

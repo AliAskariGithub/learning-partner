@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -61,17 +62,7 @@ interface NotebookSidebarProps {
 
 const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', native: 'English' },
-  { code: 'es', name: 'Spanish', native: 'Español' },
-  { code: 'fr', name: 'French', native: 'Français' },
-  { code: 'de', name: 'German', native: 'Deutsch' },
-  { code: 'ar', name: 'Arabic', native: 'العربية' },
   { code: 'ur', name: 'Urdu', native: 'اردو' },
-  { code: 'zh', name: 'Chinese', native: '中文' },
-  { code: 'ja', name: 'Japanese', native: '日本語' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
-  { code: 'pt', name: 'Portuguese', native: 'Português' },
-  { code: 'it', name: 'Italian', native: 'Italiano' },
-  { code: 'ru', name: 'Russian', native: 'Русский' },
 ];
 
 export function NotebookSidebar({
@@ -434,7 +425,7 @@ export function NotebookSidebar({
                   className={
                     isChatActive
                       ? 'bg-brand-500/20 border border-brand-500/40 shadow-sm'
-                      : 'bg-[#262626] border border-[#383838]'
+                      : 'bg-surface-raised border border-border'
                   }
                 />
                 <button
@@ -453,8 +444,8 @@ export function NotebookSidebar({
                     e.stopPropagation();
                   }}
                   className={`w-full relative z-10 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-sans transition-colors text-left cursor-pointer group/chat ${isChatActive
-                      ? 'text-brand-200 font-medium'
-                      : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+                      ? 'text-brand-600 dark:text-brand-200 font-medium'
+                      : 'text-muted-foreground hover:text-foreground'
                     }`}
                   title={c.title}
                 >
@@ -497,35 +488,40 @@ export function NotebookSidebar({
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -280, opacity: 0 }}
               transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] h-full h-[100dvh] bg-surface border-r border-[#303030] flex flex-col shrink-0 select-none overflow-hidden shadow-2xl md:relative md:shadow-none md:z-30 md:translate-x-0 md:w-[280px]"
+              className="fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] h-full h-[100dvh] bg-surface border-r border-border flex flex-col shrink-0 select-none overflow-hidden shadow-2xl md:relative md:shadow-none md:z-30 md:translate-x-0 md:w-[280px]"
             >
-              {/* Top Brand Header: Matches h-14 border-b border-[#303030] across all panels */}
-              <div className="h-14 px-4 border-b border-[#303030] flex items-center justify-between shrink-0 bg-surface">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center font-display font-extrabold text-white text-xs shadow-md shadow-brand-600/30">
+              {/* Top Brand Header: Matches h-14 border-b border-border across all panels */}
+              <div className="h-14 px-4 border-b border-border flex items-center justify-between shrink-0 bg-surface">
+                <Link
+                  href="/"
+                  className="flex items-center gap-2.5 group transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg cursor-pointer"
+                  title="Learning Partner — Return to home"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-brand-600 flex items-center justify-center font-display font-extrabold text-white text-xs shadow-md shadow-brand-600/30 group-hover:scale-105 transition-transform">
                     LP
                   </div>
                   <div className="flex flex-col">
-                    <span className="font-display font-bold text-sm text-foreground tracking-tight leading-none">
+                    <span className="font-display font-bold text-sm text-foreground tracking-tight leading-none group-hover:text-brand-300 transition-colors">
                       Learning Partner
                     </span>
                     <span className="text-[10px] text-muted-foreground font-mono mt-0.5">
                       NotebookLM Open
                     </span>
                   </div>
-                </div>
+                </Link>
 
                 {/* Close Button: X on mobile, collapse icon on desktop */}
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(false)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#262626] transition-colors cursor-pointer"
-                  title="Close sidebar"
-                  aria-label="Close sidebar"
-                >
-                  <PanelLeftClose className="w-4 h-4 hidden md:block" />
-                  <X className="w-5 h-5 md:hidden text-[#9a9a94] hover:text-[#f4f4f2]" />
-                </button>
+                <Tooltip content="Collapse sidebar" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-raised transition-colors cursor-pointer"
+                    aria-label="Collapse sidebar"
+                  >
+                    <PanelLeftClose className="w-4 h-4 hidden md:block" />
+                    <X className="w-5 h-5 md:hidden text-muted-foreground hover:text-foreground" />
+                  </button>
+                </Tooltip>
               </div>
 
               {/* Sidebar Scrollable Body */}
@@ -590,7 +586,7 @@ export function NotebookSidebar({
                                 className={
                                   isActive
                                     ? 'bg-brand-500/15 border border-brand-500/40'
-                                    : 'bg-[#262626] border border-[#383838]'
+                                    : 'bg-surface-raised border border-border'
                                 }
                               />
                               <div
@@ -651,7 +647,7 @@ export function NotebookSidebar({
                                 className={
                                   isActive
                                     ? 'bg-brand-500/15 border border-brand-500/40'
-                                    : 'bg-[#262626] border border-[#383838]'
+                                    : 'bg-surface-raised border border-border'
                                 }
                               />
                               <div
@@ -696,7 +692,7 @@ export function NotebookSidebar({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ duration: 0.15, ease: 'easeOut' }}
-                      className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-border bg-[#262626] shadow-2xl p-1.5 text-xs z-50 overflow-hidden"
+                      className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-border bg-surface text-foreground shadow-2xl p-1.5 text-xs z-50 overflow-hidden"
                     >
                       {/* User Email Header with Avatar - Clickable to open Profile */}
                       <div
@@ -705,7 +701,7 @@ export function NotebookSidebar({
                           if (onOpenSettings) onOpenSettings();
                           else router.push('/settings');
                         }}
-                        className="flex items-center gap-2.5 px-3 py-2 border-b border-border/60 mb-1 select-none font-sans cursor-pointer hover:bg-[#202020] rounded-xl transition group"
+                        className="flex items-center gap-2.5 px-3 py-2 border-b border-border/60 mb-1 select-none font-sans cursor-pointer hover:bg-surface-raised rounded-xl transition group"
                         title="Open User Profile"
                       >
                         {userAvatarUrl ? (
@@ -715,12 +711,12 @@ export function NotebookSidebar({
                             className="w-7 h-7 rounded-full object-cover border border-purple-500/40 shrink-0 shadow-sm"
                           />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-surface-raised border border-border text-purple-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm">
+                          <div className="w-7 h-7 rounded-full bg-surface-raised border border-border text-purple-600 dark:text-purple-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm">
                             {userDisplayName.charAt(0).toUpperCase()}
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-display font-semibold text-foreground truncate group-hover:text-purple-300 transition-colors">
+                          <p className="text-xs font-display font-semibold text-foreground truncate group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors">
                             {userDisplayName}
                           </p>
                           <p className="text-[10px] text-muted-foreground truncate font-mono">
@@ -737,7 +733,7 @@ export function NotebookSidebar({
                             hoverId={hoveredUserMenuItem}
                             itemId="settings"
                             layoutId="user-popover-item"
-                            className="bg-[#191919] border border-[#383838]"
+                            className="bg-surface-raised border border-border"
                           />
                           <button
                             onClick={() => {
@@ -748,7 +744,7 @@ export function NotebookSidebar({
                             className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
                           >
                             <div className="flex items-center gap-2.5">
-                              <UserIcon className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                              <UserIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors" />
                               <span className="font-display font-medium">User Profile &amp; Settings</span>
                             </div>
                             <span className="text-[10px] text-muted-foreground font-mono">Profile</span>
@@ -762,7 +758,7 @@ export function NotebookSidebar({
                             hoverId={hoveredUserMenuItem}
                             itemId="language"
                             layoutId="user-popover-item"
-                            className="bg-[#191919] border border-[#383838]"
+                            className="bg-surface-raised border border-border"
                           />
                           <button
                             onClick={() => {
@@ -775,7 +771,7 @@ export function NotebookSidebar({
                               <Globe className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                               <span className="font-display font-medium">{t('language')}</span>
                             </div>
-                            <span className="text-[10px] text-brand-400 font-medium">
+                            <span className="text-[10px] text-brand-600 dark:text-brand-400 font-medium">
                               {activeLangObj?.native || 'English'}
                             </span>
                           </button>
@@ -788,7 +784,7 @@ export function NotebookSidebar({
                             hoverId={hoveredUserMenuItem}
                             itemId="api-keys"
                             layoutId="user-popover-item"
-                            className="bg-[#191919] border border-[#383838]"
+                            className="bg-surface-raised border border-border"
                           />
                           <a
                             href="https://aistudio.google.com/app/apikey"
@@ -798,10 +794,10 @@ export function NotebookSidebar({
                             className="relative z-10 w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-foreground transition-colors cursor-pointer group"
                           >
                             <div className="flex items-center gap-2.5">
-                              <Key className="w-4 h-4 text-brand-400 group-hover:text-brand-300 transition-colors" />
+                              <Key className="w-4 h-4 text-brand-600 dark:text-brand-400 group-hover:text-brand-700 dark:group-hover:text-brand-300 transition-colors" />
                               <span className="font-display font-medium">{t('get_api_keys')}</span>
                             </div>
-                            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-brand-400 transition-colors" />
+                            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors" />
                           </a>
                         </div>
 
@@ -812,7 +808,7 @@ export function NotebookSidebar({
                             hoverId={hoveredUserMenuItem}
                             itemId="help"
                             layoutId="user-popover-item"
-                            className="bg-[#191919] border border-[#383838]"
+                            className="bg-surface-raised border border-border"
                           />
                           <button
                             onClick={() => {
@@ -835,7 +831,7 @@ export function NotebookSidebar({
                             hoverId={hoveredUserMenuItem}
                             itemId="about"
                             layoutId="user-popover-item"
-                            className="bg-[#191919] border border-[#383838]"
+                            className="bg-surface-raised border border-border"
                           />
                           <button
                             onClick={() => {
@@ -862,13 +858,13 @@ export function NotebookSidebar({
                             hoverId={hoveredUserMenuItem}
                             itemId="logout"
                             layoutId="user-popover-item"
-                            className="bg-red-950/40 border border-red-500/30"
+                            className="bg-red-500/10 border border-red-500/30"
                           />
                           <button
                             onClick={handleSignOut}
-                            className="relative z-10 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[#f87171] transition-colors cursor-pointer group"
+                            className="relative z-10 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-red-600 dark:text-[#f87171] transition-colors cursor-pointer group"
                           >
-                            <LogOut className="w-4 h-4 text-[#f87171] group-hover:translate-x-0.5 transition-transform" />
+                            <LogOut className="w-4 h-4 text-red-600 dark:text-[#f87171] group-hover:translate-x-0.5 transition-transform" />
                             <span className="font-display font-medium">{t('logout')}</span>
                           </button>
                         </div>

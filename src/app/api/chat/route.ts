@@ -457,7 +457,7 @@ export async function POST(req: NextRequest) {
             let base64Url = img.url;
             if (img.storageKey && !img.url.startsWith('http')) {
               try {
-                const localPath = path.join(process.cwd(), '.storage', 'uploads', img.storageKey);
+                const localPath = path.resolve(process.cwd(), '.storage', 'uploads', img.storageKey);
                 const buf = await fs.readFile(localPath);
                 base64Url = `data:${img.mimeType || 'image/jpeg'};base64,${buf.toString('base64')}`;
               } catch (e) {
@@ -519,12 +519,12 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (initialErr: any) {
-          console.warn('Initial model stream failed, attempting fallback to gemini-3.5-flash:', initialErr);
+          console.warn('Initial model stream failed, attempting fallback to gemini-1.5-flash:', initialErr);
           if (modelDef.provider === 'google' || creds.provider === 'gemini') {
             const fallbackModel = createProviderModel({
               provider: 'google',
               apiKey: creds.apiKey,
-              modelId: 'gemini-3.5-flash',
+              modelId: 'gemini-1.5-flash',
               customBaseUrl: creds.customBaseUrl,
             });
             const fallbackStream = streamText({

@@ -326,7 +326,7 @@ export function SettingsForm({
     <form onSubmit={handleSaveSettings} className="space-y-6">
       {/* 5 Distinct Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex overflow-x-auto no-scrollbar scrollbar-none w-full sm:grid sm:grid-cols-5 bg-[#191919] border border-[#303030] p-1.5 rounded-2xl mb-6 h-auto sm:h-12 gap-1.5 justify-start sm:justify-center">
+        <TabsList className="flex overflow-x-auto no-scrollbar scrollbar-none w-full sm:grid sm:grid-cols-5 bg-zinc-100 border border-zinc-200 dark:bg-[#191919] dark:border-[#303030] p-1.5 rounded-2xl mb-6 h-auto sm:h-12 gap-1.5 justify-start sm:justify-center">
           <TabsTrigger value="profile" className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-0 text-xs rounded-xl whitespace-nowrap shrink-0 sm:shrink">
             <UserIcon className="w-3.5 h-3.5" />
             <span>Profile</span>
@@ -445,7 +445,7 @@ export function SettingsForm({
                   <Input
                     defaultValue={userEmail || ''}
                     disabled
-                    className="opacity-70 bg-[#191919] cursor-not-allowed font-mono text-xs"
+                    className="opacity-70 bg-zinc-100 dark:bg-[#191919] cursor-not-allowed font-mono text-xs"
                   />
                 </div>
               </div>
@@ -458,10 +458,10 @@ export function SettingsForm({
                 <select
                   value={preferredLanguage}
                   onChange={(e) => setPreferredLanguage(e.target.value)}
-                  className="w-full bg-[#191919] border border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-[#f4f4f2] focus:outline-none focus:border-brand-500 cursor-pointer"
+                  className="w-full bg-white dark:bg-[#191919] border border-zinc-200 dark:border-[#303030] rounded-xl px-3 py-2 text-xs font-display text-zinc-900 dark:text-[#f4f4f2] focus:outline-none focus:border-brand-500 cursor-pointer"
                 >
                   {SUPPORTED_LANGUAGES.map((lang) => (
-                    <option key={lang.code} value={lang.code} className="bg-[#191919] text-[#f4f4f2]">
+                    <option key={lang.code} value={lang.code} className="bg-white dark:bg-[#191919] text-zinc-900 dark:text-[#f4f4f2]">
                       {lang.label}
                     </option>
                   ))}
@@ -573,8 +573,8 @@ export function SettingsForm({
                     onClick={() => handleVoicePrefChange('google')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       voiceProviderPreference === 'google'
-                        ? 'bg-brand-950/30 border-brand-500 text-white'
-                        : 'bg-[#191919] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
+                        ? 'bg-brand-500/15 border-brand-500 text-brand-600 dark:text-white'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-950 dark:bg-[#191919] dark:border-[#303030] dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
                     }`}
                   >
                     <p className="font-display font-bold text-xs">Google Gemini TTS</p>
@@ -585,8 +585,8 @@ export function SettingsForm({
                     onClick={() => handleVoicePrefChange('openai')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       voiceProviderPreference === 'openai'
-                        ? 'bg-brand-950/30 border-brand-500 text-white'
-                        : 'bg-[#191919] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
+                        ? 'bg-brand-500/15 border-brand-500 text-brand-600 dark:text-white'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-950 dark:bg-[#191919] dark:border-[#303030] dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
                     }`}
                   >
                     <p className="font-display font-bold text-xs">OpenAI TTS</p>
@@ -597,8 +597,8 @@ export function SettingsForm({
                     onClick={() => handleVoicePrefChange('web_speech')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       voiceProviderPreference === 'web_speech'
-                        ? 'bg-brand-950/30 border-brand-500 text-white'
-                        : 'bg-[#191919] border-[#303030] text-[#9a9a94] hover:text-[#f4f4f2]'
+                        ? 'bg-brand-500/15 border-brand-500 text-brand-600 dark:text-white'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-950 dark:bg-[#191919] dark:border-[#303030] dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
                     }`}
                   >
                     <p className="font-display font-bold text-xs">Basic Voice (Free)</p>
@@ -613,7 +613,7 @@ export function SettingsForm({
                   Active Connections ({connectionsList.length})
                 </p>
                 {connectionsList.length === 0 ? (
-                  <div className="p-8 text-center rounded-2xl bg-[#191919] border border-dashed border-[#303030] space-y-2">
+                  <div className="p-8 text-center rounded-2xl bg-zinc-50 border border-dashed border-zinc-200 dark:bg-[#191919] dark:border-[#303030] space-y-2">
                     <Bot className="w-8 h-8 text-[#9a9a94] mx-auto opacity-40" />
                     <p className="text-xs font-display font-bold text-[#f4f4f2]">No AI connections configured yet</p>
                     <p className="text-[11px] text-[#9a9a94] font-serif max-w-sm mx-auto">
@@ -628,7 +628,7 @@ export function SettingsForm({
                       return (
                         <div
                           key={c.id}
-                          className="p-4 rounded-2xl bg-[#191919] border border-[#303030] space-y-3"
+                          className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 dark:bg-[#191919] dark:border-[#303030] space-y-3"
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="space-y-1">

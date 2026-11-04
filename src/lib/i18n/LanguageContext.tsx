@@ -120,7 +120,7 @@ export function useLanguage() {
     // Graceful fallback for components used outside LanguageProvider
     return {
       language: 'en' as SupportedLanguage,
-      setLanguage: async () => {},
+      setLanguage: async () => { },
       t: (key: string, ...args: (string | number)[]) => {
         let text = translations.en[key] || key;
         args.forEach((arg, index) => {

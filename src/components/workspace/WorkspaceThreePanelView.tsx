@@ -1498,12 +1498,12 @@ export function WorkspaceThreePanelView({
                       'Summarize the key findings and core takeaways across all uploaded sources.'
                     )
                   }
-                  className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#262626] border border-zinc-200 dark:border-[#303030] hover:border-brand-500/50 hover:bg-zinc-50 dark:hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
                 >
-                  <p className="text-xs font-display font-semibold text-[#f4f4f2] group-hover:text-brand-300 transition-colors">
+                  <p className="text-xs font-display font-semibold text-zinc-900 dark:text-[#f4f4f2] group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">
                     “Summarize key findings”
                   </p>
-                  <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                  <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                     Extract core takeaways with citations
                   </p>
                 </div>
@@ -1514,12 +1514,12 @@ export function WorkspaceThreePanelView({
                       'Explain the most difficult concepts in these sources in plain language.'
                     )
                   }
-                  className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#262626] border border-zinc-200 dark:border-[#303030] hover:border-brand-500/50 hover:bg-zinc-50 dark:hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
                 >
-                  <p className="text-xs font-display font-semibold text-[#f4f4f2] group-hover:text-brand-300 transition-colors">
+                  <p className="text-xs font-display font-semibold text-zinc-900 dark:text-[#f4f4f2] group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">
                     “Explain difficult concepts”
                   </p>
-                  <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                  <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                     Step-by-step breakdown & analogies
                   </p>
                 </div>
@@ -1531,12 +1531,12 @@ export function WorkspaceThreePanelView({
                       'Generate 5 quiz questions based strictly on the provided materials.'
                     );
                   }}
-                  className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#262626] border border-zinc-200 dark:border-[#303030] hover:border-brand-500/50 hover:bg-zinc-50 dark:hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
                 >
-                  <p className="text-xs font-display font-semibold text-[#f4f4f2] group-hover:text-brand-300 transition-colors">
+                  <p className="text-xs font-display font-semibold text-zinc-900 dark:text-[#f4f4f2] group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">
                     “Generate 5 test questions”
                   </p>
-                  <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                  <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                     Test your memory and comprehension
                   </p>
                 </div>
@@ -1547,12 +1547,12 @@ export function WorkspaceThreePanelView({
                       'Compare and contrast the main viewpoints or arguments in these documents.'
                     )
                   }
-                  className="p-3.5 rounded-2xl bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
+                  className="p-3.5 rounded-2xl bg-white dark:bg-[#262626] border border-zinc-200 dark:border-[#303030] hover:border-brand-500/50 hover:bg-zinc-50 dark:hover:bg-[#2c2c2c] cursor-pointer transition-all shadow-sm group"
                 >
-                  <p className="text-xs font-display font-semibold text-[#f4f4f2] group-hover:text-brand-300 transition-colors">
+                  <p className="text-xs font-display font-semibold text-zinc-900 dark:text-[#f4f4f2] group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">
                     “Compare viewpoints”
                   </p>
-                  <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                  <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                     Cross-source analytical synthesis
                   </p>
                 </div>
@@ -1578,8 +1578,8 @@ export function WorkspaceThreePanelView({
                         key={conv.id}
                         className={`group flex items-center justify-between p-2 rounded-xl transition ${
                           isChatActive
-                            ? 'bg-brand-500/15 border border-brand-500/40 text-[#f4f4f2]'
-                            : 'bg-[#262626] border border-[#303030] hover:border-brand-500/50 hover:bg-[#2a2a2a]'
+                            ? 'bg-brand-500/15 border border-brand-500/40 text-brand-700 dark:text-[#f4f4f2]'
+                            : 'bg-white border border-zinc-200 hover:border-brand-500/50 hover:bg-zinc-50 dark:bg-[#262626] dark:border-[#303030] dark:hover:bg-[#2a2a2a]'
                         }`}
                       >
                         <button
@@ -1592,11 +1592,11 @@ export function WorkspaceThreePanelView({
                           className="flex items-center gap-2 min-w-0 flex-1 text-left bg-transparent border-0 outline-none cursor-pointer py-0.5"
                           title={`Switch to "${conv.title}"`}
                         >
-                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isChatActive ? 'text-brand-400' : 'text-brand-400/80'}`} />
-                          <span className={`text-xs font-display font-medium truncate ${isChatActive ? 'text-brand-200 font-semibold' : 'text-[#f4f4f2]'}`}>
+                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isChatActive ? 'text-brand-500 dark:text-brand-400' : 'text-zinc-400 dark:text-brand-400/80'}`} />
+                          <span className={`text-xs font-display font-medium truncate ${isChatActive ? 'text-brand-700 dark:text-brand-200 font-semibold' : 'text-zinc-800 dark:text-[#f4f4f2]'}`}>
                             {conv.title}
                           </span>
-                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-[#191919] text-[#9a9a94] font-mono border border-[#303030] shrink-0">
+                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-[#191919] dark:text-[#9a9a94] font-mono dark:border-[#303030] shrink-0">
                             {conv.mode}
                           </span>
                           {isChatActive && (
@@ -1829,8 +1829,18 @@ export function WorkspaceThreePanelView({
                           {(() => {
                             const cits = m.citations || [];
                             if (cits.length === 0) return null;
+                            const content = (m.content || '').toLowerCase();
+                            const isSourceUsed = !(
+                              content.includes('could not find information') ||
+                              content.includes('not from your sources') ||
+                              content.includes('no information about that in your sources') ||
+                              content.includes('not in your sources') ||
+                              (content.startsWith('hello!') && !content.includes('[') && !content.includes('{'))
+                            );
+                            if (!isSourceUsed) return null;
+
                             const uniqueSources = Array.from(
-                              new Set(cits.map((c) => c.sourceId || c.sourceTitle))
+                              new Set(cits.map((c) => (c.sourceTitle || '').trim() || c.sourceId).filter(Boolean))
                             );
                             const count = uniqueSources.length;
                             if (count === 0) return null;
@@ -1993,8 +2003,18 @@ export function WorkspaceThreePanelView({
                   {(() => {
                     const cits = streamingCitations || [];
                     if (cits.length === 0) return null;
+                    const content = (streamingContent || '').toLowerCase();
+                    const isSourceUsed = !(
+                      content.includes('could not find information') ||
+                      content.includes('not from your sources') ||
+                      content.includes('no information about that in your sources') ||
+                      content.includes('not in your sources') ||
+                      (content.startsWith('hello!') && !content.includes('[') && !content.includes('{'))
+                    );
+                    if (!isSourceUsed) return null;
+
                     const uniqueSources = Array.from(
-                      new Set(cits.map((c) => c.sourceId || c.sourceTitle))
+                      new Set(cits.map((c) => (c.sourceTitle || '').trim() || c.sourceId).filter(Boolean))
                     );
                     const count = uniqueSources.length;
                     if (count === 0) return null;

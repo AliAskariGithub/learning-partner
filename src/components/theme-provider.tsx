@@ -69,6 +69,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
     localStorage.setItem('lp_theme', newTheme);
+    try {
+      document.cookie = `lp_theme=${newTheme};path=/;max-age=31536000;SameSite=Lax`;
+    } catch (e) {}
     applyTheme(newTheme);
   };
 

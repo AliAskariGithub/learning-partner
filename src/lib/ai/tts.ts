@@ -200,12 +200,10 @@ async function synthesizeGeminiTurn(
 ): Promise<Buffer> {
   const isUrdu = language?.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(text);
 
-  // Gemini 3.8 / 3.1 TTS models in priority order
+  // Real Gemini TTS models supporting audio modality
   const ttsModels = [
-    'gemini-3.8-flash-tts',
-    'gemini-3.8-flash-lite-tts',
-    'gemini-3.1-flash-tts-preview',
     'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
   ];
 
   for (const model of ttsModels) {
@@ -313,10 +311,10 @@ export async function synthesizeVoiceScript(
     const assignedVoice = isFemaleLead
       ? voice1
       : isJordan
-      ? voice2
-      : i % 2 === 0
-      ? voice1
-      : voice2;
+        ? voice2
+        : i % 2 === 0
+          ? voice1
+          : voice2;
 
     totalWords += turn.text.split(/\s+/).length;
 

@@ -29,8 +29,16 @@ export function createProviderModel(params: CreateModelParams): LanguageModel {
     }
     case 'google': {
       const google = createGoogleGenerativeAI({ apiKey });
-      let safeModelId = modelId;
-      if (!safeModelId || safeModelId === 'gemini-2.5-flash' || safeModelId.includes('2.5-flash')) {
+      let safeModelId = 'gemini-2.0-flash';
+      const m = (modelId || '').toLowerCase().trim();
+      if (m === 'gemini-1.5-pro' || m.includes('1.5-pro')) {
+        safeModelId = 'gemini-1.5-pro';
+      } else if (m === 'gemini-1.5-flash' || m.includes('1.5-flash')) {
+        safeModelId = 'gemini-1.5-flash';
+      } else if (m.includes('lite') || m.includes('flash-lite')) {
+        safeModelId = 'gemini-2.0-flash-lite';
+      } else {
+        // Map all Gemini 3.*, 2.5.*, or catalog model IDs to Google's flagship production model
         safeModelId = 'gemini-2.0-flash';
       }
       return google(safeModelId);

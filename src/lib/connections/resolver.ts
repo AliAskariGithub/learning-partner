@@ -1,6 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { connections, Connection } from '@/db/schema';
+import { connections, Connection, apiKeys } from '@/db/schema';
 import { ProviderId, ResolvedCredentials } from './types';
 import { getConnectionProvider } from './registry';
 import { decryptApiKey, encryptApiKey } from '@/lib/crypto';
@@ -90,6 +90,42 @@ export async function getCredentialsForRequest(
 
       if (geminiConn) {
         conn = geminiConn;
+      }
+    }
+  }
+
+  // Check apiKeys table for any active key registered by the user
+  if (!conn) {
+    const legacyProvider = (targetProvider === 'gemini' ? 'google' : targetProvider) as any;
+    const [apiKeyRow] = await db
+      .select()
+      .from(apiKeys)
+      .where(
+        and(
+          eq(apiKeys.userId, userId),
+          eq(apiKeys.provider as any, legacyProvider),
+          eq(apiKeys.status, 'active')
+        )
+      )
+      .orderBy(desc(apiKeys.createdAt))
+      .limit(1);
+
+    if (apiKeyRow) {
+      try {
+        const plainKey = decryptApiKey(apiKeyRow.encryptedKey);
+        if (plainKey) {
+          return {
+            connectionId: apiKeyRow.id,
+            provider: (targetProvider === 'gemini' ? 'gemini' : apiKeyRow.provider) as ProviderId,
+            apiKey: plainKey,
+            customBaseUrl: apiKeyRow.customBaseUrl,
+            callMode: 'server',
+            isPlanFunded: false,
+            modelCapabilityOverrides: {},
+          };
+        }
+      } catch (decErr) {
+        console.warn('Could not decrypt key from apiKeys table:', decErr);
       }
     }
   }

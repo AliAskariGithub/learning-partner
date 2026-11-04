@@ -120,16 +120,15 @@ async function generateTextWithFallback(params: {
   // Start strictly with the user-selected model
   let primaryModel = modelId;
   if (provider === 'google' && (!primaryModel || primaryModel.includes('2.5-flash'))) {
-    primaryModel = 'gemini-3.8-flash';
+    primaryModel = 'gemini-2.0-flash';
   }
   const candidateModels: string[] = [primaryModel];
   if (provider === 'google') {
     const googleFallbacks = [
-      'gemini-3.8-flash',
-      'gemini-3.7-flash',
-      'gemini-3.5-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-flash-lite-latest',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-pro',
     ];
     for (const fb of googleFallbacks) {
       if (!candidateModels.includes(fb)) candidateModels.push(fb);

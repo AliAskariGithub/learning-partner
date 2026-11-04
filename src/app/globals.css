@@ -105,12 +105,12 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
-    font-family: var(--font-serif), Georgia, Cambria, serif;
+    font-family: var(--font-serif), 'Noto Nastaliq Urdu', Georgia, Cambria, serif;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  h1, h2, h3, h4, h5, h6, button, nav, tab, [data-font-display] {
-    font-family: var(--font-display), system-ui, -apple-system, sans-serif;
+  h1, h2, h3, h4, h5, h6, button, nav, tab, input, textarea, select, [data-font-display] {
+    font-family: var(--font-display), 'Noto Nastaliq Urdu', system-ui, -apple-system, sans-serif;
   }
 }
 

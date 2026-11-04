@@ -21,7 +21,7 @@ export interface LanguageInfo {
 
 export const SUPPORTED_LANGUAGES_LIST: LanguageInfo[] = [
   { code: 'en', name: 'English', native: 'English', dir: 'ltr' },
-  { code: 'ur', name: 'Urdu', native: 'اردو', dir: 'rtl' },
+  { code: 'ur', name: 'Urdu', native: 'اردو', dir: 'ltr' },
 ];
 
 export const translations: Record<string, Record<string, string>> = {

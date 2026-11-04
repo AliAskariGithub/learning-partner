@@ -67,7 +67,7 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
   private uploadDir: string;
 
   constructor() {
-    this.uploadDir = path.join(process.cwd(), '.storage', 'uploads');
+    this.uploadDir = path.resolve(process.cwd(), '.storage', 'uploads');
   }
 
   private async ensureDir() {
@@ -81,7 +81,8 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
   async upload(file: Buffer | Uint8Array, filename: string, mimeType: string): Promise<StorageUploadResult> {
     await this.ensureDir();
     const sanitized = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const filePath = path.join(this.uploadDir, sanitized);
+    const filePath = path.resolve(this.uploadDir, sanitized);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
 
     await fs.writeFile(filePath, file);
 
@@ -99,7 +100,7 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
 
   async delete(storageKey: string): Promise<void> {
     try {
-      const filePath = path.join(this.uploadDir, storageKey);
+      const filePath = path.resolve(this.uploadDir, storageKey);
       await fs.unlink(filePath);
     } catch {
       // File may already be removed

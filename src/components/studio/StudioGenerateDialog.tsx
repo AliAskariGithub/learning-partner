@@ -73,8 +73,8 @@ export function StudioGenerateDialog({
     type === 'voice'
       ? 'audioOutput'
       : type === 'quiz' || type === 'flashcards' || type === 'mind_map'
-      ? 'structuredOutput'
-      : 'text';
+        ? 'structuredOutput'
+        : 'text';
   const isModelSupported = Boolean(selectedModelDef.capabilities[requiredCapability]);
 
   // Source selection state (default to all enabled ready sources)
@@ -139,14 +139,13 @@ export function StudioGenerateDialog({
         ? 'السلام علیکم! میں طارق ہوں، آپ کے آڈیو اوورویو کا پہلا میزبان۔'
         : 'وعلیکم السلام! میں زینب ہوں، اور ہم مل کر آپ کے مواد کا تفصیلی جائزہ لیں گے۔'
       : hostNumber === 1
-      ? `Hello! I'm Alex speaking with the ${voiceName} voice for your audio overview.`
-      : `Hi there! I'm Jordan speaking with the ${voiceName} voice, ready to explore your sources.`;
+        ? `Hello! I'm Alex speaking with the ${voiceName} voice for your audio overview.`
+        : `Hi there! I'm Jordan speaking with the ${voiceName} voice, ready to explore your sources.`;
 
     try {
       // 1. High-fidelity audio route (provides authentic native Urdu & English audio on any OS)
-      const audioUrl = `/api/studio/tts-preview?text=${encodeURIComponent(sampleText)}&lang=${
-        isUrdu ? 'ur' : 'en'
-      }&host=${hostNumber}&voice=${encodeURIComponent(voiceName)}`;
+      const audioUrl = `/api/studio/tts-preview?text=${encodeURIComponent(sampleText)}&lang=${isUrdu ? 'ur' : 'en'
+        }&host=${hostNumber}&voice=${encodeURIComponent(voiceName)}`;
       const audio = new Audio(audioUrl);
       audioPreviewRef.current = audio;
 
@@ -641,9 +640,8 @@ export function StudioGenerateDialog({
                           className="text-[10px] text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer transition-colors"
                         >
                           <Volume2
-                            className={`w-3 h-3 ${
-                              playingPreview === `${speaker1Voice}-1` ? 'text-brand-500 animate-pulse' : ''
-                            }`}
+                            className={`w-3 h-3 ${playingPreview === `${speaker1Voice}-1` ? 'text-brand-500 animate-pulse' : ''
+                              }`}
                           />
                           {playingPreview === `${speaker1Voice}-1` ? 'Playing...' : 'Preview'}
                         </button>
@@ -673,9 +671,8 @@ export function StudioGenerateDialog({
                             className="text-[10px] text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer transition-colors"
                           >
                             <Volume2
-                              className={`w-3 h-3 ${
-                                playingPreview === `${speaker2Voice}-2` ? 'text-brand-500 animate-pulse' : ''
-                              }`}
+                              className={`w-3 h-3 ${playingPreview === `${speaker2Voice}-2` ? 'text-brand-500 animate-pulse' : ''
+                                }`}
                             />
                             {playingPreview === `${speaker2Voice}-2` ? 'Playing...' : 'Preview'}
                           </button>

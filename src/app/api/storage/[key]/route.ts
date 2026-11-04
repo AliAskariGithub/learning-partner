@@ -18,8 +18,8 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid storage key.' }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), '.storage', 'uploads');
-    const filePath = path.join(uploadDir, key);
+    const uploadDir = path.resolve(process.cwd(), '.storage', 'uploads');
+    const filePath = path.resolve(uploadDir, key);
 
     try {
       const fileBuffer = await fs.readFile(filePath);

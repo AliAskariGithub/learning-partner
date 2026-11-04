@@ -153,6 +153,28 @@ export async function addApiKey(params: {
     })
     .returning();
 
+  // 4. Also sync into connections table so unified resolver has immediate access
+  try {
+    const connProvider = params.provider === 'google' ? 'gemini' : params.provider;
+    await db
+      .insert(connections)
+      .values({
+        userId: session.user.id,
+        provider: connProvider as any,
+        method: 'api_key',
+        callMode: 'server',
+        baseUrl: params.customBaseUrl?.trim() || null,
+        status: 'connected',
+        encryptedAccessToken: encrypted,
+        accountLabel: label,
+        isDefault: connProvider === 'gemini',
+      })
+      .onConflictDoNothing?.()
+      .catch(() => {});
+  } catch (syncErr) {
+    console.warn('Could not sync key to connections table:', syncErr);
+  }
+
   revalidatePath('/settings');
   revalidatePath('/app');
 

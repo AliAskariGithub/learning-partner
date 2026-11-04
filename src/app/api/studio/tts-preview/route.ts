@@ -30,7 +30,12 @@ export async function GET(req: NextRequest) {
     if (session?.user?.id) {
       const creds = await getCredentialsForRequest(session.user.id, 'gemini-3.8-flash');
       if (creds?.apiKey) {
-        const ttsModels = ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-3.7-flash'];
+        const ttsModels = [
+          'gemini-3.8-flash-tts',
+          'gemini-3.8-flash-lite-tts',
+          'gemini-3.8-flash',
+          'gemini-3.7-flash',
+        ];
         for (const m of ttsModels) {
           try {
             const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${creds.apiKey}`;

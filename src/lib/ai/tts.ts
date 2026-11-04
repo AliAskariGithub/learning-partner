@@ -202,8 +202,9 @@ async function synthesizeGeminiTurn(
 
   // Real Gemini TTS models supporting audio modality
   const ttsModels = [
+    'gemini-3.8-flash-tts',
+    'gemini-3.8-flash-lite-tts',
     'gemini-3.8-flash',
-    'gemini-3.8-flash-lite',
     'gemini-3.7-flash',
   ];
 

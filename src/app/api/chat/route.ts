@@ -366,32 +366,38 @@ export async function POST(req: NextRequest) {
             detail: 'Formatting active recall assessment with citations...',
           });
 
-          const aiModel = createProviderModel({
-            provider: creds.provider === 'custom' ? 'custom' : modelDef.provider,
-            apiKey: creds.apiKey,
-            modelId: modelDef.id,
-            customBaseUrl: creds.customBaseUrl,
-          });
+          let quizResult: QuizPayload | null = null;
+          const candidateQuizModels = [
+            modelDef.id,
+            ...(modelDef.provider === 'google' || creds.provider === 'gemini'
+              ? ['gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.7-flash']
+              : []),
+          ];
 
-          let quizResult: QuizPayload;
-          try {
-            const { object } = await generateObject({
-              model: aiModel,
-              schema: QuizPayloadSchema,
-              system: assembled.systemPrompt,
-              prompt: `Generate an interactive quiz based on the user request and sources:\n"${message}"`,
-            });
-            quizResult = object;
-          } catch (firstErr) {
-            // Retry once on schema parsing failure
-            console.warn('Quiz generation retry attempt:', firstErr);
-            const { object } = await generateObject({
-              model: aiModel,
-              schema: QuizPayloadSchema,
-              system: assembled.systemPrompt,
-              prompt: `Generate an interactive quiz based on the user request and sources:\n"${message}"\nReturn strict valid JSON matching schema.`,
-            });
-            quizResult = object;
+          for (const qModelId of candidateQuizModels) {
+            try {
+              const quizAiModel = createProviderModel({
+                provider: creds.provider === 'custom' ? 'custom' : modelDef.provider,
+                apiKey: creds.apiKey,
+                modelId: qModelId,
+                customBaseUrl: creds.customBaseUrl,
+              });
+              const { object } = await generateObject({
+                model: quizAiModel,
+                schema: QuizPayloadSchema,
+                system: assembled.systemPrompt,
+                prompt: `Generate an interactive quiz based on the user request and sources:\n"${message}"`,
+                maxRetries: 0,
+              });
+              quizResult = object;
+              break;
+            } catch (err: any) {
+              console.warn(`Quiz generation attempt with ${qModelId} failed:`, err?.message?.slice(0, 80));
+            }
+          }
+
+          if (!quizResult) {
+            throw new Error('Unable to generate quiz. Model quota or capacity is temporarily exceeded. Please try again in a moment.');
           }
 
           // Store quiz in outputs table as type 'quiz'
@@ -519,28 +525,47 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (initialErr: any) {
-          console.warn('Initial model stream failed, attempting resilient fallback:', initialErr);
+          console.warn('Initial model stream failed, attempting resilient fallback:', initialErr?.message);
           if (modelDef.provider === 'google' || creds.provider === 'gemini') {
-            const fallbackModelId = modelDef.id === 'gemini-3.8-flash' ? 'gemini-3.7-flash' : 'gemini-3.8-flash';
-            const fallbackModel = createProviderModel({
-              provider: 'google',
-              apiKey: creds.apiKey,
-              modelId: fallbackModelId,
-              customBaseUrl: creds.customBaseUrl,
-            });
-            const fallbackStream = streamText({
-              model: fallbackModel,
-              system: assembled.systemPrompt,
-              messages: modelMessages,
-              maxRetries: 2,
-            });
+            const googleFallbacks = [
+              'gemini-3.5-flash-lite',
+              'gemini-3-flash-preview',
+              'gemini-3.7-flash',
+              'gemini-3.8-flash',
+            ].filter((m) => m !== modelDef.id);
 
-            for await (const chunk of fallbackStream.textStream) {
-              accumulatedText += chunk;
-              await sendEvent({
-                type: 'text_delta',
-                delta: chunk,
-              });
+            let fallbackSucceeded = false;
+            for (const fbId of googleFallbacks) {
+              try {
+                const fallbackModel = createProviderModel({
+                  provider: 'google',
+                  apiKey: creds.apiKey,
+                  modelId: fbId,
+                  customBaseUrl: creds.customBaseUrl,
+                });
+                const fallbackStream = streamText({
+                  model: fallbackModel,
+                  system: assembled.systemPrompt,
+                  messages: modelMessages,
+                  maxRetries: 1,
+                });
+
+                for await (const chunk of fallbackStream.textStream) {
+                  accumulatedText += chunk;
+                  await sendEvent({
+                    type: 'text_delta',
+                    delta: chunk,
+                  });
+                }
+                fallbackSucceeded = true;
+                break;
+              } catch (fbErr: any) {
+                console.warn(`Fallback model ${fbId} failed:`, fbErr?.message?.slice(0, 80));
+              }
+            }
+
+            if (!fallbackSucceeded && !accumulatedText) {
+              throw initialErr;
             }
           } else {
             throw initialErr;

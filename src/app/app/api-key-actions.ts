@@ -398,11 +398,12 @@ export async function discoverAndTestModels(params: {
         contextWindow: m.inputTokenLimit || 1048576,
       }));
 
-      // Candidate models in preference order: only best working Gemini models
+      // Candidate models in preference order: only verified working Gemini models
       const priorityIds = [
         'gemini-3.8-flash',
         'gemini-3.7-flash',
-        'gemini-1.5-pro',
+        'gemini-3.5-flash-lite',
+        'gemini-3-flash-preview',
       ];
 
       for (const pId of priorityIds) {

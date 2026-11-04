@@ -23,6 +23,7 @@ import { SourceViewerDialog } from '@/components/workspace/SourceViewerDialog';
 import { ConnectAiDialog } from '@/components/ai/ConnectAiDialog';
 import { useToast } from '@/components/ui/toast';
 import { SafeApiKey, getUserApiKeys } from '@/app/app/api-key-actions';
+import { MODEL_CATALOG } from '@/lib/ai/providers';
 import { SafeConnection } from '@/lib/connections/types';
 import { getUserConnections } from '@/app/app/connection-actions';
 import { getNotebookOutputs } from '@/app/app/studio-actions';
@@ -115,13 +116,13 @@ export function NotebookClientPage({
     if (typeof window !== 'undefined' && notebook.id) {
       try {
         const saved = localStorage.getItem(`lp_model_${notebook.id}`);
-        if (saved && !saved.includes('2.0-flash') && !saved.includes('2.5-flash') && !saved.includes('1.5-flash')) {
+        if (saved && MODEL_CATALOG.some((m) => m.id === saved)) {
           return saved;
         }
       } catch {}
     }
     const last = notebook.lastModel;
-    if (last && !last.includes('2.0-flash') && !last.includes('2.5-flash') && !last.includes('1.5-flash')) return last;
+    if (last && MODEL_CATALOG.some((m) => m.id === last)) return last;
     return 'gemini-3.8-flash';
   });
   const [selectedMode, setSelectedMode] = useState<'chat' | 'learn' | 'quiz'>(
@@ -380,7 +381,7 @@ export function NotebookClientPage({
 
     const conv = conversations.find((c) => c.id === convId);
     if (conv) {
-      if (conv.model && !conv.model.includes('2.0-flash') && !conv.model.includes('2.5-flash') && !conv.model.includes('1.5-flash')) {
+      if (conv.model && MODEL_CATALOG.some((m) => m.id === conv.model)) {
         setSelectedModelId(conv.model);
       }
       const nextMode = (conv.mode as 'chat' | 'learn' | 'quiz') || 'chat';

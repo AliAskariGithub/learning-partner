@@ -156,55 +156,47 @@ export async function consolidateNotebookMemory(params: {
     return; // User disabled memory in chats
   }
 
-  // 2. Resolve cheapest suitable AI model for memory processing
-  // Priority: gemini-3.8-flash / gemini-3.7-flash / gemini-1.5-pro / groq-llama
+  // 2. Resolve suitable AI model for memory processing
+  // Priority: high-availability lightweight models first to preserve chat quota
   const candidateModels = [
+    'gemini-3.5-flash-lite',
+    'gemini-3-flash-preview',
     'gemini-3.8-flash',
     'gemini-3.7-flash',
-    'gemini-1.5-pro',
     'groq-llama-3.3-70b',
     'gpt-4o-mini',
   ];
 
-  let resolvedCreds = null;
-  let selectedModelId = candidateModels[0];
-
-  for (const candidate of candidateModels) {
-    const creds = await getCredentialsForRequest(userId, candidate).catch(() => null);
-    if (creds?.apiKey) {
-      resolvedCreds = creds;
-      selectedModelId = candidate;
-      break;
-    }
-  }
-
-  if (!resolvedCreds?.apiKey) {
-    // If no candidate key found, skip memory consolidation gracefully
-    return;
-  }
-
-  const modelDef = getModelDefinition(selectedModelId);
-  const aiModel = createProviderModel({
-    provider: modelDef.provider,
-    apiKey: resolvedCreds.apiKey,
-    modelId: modelDef.id,
-    customBaseUrl: resolvedCreds.customBaseUrl,
-  });
-
-  // 3. Load existing memory summary and items
-  const currentMemory = await getNotebookMemory(notebookId, userId);
-  const existingItems = await getNotebookMemoryItems(notebookId, userId);
-
-  const conversationTranscript = recentMessages
-    .slice(-4)
-    .map((m) => `${m.role.toUpperCase()}: ${filterSecrets(m.content)}`)
-    .join('\n');
-
   try {
-    const { object } = await generateObject({
-      model: aiModel,
-      schema: memoryExtractionSchema,
-      system: `You are an expert memory consolidation assistant for an AI study app.
+    // 3. Load existing memory summary and items
+    const currentMemory = await getNotebookMemory(notebookId, userId);
+    const existingItems = await getNotebookMemoryItems(notebookId, userId);
+
+    const conversationTranscript = recentMessages
+      .slice(-4)
+      .map((m) => `${m.role.toUpperCase()}: ${filterSecrets(m.content)}`)
+      .join('\n');
+
+    let extractedObject: any = null;
+
+    // Try candidate models resiliently without spamming retries
+    for (const candidate of candidateModels) {
+      const creds = await getCredentialsForRequest(userId, candidate).catch(() => null);
+      if (!creds?.apiKey) continue;
+
+      const modelDef = getModelDefinition(candidate);
+      const aiModel = createProviderModel({
+        provider: modelDef.provider,
+        apiKey: creds.apiKey,
+        modelId: modelDef.id,
+        customBaseUrl: creds.customBaseUrl,
+      });
+
+      try {
+        const { object } = await generateObject({
+          model: aiModel,
+          schema: memoryExtractionSchema,
+          system: `You are an expert memory consolidation assistant for an AI study app.
 Analyze the latest exchange between learner and assistant.
 Extract ONLY durable learner signals across these categories:
 - goal: what the student wants to learn or accomplish
@@ -220,16 +212,31 @@ RULES:
 - Do NOT store secrets, passwords, or transient chatter.
 - Text descriptions only (never image binaries).
 - Output a cohesive updated summary synthesizing current memory with new insights under 1,500 tokens.`,
-      prompt: `CURRENT MEMORY SUMMARY:\n${currentMemory?.summary || 'None yet.'}
+          prompt: `CURRENT MEMORY SUMMARY:\n${currentMemory?.summary || 'None yet.'}
 
 EXISTING ITEMS:
 ${existingItems.map((item) => `- [${item.type}] ${item.text}`).join('\n') || 'None'}
 
 LATEST EXCHANGE (${mode.toUpperCase()} MODE):
 ${conversationTranscript}`,
-    });
+          maxRetries: 0,
+        });
 
-    if (!object) return;
+        if (object) {
+          extractedObject = object;
+          break;
+        }
+      } catch {
+        // If candidate is rate-limited (429) or high-demand (503), smoothly move to next candidate
+      }
+    }
+
+    if (!extractedObject) {
+      // If all models are temporarily busy or rate limited, gracefully defer memory update
+      return;
+    }
+
+    const object = extractedObject;
 
     // 4. Update or Insert Notebook Memory Record
     const newSummary = filterSecrets(object.summary.slice(0, 4000));

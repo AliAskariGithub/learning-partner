@@ -17,13 +17,13 @@ export const siteConfig = {
   description:
     'Free, open study partner that answers strictly from your own sources with exact citation chips, interactive Socratic learning, active recall quizzes, and multi-format studio synthesizers.',
   url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  
+
   // Owner & Governance
   owner: {
     displayName: 'Ali Askari',
-    legalName: '[[CONFIRM: legal owner or entity name]]',
-    contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || '[[CONFIRM: contact email address]]',
-    adminNotificationEmail: process.env.CONTACT_TO_EMAIL || '[[CONFIRM: admin recipient email]]',
+    legalName: 'Syed Ali Askari Zaidi',
+    contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'syedaliaskarizaidi1@gmail.com',
+    adminNotificationEmail: process.env.CONTACT_TO_EMAIL || 'syedaliaskarizaidi1@gmail.com',
     githubUrl: 'https://github.com/AliAskariGithub/learning-partner',
     portfolioUrl: 'https://aliaskari.xyz/',
     linkedinUrl: 'https://www.linkedin.com/in/aliaskaridev/',
@@ -38,6 +38,7 @@ export const siteConfig = {
   socials: [
     { label: 'Portfolio', href: 'https://aliaskari.xyz/' },
     { label: 'LinkedIn', href: 'https://www.linkedin.com/in/aliaskaridev/' },
+    { label: 'GitHub', href: 'https://github.com/AliAskariGithub/learning-partner' },
     { label: 'X', href: 'https://x.com/aliaskaridev' },
     { label: 'Instagram', href: 'https://www.instagram.com/aliaskaridev/' },
     { label: 'Facebook', href: 'https://www.facebook.com/aliaskaridev/' },
@@ -86,13 +87,13 @@ export const siteConfig = {
   features: {
     // Never write "free forever" unless this flag is explicitly true
     promiseFreeForever: false,
-    
+
     // ChatGPT OAuth connection status
     chatGptEnabled: process.env.NEXT_PUBLIC_ENABLE_CHATGPT === 'true',
-    
+
     // Cloudflare Turnstile anti-bot verification
     turnstileEnabled: Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY),
-    
+
     // Sender confirmation email
     confirmationEmailEnabled: process.env.ENABLE_CONFIRMATION_EMAIL === 'true',
 

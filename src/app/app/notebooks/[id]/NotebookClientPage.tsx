@@ -112,8 +112,16 @@ export function NotebookClientPage({
   const [connections, setConnections] = useState<SafeConnection[]>(initialConnections);
   const [attachedImageFromDialog, setAttachedImageFromDialog] = useState<ChatImageAttachment | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(() => {
+    if (typeof window !== 'undefined' && notebook.id) {
+      try {
+        const saved = localStorage.getItem(`lp_model_${notebook.id}`);
+        if (saved && !saved.includes('2.0-flash') && !saved.includes('2.5-flash') && !saved.includes('1.5-flash')) {
+          return saved;
+        }
+      } catch {}
+    }
     const last = notebook.lastModel;
-    if (last && !last.includes('2.5-flash')) return last;
+    if (last && !last.includes('2.0-flash') && !last.includes('2.5-flash') && !last.includes('1.5-flash')) return last;
     return 'gemini-3.8-flash';
   });
   const [selectedMode, setSelectedMode] = useState<'chat' | 'learn' | 'quiz'>(
@@ -372,7 +380,9 @@ export function NotebookClientPage({
 
     const conv = conversations.find((c) => c.id === convId);
     if (conv) {
-      setSelectedModelId(conv.model);
+      if (conv.model && !conv.model.includes('2.0-flash') && !conv.model.includes('2.5-flash') && !conv.model.includes('1.5-flash')) {
+        setSelectedModelId(conv.model);
+      }
       const nextMode = (conv.mode as 'chat' | 'learn' | 'quiz') || 'chat';
       setSelectedMode(nextMode);
       if (nextMode === 'learn') {

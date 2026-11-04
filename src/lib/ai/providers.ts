@@ -122,12 +122,11 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderMeta> = {
 };
 
 export const MODEL_CATALOG: ModelDefinition[] = [
-  // Google Gemini
+  // Google Gemini - Best working production models
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
     provider: 'google',
-    isDefault: true,
     description: 'Latest Google flagship: sub-second streaming, 1M context, vision, voice & structured output.',
     capabilities: {
       text: true,
@@ -150,38 +149,6 @@ export const MODEL_CATALOG: ModelDefinition[] = [
       vision: true,
       audioInput: true,
       audioOutput: true,
-      structuredOutput: true,
-      toolUse: true,
-      embeddings: true,
-      contextWindow: 1048576,
-    },
-  },
-  {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    provider: 'google',
-    description: 'High-availability multimodal workhorse with 1M context and fast inference.',
-    capabilities: {
-      text: true,
-      vision: true,
-      audioInput: true,
-      audioOutput: true,
-      structuredOutput: true,
-      toolUse: true,
-      embeddings: true,
-      contextWindow: 1048576,
-    },
-  },
-  {
-    id: 'gemini-3.5-flash-lite',
-    name: 'Gemini 3.5 Flash Lite',
-    provider: 'google',
-    description: 'Ultra-fast lightweight model ideal for rapid summarization and high throughput.',
-    capabilities: {
-      text: true,
-      vision: true,
-      audioInput: false,
-      audioOutput: false,
       structuredOutput: true,
       toolUse: true,
       embeddings: true,
@@ -372,13 +339,13 @@ export interface TtsVoiceInfo {
 
 export const TTS_VOICE_CATALOG: Record<string, TtsVoiceInfo[]> = {
   google: [
-    { id: 'Puck', name: 'Puck', gender: 'male', tone: 'Energetic, youthful & conversational', provider: 'google' },
-    { id: 'Charon', name: 'Charon', gender: 'male', tone: 'Deep, resonant & authoritative', provider: 'google' },
-    { id: 'Kore', name: 'Kore', gender: 'female', tone: 'Warm, clear & empathetic', provider: 'google' },
+    { id: 'Aoede', name: 'Aoede (Female Character - Urdu/English)', gender: 'female', tone: 'Bright, articulate & engaging with authentic Urdu & English cadence', provider: 'google' },
+    { id: 'Puck', name: 'Puck (Jordan - Male Co-Host)', gender: 'male', tone: 'Energetic, youthful & conversational', provider: 'google' },
+    { id: 'Kore', name: 'Kore (Female Character - Warm)', gender: 'female', tone: 'Warm, clear & empathetic with natural accent', provider: 'google' },
+    { id: 'Charon', name: 'Charon (Jordan / Male Host)', gender: 'male', tone: 'Deep, resonant & authoritative', provider: 'google' },
     { id: 'Fenrir', name: 'Fenrir', gender: 'male', tone: 'Bold, dynamic & academic', provider: 'google' },
-    { id: 'Aoede', name: 'Aoede', gender: 'female', tone: 'Bright, articulate & engaging', provider: 'google' },
     { id: 'Zephyr', name: 'Zephyr', gender: 'neutral', tone: 'Calm, balanced & neutral', provider: 'google' },
-    { id: 'Leda', name: 'Leda', gender: 'female', tone: 'Expressive, friendly & conversational', provider: 'google' },
+    { id: 'Leda', name: 'Leda (Female Character)', gender: 'female', tone: 'Expressive, friendly & conversational', provider: 'google' },
     { id: 'Orus', name: 'Orus', gender: 'male', tone: 'Scholarly, steady & grounded', provider: 'google' },
   ],
   openai: [

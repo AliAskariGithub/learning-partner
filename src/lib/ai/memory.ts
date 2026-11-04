@@ -157,10 +157,11 @@ export async function consolidateNotebookMemory(params: {
   }
 
   // 2. Resolve cheapest suitable AI model for memory processing
-  // Priority: gemini-3.5-flash / flash-lite / groq-llama
+  // Priority: gemini-3.8-flash / gemini-3.7-flash / gemini-1.5-pro / groq-llama
   const candidateModels = [
-    'gemini-3.5-flash',
     'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-1.5-pro',
     'groq-llama-3.3-70b',
     'gpt-4o-mini',
   ];

@@ -118,16 +118,15 @@ async function generateTextWithFallback(params: {
   const { provider, apiKey, modelId, customBaseUrl, system, prompt, temperature = 0.3 } = params;
 
   // Start strictly with the user-selected model
-  let primaryModel = modelId;
-  if (provider === 'google' && (!primaryModel || primaryModel.includes('2.5-flash'))) {
-    primaryModel = 'gemini-2.0-flash';
+  let primaryModel = modelId?.trim();
+  if (provider === 'google' && (!primaryModel || primaryModel.includes('2.0-flash') || primaryModel.includes('2.5-flash') || primaryModel.includes('1.5-flash'))) {
+    primaryModel = 'gemini-3.8-flash';
   }
-  const candidateModels: string[] = [primaryModel];
+  const candidateModels: string[] = [primaryModel || 'gemini-3.8-flash'];
   if (provider === 'google') {
     const googleFallbacks = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-3.7-flash',
       'gemini-1.5-pro',
     ];
     for (const fb of googleFallbacks) {
@@ -245,7 +244,7 @@ export async function generateStudioOutput(
 
     // Determine model to use from user selection
     let modelId = params.modelId || 'gemini-3.8-flash';
-    if (modelId.includes('2.5-flash')) {
+    if (modelId.includes('2.5-flash') || modelId.includes('2.0-flash')) {
       modelId = 'gemini-3.8-flash';
     }
     const modelDef = getModelDefinition(modelId);
@@ -648,19 +647,25 @@ export async function regenerateStudioOutput(
       return { success: false, error: 'Output not found.' };
     }
 
+    const chosenModel = modelId || row.model;
+    const effectiveModelId = (chosenModel && !chosenModel.includes('2.0-flash') && !chosenModel.includes('2.5-flash') && !chosenModel.includes('1.5-flash'))
+      ? chosenModel
+      : 'gemini-3.8-flash';
+
     return generateStudioOutput({
       notebookId: row.notebookId,
       conversationId: row.conversationId,
       type: row.type as any,
       title: row.title,
       sourceIds: (row.sourceIds as string[]) || undefined,
-      modelId: (modelId && !modelId.includes('2.5-flash')) ? modelId : (row.model && !row.model.includes('2.5-flash')) ? row.model : 'gemini-3.8-flash',
+      modelId: effectiveModelId,
       options: {
         voiceStyle: (row.voiceConfig as any)?.style,
         voiceFormat: (row.voiceConfig as any)?.format,
         voiceProvider: (row.voiceConfig as any)?.provider,
         speaker1Voice: (row.voiceConfig as any)?.speaker1Voice,
         speaker2Voice: (row.voiceConfig as any)?.speaker2Voice,
+        language: (row.voiceConfig as any)?.language,
       },
     });
   } catch (err: any) {

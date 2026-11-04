@@ -29,17 +29,11 @@ export function createProviderModel(params: CreateModelParams): LanguageModel {
     }
     case 'google': {
       const google = createGoogleGenerativeAI({ apiKey });
-      let safeModelId = 'gemini-2.0-flash';
-      const m = (modelId || '').toLowerCase().trim();
-      if (m === 'gemini-1.5-pro' || m.includes('1.5-pro')) {
-        safeModelId = 'gemini-1.5-pro';
-      } else if (m === 'gemini-1.5-flash' || m.includes('1.5-flash')) {
-        safeModelId = 'gemini-1.5-flash';
-      } else if (m.includes('lite') || m.includes('flash-lite')) {
-        safeModelId = 'gemini-2.0-flash-lite';
-      } else {
-        // Map all Gemini 3.*, 2.5.*, or catalog model IDs to Google's flagship production model
-        safeModelId = 'gemini-2.0-flash';
+      let safeModelId = (modelId || '').trim().replace(/^models\//, '');
+      const m = safeModelId.toLowerCase();
+      // Replace discontinued models with the active flagship gemini-3.8-flash recommended by Google API
+      if (!safeModelId || m.includes('2.0-flash') || m.includes('2.5-flash') || m.includes('1.5-flash') || m === 'gemini-3.5-flash' || m === 'gemini-3.5-flash-lite') {
+        safeModelId = 'gemini-3.8-flash';
       }
       return google(safeModelId);
     }

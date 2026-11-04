@@ -519,12 +519,13 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (initialErr: any) {
-          console.warn('Initial model stream failed, attempting fallback to gemini-1.5-flash:', initialErr);
+          console.warn('Initial model stream failed, attempting resilient fallback:', initialErr);
           if (modelDef.provider === 'google' || creds.provider === 'gemini') {
+            const fallbackModelId = modelDef.id === 'gemini-3.8-flash' ? 'gemini-3.7-flash' : 'gemini-3.8-flash';
             const fallbackModel = createProviderModel({
               provider: 'google',
               apiKey: creds.apiKey,
-              modelId: 'gemini-1.5-flash',
+              modelId: fallbackModelId,
               customBaseUrl: creds.customBaseUrl,
             });
             const fallbackStream = streamText({

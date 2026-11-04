@@ -403,15 +403,15 @@ export function ConnectAiDialog({
       }
       className="max-w-3xl max-h-[92dvh] sm:max-h-[88vh] overflow-hidden flex flex-col p-4 sm:p-6"
     >
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-5 sm:space-y-6 pr-1 sm:pr-2 py-1 pb-10 scrollbar-thin scrollbar-thumb-[#383838]">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-5 sm:space-y-6 pr-1 sm:pr-2 py-1 pb-10 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#383838]">
         {/* Onboarding Welcome Banner */}
         {isOnboarding && (
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-[#f4f4f2] text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-zinc-900 dark:text-[#f4f4f2] text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-brand-500/20 text-brand-300 shrink-0">
+              <div className="p-2 rounded-xl bg-brand-500/20 text-brand-600 dark:text-brand-300 shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
-              <p className="font-serif leading-relaxed text-[#b8b8b0]">
+              <p className="font-serif leading-relaxed text-zinc-600 dark:text-[#b8b8b0]">
                 Choose how you want to power your study partner. We recommend <strong>Google Gemini Key</strong> for quick, full-featured access including 1M context and native Voice podcasts.
               </p>
             </div>
@@ -420,7 +420,7 @@ export function ConnectAiDialog({
               variant="ghost"
               size="sm"
               onClick={() => onOpenChange(false)}
-              className="text-xs shrink-0 text-[#9a9a94] hover:text-[#f4f4f2] self-end sm:self-auto"
+              className="text-xs shrink-0 text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] self-end sm:self-auto"
             >
               Skip for now
             </Button>
@@ -432,20 +432,20 @@ export function ConnectAiDialog({
         {/* ========================================================================= */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
           {/* PRIMARY OPTION 1: "USE GEMINI KEY" (Recommended) */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-[#202020] border-2 border-purple-500/40 relative flex flex-col justify-between gap-4 shadow-xl">
+          <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#202020] border-2 border-purple-500/40 relative flex flex-col justify-between gap-4 shadow-md dark:shadow-xl">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-display font-bold text-[#f4f4f2]">Use Gemini Key</span>
+                  <span className="text-base font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">Use Gemini Key</span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-display font-bold">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-display font-bold">
                   <Sparkles className="w-3 h-3" /> Recommended
                 </span>
               </div>
 
               {/* 3-Step Guided Helper */}
-              <div className="p-3 rounded-xl bg-[#202020] border border-[#2d2d2d] text-xs space-y-1.5 text-[#b8b8b0] font-serif">
-                <p className="font-sans font-semibold text-[11px] text-[#f4f4f2] mb-1">
+              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-[#202020] border border-zinc-200 dark:border-[#2d2d2d] text-xs space-y-1.5 text-zinc-600 dark:text-[#b8b8b0] font-serif">
+                <p className="font-sans font-semibold text-[11px] text-zinc-900 dark:text-[#f4f4f2] mb-1">
                   Guided 3-Step Setup:
                 </p>
                 <div className="flex items-center justify-between gap-2">
@@ -454,7 +454,7 @@ export function ConnectAiDialog({
                     href="https://aistudio.google.com/app/apikey"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-sans font-semibold text-brand-300 hover:text-brand-200 transition-colors bg-brand-500/10 px-2 py-0.5 rounded-lg border border-brand-500/20 shrink-0"
+                    className="inline-flex items-center gap-1 text-[11px] font-sans font-semibold text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 transition-colors bg-brand-500/10 px-2 py-0.5 rounded-lg border border-brand-500/20 shrink-0"
                   >
                     <span>Get Key</span>
                     <ExternalLink className="w-2.5 h-2.5" />
@@ -472,12 +472,12 @@ export function ConnectAiDialog({
                     placeholder="AIzaSy..."
                     value={geminiKeyInput}
                     onChange={(e) => setGeminiKeyInput(e.target.value)}
-                    className="pr-10 text-xs font-mono bg-[#141414] border-[#333333] focus:border-brand-500"
+                    className="pr-10 text-xs font-mono bg-zinc-50 dark:bg-[#141414] border-zinc-200 dark:border-[#333333] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-brand-500"
                   />
                   <button
                     type="button"
                     onClick={() => setGeminiShowKey(!geminiShowKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9a9a94] hover:text-[#f4f4f2] transition"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] transition cursor-pointer"
                   >
                     {geminiShowKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
@@ -488,14 +488,14 @@ export function ConnectAiDialog({
                   <div
                     className={`p-3 rounded-xl text-xs flex items-center gap-2.5 font-sans leading-snug shadow-sm ${
                       geminiFeedback.success
-                        ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-100'
-                        : 'bg-rose-950/70 border border-rose-500/40 text-rose-100'
+                        ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 dark:text-emerald-100'
+                        : 'bg-rose-500/15 border border-rose-500/40 text-rose-800 dark:text-rose-100'
                     }`}
                   >
                     {geminiFeedback.success ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     ) : (
-                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                     )}
                     <span className="flex-1 min-w-0">{geminiFeedback.message}</span>
                   </div>
@@ -503,9 +503,9 @@ export function ConnectAiDialog({
               </div>
 
               {/* MUSTARD-YELLOW PRIVACY NOTICE (Hard Requirement 2) */}
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200/90 text-[11px] font-serif leading-relaxed space-y-1">
-                <div className="flex items-center gap-1.5 font-sans font-semibold text-amber-300 text-[11px]">
-                  <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200/90 text-[11px] font-serif leading-relaxed space-y-1">
+                <div className="flex items-center gap-1.5 font-sans font-semibold text-amber-800 dark:text-amber-300 text-[11px]">
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                   <span>Important Privacy Notice (Free Tier)</span>
                 </div>
                 <p>
@@ -514,7 +514,7 @@ export function ConnectAiDialog({
                     href="https://ai.google.dev/gemini-api/terms"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline text-amber-300 hover:text-white"
+                    className="underline font-medium text-amber-800 hover:text-amber-950 dark:text-amber-300 dark:hover:text-white"
                   >
                     Google Terms
                   </a>
@@ -522,7 +522,7 @@ export function ConnectAiDialog({
               </div>
 
               {/* Rate Limits Note */}
-              <p className="text-[10px] text-[#9a9a94] font-mono">
+              <p className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono">
                 Free-tier: Up to 15 RPM / 1M TPM on Flash models. Graceful 429 backoff included.
               </p>
             </div>
@@ -533,7 +533,7 @@ export function ConnectAiDialog({
                 variant="secondary"
                 disabled={geminiTesting || !geminiKeyInput.trim()}
                 onClick={handleTestGeminiKey}
-                className="w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[#3a3a3a] hover:border-brand-500 text-[#f4f4f2]"
+                className="w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-zinc-200 hover:border-brand-500 bg-white hover:bg-zinc-50 text-zinc-800 dark:border-[#3a3a3a] dark:hover:border-brand-500 dark:bg-transparent dark:text-[#f4f4f2]"
               >
                 {geminiTesting ? (
                   <>
@@ -542,7 +542,7 @@ export function ConnectAiDialog({
                   </>
                 ) : (
                   <>
-                    <Zap className="w-3.5 h-3.5 text-brand-400" />
+                    <Zap className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                     <span>Test Connection</span>
                   </>
                 )}
@@ -570,29 +570,29 @@ export function ConnectAiDialog({
           </div>
 
           {/* PRIMARY OPTION 2: "CONNECT WITH CHATGPT" (Plan Usage) */}
-          <div className="p-5 rounded-2xl bg-[#202020] border border-[#333333] relative flex flex-col justify-between gap-4 shadow-xl">
+          <div className="p-5 rounded-2xl bg-white dark:bg-[#202020] border border-zinc-200 dark:border-[#333333] relative flex flex-col justify-between gap-4 shadow-md dark:shadow-xl">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-display font-bold text-[#f4f4f2]">Connect with ChatGPT</span>
+                  <span className="text-base font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">Connect with ChatGPT</span>
                 </div>
                 {!isChatGPTPlanEnabled ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#282828] border border-[#3a3a3a] text-[#9a9a94] text-[11px] font-mono">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-600 dark:bg-[#282828] dark:border-[#3a3a3a] dark:text-[#9a9a94] text-[11px] font-mono">
                     Coming soon
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[11px] font-mono">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-300 text-[11px] font-mono">
                     Requires Plus / Pro
                   </span>
                 )}
               </div>
 
-              <p className="text-xs text-[#b8b8b0] font-serif leading-relaxed">
+              <p className="text-xs text-zinc-600 dark:text-[#b8b8b0] font-serif leading-relaxed">
                 Fund advanced OpenAI reasoning models directly from your existing personal ChatGPT Plus or Pro subscription without managing raw API billing.
               </p>
 
               {/* Plan Usage Notice & Controls */}
-              <div className="p-3 rounded-xl bg-[#202020] border border-[#2d2d2d] text-xs text-[#9a9a94] font-serif space-y-2 leading-relaxed">
+              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-[#202020] border border-zinc-200 dark:border-[#2d2d2d] text-xs text-zinc-600 dark:text-[#9a9a94] font-serif space-y-2 leading-relaxed">
                 <p>
                   • <strong>Requires ChatGPT Plus or Pro:</strong> Free accounts cannot grant plan token scopes.
                 </p>
@@ -605,8 +605,8 @@ export function ConnectAiDialog({
               </div>
 
               {/* Fallback Info */}
-              <div className="p-2.5 rounded-xl bg-[#141414] border border-[#262626] text-[11px] text-[#9a9a94] font-serif flex items-center gap-2">
-                <Sliders className="w-3.5 h-3.5 shrink-0 text-brand-400" />
+              <div className="p-2.5 rounded-xl bg-zinc-100 border border-zinc-200 text-[11px] text-zinc-700 dark:bg-[#141414] dark:border-[#262626] dark:text-[#9a9a94] font-serif flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
                 <span>Opt-in automatic fallback to Gemini Key when ChatGPT quota is exhausted.</span>
               </div>
             </div>
@@ -618,7 +618,7 @@ export function ConnectAiDialog({
               onClick={handleConnectChatGPT}
               className={`w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-2 py-2.5 rounded-xl shrink-0 mt-3 transition ${
                 !isChatGPTPlanEnabled
-                  ? 'opacity-60 cursor-not-allowed bg-[#252525] border border-[#353535] text-[#888882]'
+                  ? 'opacity-60 cursor-not-allowed bg-zinc-100 border border-zinc-200 text-zinc-400 dark:bg-[#252525] dark:border-[#353535] dark:text-[#888882]'
                   : 'hover:border-cyan-500/50 cursor-pointer active:scale-[0.98]'
               }`}
             >
@@ -629,7 +629,7 @@ export function ConnectAiDialog({
                 </>
               ) : (
                 <>
-                  <Bot className="w-4 h-4 text-cyan-400" />
+                  <Bot className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                   <span>{isChatGPTPlanEnabled ? 'Sign in with ChatGPT' : 'ChatGPT Plan Usage (Coming Soon)'}</span>
                 </>
               )}
@@ -644,17 +644,17 @@ export function ConnectAiDialog({
           <button
             type="button"
             onClick={() => setSecondaryExpanded(!secondaryExpanded)}
-            className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-[#191919] hover:bg-[#202020] border border-[#2d2d2d] hover:border-[#383838] text-xs font-display font-semibold text-[#f4f4f2] transition cursor-pointer"
+            className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 hover:border-zinc-300 text-xs font-display font-semibold text-zinc-800 dark:bg-[#191919] dark:hover:bg-[#202020] dark:border-[#2d2d2d] dark:hover:border-[#383838] dark:text-[#f4f4f2] transition cursor-pointer"
           >
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-brand-400" />
+              <Layers className="w-4 h-4 text-brand-600 dark:text-brand-400" />
               <span>Want to use another platform?</span>
-              <span className="text-[11px] text-[#9a9a94] font-serif font-normal">
+              <span className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif font-normal">
                 (Claude, OpenAI, OpenRouter, Custom Configuration)
               </span>
             </div>
             <ChevronDown
-              className={`w-4 h-4 text-[#9a9a94] transition-transform duration-200 ${
+              className={`w-4 h-4 text-zinc-400 dark:text-[#9a9a94] transition-transform duration-200 ${
                 secondaryExpanded ? 'rotate-180' : ''
               }`}
             />
@@ -672,20 +672,20 @@ export function ConnectAiDialog({
                 {/* Secondary Providers Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Claude */}
-                  <div className="p-4 rounded-xl bg-[#191919] border border-[#2e2e2e] space-y-2 flex flex-col justify-between">
+                  <div className="p-4 rounded-xl bg-white dark:bg-[#191919] border border-zinc-200 dark:border-[#2e2e2e] space-y-2 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-display font-bold text-[#f4f4f2]">Anthropic Claude</span>
+                        <span className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">Anthropic Claude</span>
                         <a
                           href="https://console.anthropic.com/settings/keys"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[10px] text-brand-400 hover:underline flex items-center gap-0.5"
+                          className="text-[10px] text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-0.5"
                         >
                           Keys Console <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       </div>
-                      <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                      <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                         Use an Anthropic API key. Claude subscriptions (Free, Pro, Max) can&apos;t be used in other apps.
                       </p>
                     </div>
@@ -694,27 +694,27 @@ export function ConnectAiDialog({
                       size="sm"
                       variant="ghost"
                       onClick={() => setActiveSecondaryProvider('anthropic')}
-                      className="text-xs border border-[#333333] hover:border-brand-500 w-full mt-2"
+                      className="text-xs border border-zinc-200 dark:border-[#333333] hover:border-brand-500 text-zinc-700 dark:text-zinc-200 w-full mt-2"
                     >
                       Connect Claude Key
                     </Button>
                   </div>
 
                   {/* OpenAI API Key */}
-                  <div className="p-4 rounded-xl bg-[#191919] border border-[#2e2e2e] space-y-2 flex flex-col justify-between">
+                  <div className="p-4 rounded-xl bg-white dark:bg-[#191919] border border-zinc-200 dark:border-[#2e2e2e] space-y-2 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-display font-bold text-[#f4f4f2]">OpenAI API Key</span>
+                        <span className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">OpenAI API Key</span>
                         <a
                           href="https://platform.openai.com/api-keys"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[10px] text-brand-400 hover:underline flex items-center gap-0.5"
+                          className="text-[10px] text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-0.5"
                         >
                           Platform Keys <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       </div>
-                      <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                      <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                         Developer API key for GPT-4o, reasoning models (o3-mini), and embeddings.
                       </p>
                     </div>
@@ -723,27 +723,27 @@ export function ConnectAiDialog({
                       size="sm"
                       variant="ghost"
                       onClick={() => setActiveSecondaryProvider('openai')}
-                      className="text-xs border border-[#333333] hover:border-brand-500 w-full mt-2"
+                      className="text-xs border border-zinc-200 dark:border-[#333333] hover:border-brand-500 text-zinc-700 dark:text-zinc-200 w-full mt-2"
                     >
                       Connect OpenAI Key
                     </Button>
                   </div>
 
                   {/* OpenRouter */}
-                  <div className="p-4 rounded-xl bg-[#191919] border border-[#2e2e2e] space-y-2 flex flex-col justify-between">
+                  <div className="p-4 rounded-xl bg-white dark:bg-[#191919] border border-zinc-200 dark:border-[#2e2e2e] space-y-2 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-display font-bold text-[#f4f4f2]">OpenRouter</span>
+                        <span className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">OpenRouter</span>
                         <a
                           href="https://openrouter.ai/keys"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[10px] text-brand-400 hover:underline flex items-center gap-0.5"
+                          className="text-[10px] text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-0.5"
                         >
                           Keys <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       </div>
-                      <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                      <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                         Unified router for open weights and commercial models. Supports 1-click OAuth PKCE.
                       </p>
                     </div>
@@ -754,11 +754,11 @@ export function ConnectAiDialog({
                         variant="ghost"
                         disabled={isConnectingOAuth === 'openrouter'}
                         onClick={handleConnectOpenRouter}
-                        className="text-[11px] border border-brand-500/30 text-brand-300 hover:bg-brand-500/10 active:scale-[0.98] transition cursor-pointer min-h-[36px] flex items-center justify-center gap-1.5 disabled:opacity-75"
+                        className="text-[11px] border border-brand-500/30 text-brand-600 dark:text-brand-300 hover:bg-brand-500/10 active:scale-[0.98] transition cursor-pointer min-h-[36px] flex items-center justify-center gap-1.5 disabled:opacity-75"
                       >
                         {isConnectingOAuth === 'openrouter' ? (
                           <>
-                            <RefreshCw className="w-3 h-3 animate-spin text-brand-300" />
+                            <RefreshCw className="w-3 h-3 animate-spin text-brand-600 dark:text-brand-300" />
                             <span>Opening...</span>
                           </>
                         ) : (
@@ -770,7 +770,7 @@ export function ConnectAiDialog({
                         size="sm"
                         variant="ghost"
                         onClick={() => setActiveSecondaryProvider('openrouter')}
-                        className="text-[11px] border border-[#333333] hover:border-brand-500 min-h-[36px] cursor-pointer"
+                        className="text-[11px] border border-zinc-200 dark:border-[#333333] hover:border-brand-500 text-zinc-700 dark:text-zinc-200 min-h-[36px] cursor-pointer"
                       >
                         Add Key
                       </Button>
@@ -778,13 +778,13 @@ export function ConnectAiDialog({
                   </div>
 
                   {/* Custom Configuration */}
-                  <div className="p-4 rounded-xl bg-[#191919] border border-[#2e2e2e] space-y-2 flex flex-col justify-between">
+                  <div className="p-4 rounded-xl bg-white dark:bg-[#191919] border border-zinc-200 dark:border-[#2e2e2e] space-y-2 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-display font-bold text-[#f4f4f2]">Custom Configuration</span>
-                        <span className="text-[10px] font-mono text-[#9a9a94]">OpenAI-compatible</span>
+                        <span className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">Custom Configuration</span>
+                        <span className="text-[10px] font-mono text-zinc-500 dark:text-[#9a9a94]">OpenAI-compatible</span>
                       </div>
-                      <p className="text-[11px] text-[#9a9a94] font-serif mt-1 leading-snug">
+                      <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif mt-1 leading-snug">
                         Connect any OpenAI-compatible API or self-hosted model (Ollama, LM Studio, vLLM, AgentRouter).
                       </p>
                     </div>
@@ -797,7 +797,7 @@ export function ConnectAiDialog({
                         setSecondaryUrlInput('');
                         setSecondaryCallMode('server');
                       }}
-                      className="text-xs border border-[#333333] hover:border-brand-500 w-full mt-2"
+                      className="text-xs border border-zinc-200 dark:border-[#333333] hover:border-brand-500 text-zinc-700 dark:text-zinc-200 w-full mt-2"
                     >
                       Configure Endpoint
                     </Button>
@@ -806,15 +806,15 @@ export function ConnectAiDialog({
 
                 {/* Sub-Form for Selected Secondary Provider */}
                 {activeSecondaryProvider && (
-                  <div className="p-4 rounded-2xl bg-[#141414] border border-brand-500/30 space-y-3 mt-3 animate-in fade-in duration-150">
+                  <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#141414] border border-brand-500/30 space-y-3 mt-3 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-display font-bold text-[#f4f4f2]">
+                      <h4 className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">
                         Connect {PROVIDER_LINKS[activeSecondaryProvider]?.name || activeSecondaryProvider}
                       </h4>
                       <button
                         type="button"
                         onClick={() => setActiveSecondaryProvider(null)}
-                        className="text-xs text-[#9a9a94] hover:text-[#f4f4f2]"
+                        className="text-xs text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -822,17 +822,17 @@ export function ConnectAiDialog({
 
                     {/* Mode Switch for OmniRoute / Custom */}
                     {(activeSecondaryProvider === 'omniroute' || activeSecondaryProvider === 'custom') && (
-                      <div className="space-y-2 p-3 rounded-xl bg-[#1c1c1c] border border-[#2b2b2b]">
+                      <div className="space-y-2 p-3 rounded-xl bg-white dark:bg-[#1c1c1c] border border-zinc-200 dark:border-[#2b2b2b]">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-display font-semibold text-[#f4f4f2]">Call Mode</span>
-                          <div className="flex rounded-lg bg-[#141414] p-0.5 border border-[#333333]">
+                          <span className="text-xs font-display font-semibold text-zinc-900 dark:text-[#f4f4f2]">Call Mode</span>
+                          <div className="flex rounded-lg bg-zinc-100 dark:bg-[#141414] p-0.5 border border-zinc-200 dark:border-[#333333]">
                             <button
                               type="button"
                               onClick={() => setSecondaryCallMode('server')}
                               className={`px-2.5 py-1 rounded-md text-[11px] font-display font-medium transition cursor-pointer ${
                                 secondaryCallMode === 'server'
-                                  ? 'bg-[#2a2a2a] text-[#f4f4f2]'
-                                  : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+                                  ? 'bg-white text-zinc-900 shadow-xs dark:bg-[#2a2a2a] dark:text-[#f4f4f2]'
+                                  : 'text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
                               }`}
                             >
                               Server Mode
@@ -842,8 +842,8 @@ export function ConnectAiDialog({
                               onClick={() => setSecondaryCallMode('browser')}
                               className={`px-2.5 py-1 rounded-md text-[11px] font-display font-medium transition cursor-pointer ${
                                 secondaryCallMode === 'browser'
-                                  ? 'bg-[#2a2a2a] text-[#f4f4f2]'
-                                  : 'text-[#9a9a94] hover:text-[#f4f4f2]'
+                                  ? 'bg-white text-zinc-900 shadow-xs dark:bg-[#2a2a2a] dark:text-[#f4f4f2]'
+                                  : 'text-zinc-500 hover:text-zinc-900 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2]'
                               }`}
                             >
                               Browser Mode (Localhost)
@@ -852,20 +852,20 @@ export function ConnectAiDialog({
                         </div>
 
                         {secondaryCallMode === 'browser' ? (
-                          <div className="text-[11px] text-[#b8b8b0] font-serif space-y-1 pt-1 border-t border-[#262626]">
-                            <div className="flex items-center gap-1.5 text-cyan-300 font-sans font-semibold">
+                          <div className="text-[11px] text-zinc-600 dark:text-[#b8b8b0] font-serif space-y-1 pt-1 border-t border-zinc-200 dark:border-[#262626]">
+                            <div className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-300 font-sans font-semibold">
                               <Database className="w-3.5 h-3.5" />
                               <span>Direct Browser Calling (Key Stored in IndexedDB)</span>
                             </div>
                             <p>
                               Your browser calls your local endpoint directly. Keys are kept exclusively in local IndexedDB and never sent to our servers.
                             </p>
-                            <p className="text-[#9a9a94]">
-                              Ensure CORS headers (<code className="text-brand-300 font-mono">Access-Control-Allow-Origin: *</code>) are permitted on your gateway.
+                            <p className="text-zinc-500 dark:text-[#9a9a94]">
+                              Ensure CORS headers (<code className="text-brand-600 dark:text-brand-300 font-mono">Access-Control-Allow-Origin: *</code>) are permitted on your gateway.
                             </p>
                           </div>
                         ) : (
-                          <p className="text-[11px] text-[#9a9a94] font-serif pt-1 border-t border-[#262626]">
+                          <p className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif pt-1 border-t border-zinc-200 dark:border-[#262626]">
                             In Server Mode, our server makes inference calls to your public HTTPS endpoint. Protected against SSRF.
                           </p>
                         )}
@@ -875,7 +875,7 @@ export function ConnectAiDialog({
                     {/* URL Input if custom/omniroute */}
                     {(activeSecondaryProvider === 'omniroute' || activeSecondaryProvider === 'custom') && (
                       <div className="space-y-1">
-                        <label className="text-[11px] font-mono text-[#9a9a94]">
+                        <label className="text-[11px] font-mono text-zinc-600 dark:text-[#9a9a94]">
                           {secondaryCallMode === 'browser' ? 'Local Base URL' : 'Public HTTPS Base URL'}
                         </label>
                         <Input
@@ -887,14 +887,14 @@ export function ConnectAiDialog({
                           }
                           value={secondaryUrlInput}
                           onChange={(e) => setSecondaryUrlInput(e.target.value)}
-                          className="text-xs font-mono bg-[#191919] border-[#303030]"
+                          className="text-xs font-mono bg-white dark:bg-[#191919] border-zinc-200 dark:border-[#303030] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                         />
                       </div>
                     )}
 
                     {/* Key Input */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-mono text-[#9a9a94]">
+                      <label className="text-[11px] font-mono text-zinc-600 dark:text-[#9a9a94]">
                         {activeSecondaryProvider === 'omniroute' || activeSecondaryProvider === 'custom'
                           ? 'API Key (Optional if gateway doesn\'t require auth)'
                           : 'API Key'}
@@ -904,7 +904,7 @@ export function ConnectAiDialog({
                         placeholder="Paste key here..."
                         value={secondaryKeyInput}
                         onChange={(e) => setSecondaryKeyInput(e.target.value)}
-                        className="text-xs font-mono bg-[#191919] border-[#303030]"
+                        className="text-xs font-mono bg-white dark:bg-[#191919] border-zinc-200 dark:border-[#303030] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                       />
                     </div>
 
@@ -912,13 +912,13 @@ export function ConnectAiDialog({
                     {(activeSecondaryProvider === 'openrouter' || activeSecondaryProvider === 'custom') && (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-mono text-[#9a9a94]">
+                          <label className="text-[11px] font-mono text-zinc-600 dark:text-[#9a9a94]">
                             Model Name / ID{' '}
                             {activeSecondaryProvider === 'custom'
                               ? '(e.g. llama3.2, mistral-large, gpt-4o-mini)'
                               : '(e.g. deepseek/deepseek-r1, meta-llama/llama-3.3-70b-instruct)'}
                           </label>
-                          <span className="text-[10px] text-brand-400 font-mono">Multi-model</span>
+                          <span className="text-[10px] text-brand-600 dark:text-brand-400 font-mono">Multi-model</span>
                         </div>
                         <Input
                           type="text"
@@ -929,9 +929,9 @@ export function ConnectAiDialog({
                           }
                           value={secondaryModelInput}
                           onChange={(e) => setSecondaryModelInput(e.target.value)}
-                          className="text-xs font-mono bg-[#191919] border-[#303030]"
+                          className="text-xs font-mono bg-white dark:bg-[#191919] border-zinc-200 dark:border-[#303030] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
                         />
-                        <p className="text-[10px] text-[#888882] font-serif">
+                        <p className="text-[10px] text-zinc-500 dark:text-[#888882] font-serif">
                           Enter your desired model identifier. It will be added to the Model Switcher and pinned to the top when connected.
                         </p>
                       </div>
@@ -947,7 +947,7 @@ export function ConnectAiDialog({
                             size="sm"
                             disabled={diagnosticTesting}
                             onClick={handleRunDiagnostics}
-                            className="text-xs border border-[#333333] hover:border-cyan-500 w-full"
+                            className="text-xs border border-zinc-200 dark:border-[#333333] hover:border-cyan-500 text-zinc-700 dark:text-zinc-200 w-full"
                           >
                             {diagnosticTesting ? 'Probing Localhost Endpoint...' : 'Run Diagnostics & Test Local Connection'}
                           </Button>
@@ -956,14 +956,14 @@ export function ConnectAiDialog({
                             <div
                               className={`p-3 rounded-xl text-xs space-y-1 ${
                                 diagnosticResult.ok
-                                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-200'
+                                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+                                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200'
                               }`}
                             >
                               <p className="font-semibold">{diagnosticResult.title}</p>
-                              <p className="font-serif text-[11px] text-[#b8b8b0]">{diagnosticResult.message}</p>
+                              <p className="font-serif text-[11px] text-zinc-600 dark:text-[#b8b8b0]">{diagnosticResult.message}</p>
                               {diagnosticResult.fix && (
-                                <p className="font-sans text-[11px] text-amber-300 pt-1">
+                                <p className="font-sans text-[11px] text-amber-800 dark:text-amber-300 pt-1">
                                   <strong>Recommended fix:</strong> {diagnosticResult.fix}
                                 </p>
                               )}
@@ -976,14 +976,14 @@ export function ConnectAiDialog({
                       <div
                         className={`p-3 rounded-xl text-xs flex items-center gap-2.5 font-sans leading-snug shadow-sm ${
                           secondaryFeedback.success
-                            ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-100'
-                            : 'bg-rose-950/70 border border-rose-500/40 text-rose-100'
+                            ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 dark:text-emerald-100'
+                            : 'bg-rose-500/15 border border-rose-500/40 text-rose-800 dark:text-rose-100'
                         }`}
                       >
                         {secondaryFeedback.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
                         )}
                         <span className="flex-1 min-w-0">{secondaryFeedback.message}</span>
                       </div>
@@ -998,7 +998,7 @@ export function ConnectAiDialog({
                           (!secondaryKeyInput.trim() && secondaryCallMode !== 'browser')
                         }
                         onClick={() => handleTestSecondary(activeSecondaryProvider)}
-                        className="w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[#3a3a3a] hover:border-brand-500 text-[#f4f4f2]"
+                        className="w-full text-xs font-display font-semibold inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-zinc-200 hover:border-brand-500 bg-white hover:bg-zinc-50 text-zinc-800 dark:border-[#3a3a3a] dark:hover:border-brand-500 dark:bg-transparent dark:text-[#f4f4f2]"
                       >
                         {testingCredentials ? (
                           <>
@@ -1007,7 +1007,7 @@ export function ConnectAiDialog({
                           </>
                         ) : (
                           <>
-                            <Zap className="w-3.5 h-3.5 text-brand-400" />
+                            <Zap className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                             <span>Test Connection</span>
                           </>
                         )}
@@ -1042,28 +1042,28 @@ export function ConnectAiDialog({
 
         {/* Active Connections List (If Any Configured) */}
         {connections.length > 0 && (
-          <div className="pt-4 border-t border-[#262626] space-y-2">
-            <h4 className="text-xs font-display font-bold text-[#9a9a94] uppercase tracking-wider">
+          <div className="pt-4 border-t border-zinc-200 dark:border-[#262626] space-y-2">
+            <h4 className="text-xs font-display font-bold text-zinc-500 dark:text-[#9a9a94] uppercase tracking-wider">
               Connected Providers ({connections.length})
             </h4>
             <div className="space-y-1.5">
               {connections.map((c) => (
                 <div
                   key={c.id}
-                  className="p-3 rounded-xl bg-[#191919] border border-[#2d2d2d] flex flex-col xs:flex-row xs:items-center justify-between gap-2.5 text-xs"
+                  className="p-3 rounded-xl bg-zinc-50 dark:bg-[#191919] border border-zinc-200 dark:border-[#2d2d2d] flex flex-col xs:flex-row xs:items-center justify-between gap-2.5 text-xs"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-display font-semibold text-[#f4f4f2] truncate">{c.accountLabel}</p>
+                        <p className="font-display font-semibold text-zinc-900 dark:text-[#f4f4f2] truncate">{c.accountLabel}</p>
                         {c.configuredModel && (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-500/15 text-brand-300 border border-brand-500/30 truncate">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-500/15 text-brand-700 dark:text-brand-300 border border-brand-500/30 truncate">
                             {c.configuredModel}
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-[#9a9a94] font-mono truncate">
+                      <p className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono truncate">
                         {c.provider.toUpperCase()} · {c.method} · {c.callMode} mode
                       </p>
                     </div>
@@ -1073,10 +1073,10 @@ export function ConnectAiDialog({
                     <span
                       className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
                         c.status === 'connected'
-                          ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
                           : c.status === 'capped_or_exhausted'
-                          ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                          : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
+                          ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20'
+                          : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20'
                       }`}
                     >
                       {c.status}
@@ -1087,7 +1087,7 @@ export function ConnectAiDialog({
                         await disconnectConnection(c.id);
                         loadConnections();
                       }}
-                      className="p-1 text-[#9a9a94] hover:text-rose-400 transition"
+                      className="p-1 text-zinc-400 hover:text-rose-500 dark:text-[#9a9a94] dark:hover:text-rose-400 transition cursor-pointer"
                       title="Disconnect"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

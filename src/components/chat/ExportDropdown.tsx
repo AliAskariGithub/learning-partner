@@ -162,7 +162,7 @@ export function ExportDropdown({
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1 p-1 px-1.5 rounded-lg text-[#9a9a94] hover:text-[#f4f4f2] hover:bg-[#262626] transition-colors cursor-pointer text-xs"
+          className="flex items-center gap-1 p-1 px-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-[#f4f4f2] dark:hover:bg-[#262626] transition-colors cursor-pointer text-xs"
           title="Download (PDF, .md, Print)"
           aria-label="Download options"
           aria-expanded={open}
@@ -174,23 +174,23 @@ export function ExportDropdown({
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="h-8 px-2.5 rounded-xl bg-[#222222] hover:bg-[#2a2a2a] text-[#f4f4f2] border border-[#333333] flex items-center gap-1.5 text-xs font-display font-medium transition-colors cursor-pointer shadow-sm"
+          className="h-8 px-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 dark:bg-[#222222] dark:hover:bg-[#2a2a2a] dark:text-[#f4f4f2] dark:border-[#333333] flex items-center gap-1.5 text-xs font-display font-medium transition-colors cursor-pointer shadow-xs"
           aria-label="Download conversation"
           aria-expanded={open}
         >
-          <Download className="w-3.5 h-3.5 text-brand-400" />
+          <Download className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
           <span>{label}</span>
-          <ChevronDown className={cn('w-3 h-3 text-[#9a9a94] transition-transform', open && 'rotate-180')} />
+          <ChevronDown className={cn('w-3 h-3 text-zinc-400 dark:text-[#9a9a94] transition-transform', open && 'rotate-180')} />
         </button>
       ) : (
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium hover:bg-brand-500/20 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium hover:bg-brand-500/20 transition cursor-pointer"
           aria-label="Download options"
           aria-expanded={open}
         >
-          <Download className="w-3 h-3 text-brand-400" />
+          <Download className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
           <span>{label}</span>
         </button>
       )}
@@ -198,64 +198,64 @@ export function ExportDropdown({
       {/* Popover Dropdown Menu */}
       {open && (
         <div
-          className="absolute right-0 bottom-full mb-2 w-52 rounded-2xl bg-[#1f1f1f] border border-[#303030] shadow-2xl p-1.5 z-50 text-xs text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+          className="absolute right-0 bottom-full mb-2 w-52 rounded-2xl bg-white border border-zinc-200 shadow-xl p-1.5 z-50 text-xs text-zinc-900 dark:bg-[#1f1f1f] dark:border-[#303030] dark:text-[#f4f4f2] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
           role="menu"
         >
-          <div className="px-2.5 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-[#9a9a94] border-b border-[#2a2a2a] mb-1">
+          <div className="px-2.5 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94] border-b border-zinc-200 dark:border-[#2a2a2a] mb-1">
             Download Formats
           </div>
 
           <button
             type="button"
             onClick={handleExportPdf}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-[#f4f4f2] hover:bg-[#2a2a2a] transition cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-zinc-800 hover:bg-zinc-100 dark:text-[#f4f4f2] dark:hover:bg-[#2a2a2a] transition cursor-pointer"
             role="menuitem"
           >
-            <FileText className="w-4 h-4 text-rose-400 shrink-0" />
+            <FileText className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-xs leading-none">Download PDF</div>
-              <div className="text-[10px] text-[#9a9a94] mt-0.5">Formatted .pdf document</div>
+              <div className="text-[10px] text-zinc-500 dark:text-[#9a9a94] mt-0.5">Formatted .pdf document</div>
             </div>
           </button>
 
           <button
             type="button"
             onClick={handleExportMarkdown}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-[#f4f4f2] hover:bg-[#2a2a2a] transition cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-zinc-800 hover:bg-zinc-100 dark:text-[#f4f4f2] dark:hover:bg-[#2a2a2a] transition cursor-pointer"
             role="menuitem"
           >
-            <FileCode className="w-4 h-4 text-blue-400 shrink-0" />
+            <FileCode className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-xs leading-none">Download Markdown</div>
-              <div className="text-[10px] text-[#9a9a94] mt-0.5">Raw .md with formatting</div>
+              <div className="text-[10px] text-zinc-500 dark:text-[#9a9a94] mt-0.5">Raw .md with formatting</div>
             </div>
           </button>
 
           <button
             type="button"
             onClick={handleExportTxt}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-[#f4f4f2] hover:bg-[#2a2a2a] transition cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-zinc-800 hover:bg-zinc-100 dark:text-[#f4f4f2] dark:hover:bg-[#2a2a2a] transition cursor-pointer"
             role="menuitem"
           >
-            <File className="w-4 h-4 text-zinc-400 shrink-0" />
+            <File className="w-4 h-4 text-zinc-500 dark:text-zinc-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-xs leading-none">Download Text</div>
-              <div className="text-[10px] text-[#9a9a94] mt-0.5">Plain text file (.txt)</div>
+              <div className="text-[10px] text-zinc-500 dark:text-[#9a9a94] mt-0.5">Plain text file (.txt)</div>
             </div>
           </button>
 
-          <div className="h-px bg-[#2a2a2a] my-1" />
+          <div className="h-px bg-zinc-200 dark:bg-[#2a2a2a] my-1" />
 
           <button
             type="button"
             onClick={handlePrint}
-            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-[#f4f4f2] hover:bg-[#2a2a2a] transition cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-left text-xs font-sans text-zinc-800 hover:bg-zinc-100 dark:text-[#f4f4f2] dark:hover:bg-[#2a2a2a] transition cursor-pointer"
             role="menuitem"
           >
-            <Printer className="w-4 h-4 text-emerald-400 shrink-0" />
+            <Printer className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-xs leading-none">Print / Save as PDF</div>
-              <div className="text-[10px] text-[#9a9a94] mt-0.5">Clean printable document</div>
+              <div className="text-[10px] text-zinc-500 dark:text-[#9a9a94] mt-0.5">Clean printable document</div>
             </div>
           </button>
         </div>
@@ -263,4 +263,3 @@ export function ExportDropdown({
     </div>
   );
 }
-

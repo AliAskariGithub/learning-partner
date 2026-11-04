@@ -321,15 +321,16 @@ export function NotebookSidebar({
             e.stopPropagation();
             setOpenMenuNotebookId(isMenuOpen ? null : nb.id);
           }}
-          className={`p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#303030] transition-all cursor-pointer ${isMenuOpen ? 'opacity-100 bg-[#303030] text-foreground' : 'opacity-0 group-hover:opacity-100'
-            }`}
+          className={`p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-zinc-200 dark:hover:bg-[#303030] transition-all cursor-pointer ${
+            isMenuOpen ? 'opacity-100 bg-zinc-200 dark:bg-[#303030] text-foreground' : 'opacity-0 group-hover:opacity-100'
+          }`}
           title="Notebook actions"
         >
           <MoreVertical className="w-3.5 h-3.5" />
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 top-full mt-1 w-36 rounded-2xl bg-[#1c1c1c] border border-[#383838] shadow-2xl shadow-black/80 py-1.5 px-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="absolute right-0 top-full mt-1 w-36 rounded-2xl bg-white dark:bg-[#1c1c1c] border border-zinc-200 dark:border-[#383838] shadow-xl shadow-black/10 dark:shadow-black/80 py-1.5 px-1 z-50 animate-in fade-in zoom-in-95 duration-100">
             <button
               type="button"
               onClick={(e) => {
@@ -339,9 +340,9 @@ export function NotebookSidebar({
                 setRenamedTitle(nb.title);
                 setRenameDialogOpen(true);
               }}
-              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-zinc-800 dark:text-[#f4f4f2] hover:bg-zinc-100 dark:hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
             >
-              <Pencil className="w-3.5 h-3.5 text-[#9a9a94]" />
+              <Pencil className="w-3.5 h-3.5 text-zinc-500 dark:text-[#9a9a94]" />
               {t('rename')}
             </button>
 
@@ -352,13 +353,13 @@ export function NotebookSidebar({
                 setOpenMenuNotebookId(null);
                 handleTogglePin(nb, e);
               }}
-              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-[#f4f4f2] hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-zinc-800 dark:text-[#f4f4f2] hover:bg-zinc-100 dark:hover:bg-[#2a2a2a] rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
             >
-              <Pin className={`w-3.5 h-3.5 ${nb.pinned ? 'fill-brand-400 text-brand-400' : 'text-[#9a9a94]'}`} />
+              <Pin className={`w-3.5 h-3.5 ${nb.pinned ? 'fill-brand-500 text-brand-500' : 'text-zinc-500 dark:text-[#9a9a94]'}`} />
               {nb.pinned ? t('unpin') : t('pin_to_top')}
             </button>
 
-            <div className="h-px bg-[#303030] my-1" />
+            <div className="h-px bg-zinc-200 dark:bg-[#303030] my-1" />
 
             <button
               type="button"
@@ -368,7 +369,7 @@ export function NotebookSidebar({
                 setNotebookToDelete(nb);
                 setDeleteDialogOpen(true);
               }}
-              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-rose-400 hover:bg-rose-950/25 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+              className="w-full px-2.5 py-1.5 text-left text-xs font-display text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/25 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {t('delete')}
@@ -586,7 +587,7 @@ export function NotebookSidebar({
                                 className={
                                   isActive
                                     ? 'bg-brand-500/15 border border-brand-500/40'
-                                    : 'bg-surface-raised border border-border'
+                                    : 'bg-zinc-100 border border-zinc-200 dark:bg-surface-raised dark:border-border'
                                 }
                               />
                               <div
@@ -598,12 +599,12 @@ export function NotebookSidebar({
                                 }}
                                 className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${isMenuOpen ? 'z-40' : 'z-10'
                                   } ${isActive
-                                    ? 'text-brand-300 font-semibold'
-                                    : 'text-muted-foreground hover:text-foreground'
+                                    ? 'text-brand-700 dark:text-brand-300 font-semibold'
+                                    : 'text-zinc-600 hover:text-zinc-900 dark:text-muted-foreground dark:hover:text-foreground'
                                   }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0 pr-1">
-                                  <BookOpen className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
+                                  <BookOpen className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-zinc-500 dark:text-muted-foreground'}`} />
                                   <span className="truncate font-serif">{nb.title}</span>
                                 </div>
 
@@ -647,7 +648,7 @@ export function NotebookSidebar({
                                 className={
                                   isActive
                                     ? 'bg-brand-500/15 border border-brand-500/40'
-                                    : 'bg-surface-raised border border-border'
+                                    : 'bg-zinc-100 border border-zinc-200 dark:bg-surface-raised dark:border-border'
                                 }
                               />
                               <div
@@ -659,12 +660,12 @@ export function NotebookSidebar({
                                 }}
                                 className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl text-xs transition cursor-pointer ${isMenuOpen ? 'z-40' : 'z-10'
                                   } ${isActive
-                                    ? 'text-brand-300 font-semibold'
-                                    : 'text-muted-foreground hover:text-foreground'
+                                    ? 'text-brand-700 dark:text-brand-300 font-semibold'
+                                    : 'text-zinc-600 hover:text-zinc-900 dark:text-muted-foreground dark:hover:text-foreground'
                                   }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0 pr-1">
-                                  <Folder className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-400' : 'text-muted-foreground'}`} />
+                                  <Folder className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-zinc-500 dark:text-muted-foreground'}`} />
                                   <span className="truncate font-serif">{nb.title}</span>
                                 </div>
 
@@ -877,28 +878,28 @@ export function NotebookSidebar({
                 <div className="flex items-center justify-between gap-1.5">
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-raised transition-colors cursor-pointer flex-1 min-w-0 text-left group"
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-surface-raised transition-colors cursor-pointer flex-1 min-w-0 text-left group"
                   >
                     {/* Circle Avatar with Image or Initial */}
                     {userAvatarUrl ? (
                       <img
                         src={userAvatarUrl}
                         alt={userDisplayName}
-                        className="w-8 h-8 rounded-full object-cover border border-border shrink-0 shadow-sm group-hover:border-brand-500/40 transition-colors"
+                        className="w-8 h-8 rounded-full object-cover border border-zinc-200 dark:border-border shrink-0 shadow-xs group-hover:border-brand-500/40 transition-colors"
                       />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-surface-raised border border-border text-brand-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-sm group-hover:border-brand-500/40 transition-colors">
+                      <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-surface-raised border border-zinc-200 dark:border-border text-brand-600 dark:text-brand-400 flex items-center justify-center font-display font-bold text-xs shrink-0 shadow-xs group-hover:border-brand-500/40 transition-colors">
                         {userDisplayName.charAt(0).toUpperCase()}
                       </div>
                     )}
 
                     {/* Display Name and Animated Chevron */}
                     <div className="flex items-center justify-between min-w-0 flex-1 pr-1">
-                      <span className="text-xs font-display font-semibold text-foreground truncate group-hover:text-brand-300 transition-colors">
+                      <span className="text-xs font-display font-semibold text-zinc-900 dark:text-[#f4f4f2] truncate group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">
                         {userDisplayName}
                       </span>
                       <ChevronDown
-                        className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${userMenuOpen ? 'rotate-180 text-brand-400' : ''
+                        className={`w-3.5 h-3.5 text-zinc-400 dark:text-muted-foreground shrink-0 transition-transform duration-200 ${userMenuOpen ? 'rotate-180 text-brand-600 dark:text-brand-400' : ''
                           }`}
                       />
                     </div>

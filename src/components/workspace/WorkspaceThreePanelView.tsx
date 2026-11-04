@@ -1290,86 +1290,28 @@ export function WorkspaceThreePanelView({
 
             {/* Right Sidebar Trigger & Context Window Meter */}
           <div className="flex items-center gap-2">
-            {/* Context Window Limit Meter */}
-            <Tooltip
-              side="bottom"
-              align="end"
-              className="max-w-[340px] w-auto"
-              content={
-                <div className="p-1.5 space-y-2 text-left min-w-[240px]">
-                  <div className="flex items-center justify-between border-b tooltip-border pb-1.5">
-                    <span className="font-display font-bold text-xs tooltip-title">Context Window</span>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border tooltip-model-badge">
-                      {activeModelDef.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-medium tooltip-subtext">Total Used:</span>
-                    <span className="font-mono font-bold tooltip-value">
-                      {totalUsedTokens.toLocaleString()} / {contextWindowLimit.toLocaleString()} ({usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1' : usedPercentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="w-full h-1.5 tooltip-track rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-500' : 'bg-brand-600'
-                      }`}
-                      style={{ width: `${Math.min(100, Math.max(3, usedPercentage))}%` }}
-                    />
-                  </div>
-                  <div className="pt-1.5 border-t tooltip-border space-y-1.5 text-[11px]">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 font-medium tooltip-subtext">
-                        <BookOpen className="w-3.5 h-3.5 text-brand-500 shrink-0" /> Sources ({enabledCount} active)
-                      </span>
-                      <span className="font-mono font-semibold tooltip-value">{sourcesTokens.toLocaleString()} tokens</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 font-medium tooltip-subtext">
-                        <MessageSquare className="w-3.5 h-3.5 text-cyan-500 shrink-0" /> Current Chat ({messages.length} msgs)
-                      </span>
-                      <span className="font-mono font-semibold tooltip-value">{chatTokens.toLocaleString()} tokens</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 font-medium tooltip-subtext">
-                        <Brain className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Notebook Memory ({notebookNotes.length} notes)
-                      </span>
-                      <span className="font-mono font-semibold tooltip-value">{memoryTokens.toLocaleString()} tokens</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1.5 border-t tooltip-border">
-                      <span className="flex items-center gap-1.5 font-bold tooltip-title">
-                        <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" /> Remaining
-                      </span>
-                      <span className="font-mono font-bold tooltip-remaining">
-                        {Math.max(0, contextWindowLimit - totalUsedTokens).toLocaleString()} tokens free
-                      </span>
-                    </div>
-                  </div>
+            {/* Context Window Limit Meter (Tooltip removed as requested) */}
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-900 hover:border-brand-500/40 dark:bg-[#262626] dark:border-[#303030] dark:text-[#f4f4f2] transition-colors text-xs select-none">
+              <Activity className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
+              <div className="hidden sm:flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] leading-tight">
+                  <span className="text-zinc-900 dark:text-[#f4f4f2] font-semibold">{formatTokens(totalUsedTokens)}</span>
+                  <span className="text-zinc-400 dark:text-[#9a9a94]">/</span>
+                  <span className="text-zinc-500 dark:text-[#9a9a94]">{formatTokens(contextWindowLimit)}</span>
                 </div>
-              }
-            >
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-900 hover:border-brand-500/40 dark:bg-[#262626] dark:border-[#303030] dark:text-[#f4f4f2] transition-colors cursor-pointer text-xs">
-                <Activity className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
-                <div className="hidden sm:flex flex-col gap-0.5">
-                  <div className="flex items-center gap-1.5 font-mono text-[11px] leading-tight">
-                    <span className="text-zinc-900 dark:text-[#f4f4f2] font-semibold">{formatTokens(totalUsedTokens)}</span>
-                    <span className="text-zinc-400 dark:text-[#9a9a94]">/</span>
-                    <span className="text-zinc-500 dark:text-[#9a9a94]">{formatTokens(contextWindowLimit)}</span>
-                  </div>
-                  <div className="w-16 h-1 bg-zinc-200 dark:bg-[#191919] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-500'
-                      }`}
-                      style={{ width: `${Math.min(100, Math.max(4, usedPercentage))}%` }}
-                    />
-                  </div>
+                <div className="w-16 h-1 bg-zinc-200 dark:bg-[#191919] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      usedPercentage > 85 ? 'bg-rose-500' : usedPercentage > 65 ? 'bg-amber-400' : 'bg-brand-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(4, usedPercentage))}%` }}
+                  />
                 </div>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-200/80 text-brand-700 border border-zinc-300 dark:bg-[#191919] dark:text-brand-300 dark:border-[#303030]">
-                  {usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1%' : `${usedPercentage.toFixed(1)}%`}
-                </span>
               </div>
-            </Tooltip>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-200/80 text-brand-700 border border-zinc-300 dark:bg-[#191919] dark:text-brand-300 dark:border-[#303030]">
+                {usedPercentage < 0.1 && totalUsedTokens > 0 ? '<0.1%' : `${usedPercentage.toFixed(1)}%`}
+              </span>
+            </div>
             {/* Tablet right drawer trigger */}
             <button
               onClick={() => setTabletDrawerOpen(true)}
@@ -1561,16 +1503,16 @@ export function WorkspaceThreePanelView({
 
             {/* Recents List for Notebook Home */}
             {conversations.length > 0 && (
-              <div className="pt-4 border-t border-[#303030] text-left">
+              <div className="pt-4 border-t border-zinc-200 dark:border-[#303030] text-left">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] uppercase tracking-wider font-display font-bold text-[#9a9a94]">
+                  <span className="text-[11px] uppercase tracking-wider font-display font-bold text-zinc-500 dark:text-[#9a9a94]">
                     Recent Conversations
                   </span>
-                  <span className="text-[10px] text-[#9a9a94] font-mono">
+                  <span className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono">
                     {conversations.length} saved
                   </span>
                 </div>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-[#303030]">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#303030]">
                   {conversations.slice(0, 5).map((conv) => {
                     const isChatActive = conv.id === activeConversationId;
                     return (
@@ -1613,7 +1555,7 @@ export function WorkspaceThreePanelView({
                                   onDeleteConversation(conv.id);
                                 }
                               }}
-                              className="p-1 text-[#9a9a94] hover:text-red-400 rounded hover:bg-[#303030] transition cursor-pointer"
+                              className="p-1 text-zinc-400 hover:text-red-500 rounded hover:bg-zinc-100 dark:text-[#9a9a94] dark:hover:text-red-400 dark:hover:bg-[#303030] transition cursor-pointer"
                               title="Delete chat"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -2374,7 +2316,7 @@ export function WorkspaceThreePanelView({
             onChange={(e) => setInstructionsText(e.target.value)}
             rows={5}
             placeholder="e.g. ROLE You are my personal study partner. Answer questions strictly grounded in uploaded sources..."
-            className="w-full bg-[#191919] border-[#303030]"
+            className="w-full bg-white dark:bg-[#191919] border-zinc-200 dark:border-[#303030] text-zinc-900 dark:text-[#f4f4f2] placeholder:text-zinc-400"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setEditInstructionsOpen(false)}>
@@ -2401,25 +2343,25 @@ export function WorkspaceThreePanelView({
       >
         <div className="space-y-4 pt-2">
           {/* Header Action / Badge: Read-Only */}
-          <div className="flex items-center justify-between pb-2 border-b border-[#303030]">
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-200 dark:border-[#303030]">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[#9a9a94] font-mono">{notebookNotes.length} saved memories</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium">
+              <span className="text-xs text-zinc-500 dark:text-[#9a9a94] font-mono">{notebookNotes.length} saved memories</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-500/30 text-[10px] font-display font-medium">
                 <Lock className="w-2.5 h-2.5" /> Read-Only · Auto-Saved
               </span>
             </div>
-            <span className="text-[11px] text-[#9a9a94] font-serif">
+            <span className="text-[11px] text-zinc-500 dark:text-[#9a9a94] font-serif">
               Unified across all chats
             </span>
           </div>
 
           {/* Notes List (Strictly Read-Only: No Add, No Edit, No Delete) */}
-          <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-[#303030]">
+          <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#303030]">
             {notebookNotes.length === 0 ? (
-              <div className="py-12 text-center text-[#9a9a94] text-xs font-serif space-y-2">
-                <Brain className="w-8 h-8 text-[#9a9a94] mx-auto opacity-40" />
-                <p className="text-[#f4f4f2] font-semibold">No memories stored for this notebook yet</p>
-                <p className="max-w-md mx-auto text-[#9a9a94]">
+              <div className="py-12 text-center text-zinc-500 dark:text-[#9a9a94] text-xs font-serif space-y-2">
+                <Brain className="w-8 h-8 text-zinc-400 dark:text-[#9a9a94] mx-auto opacity-40" />
+                <p className="text-zinc-900 dark:text-[#f4f4f2] font-semibold">No memories stored for this notebook yet</p>
+                <p className="max-w-md mx-auto text-zinc-500 dark:text-[#9a9a94]">
                   As you chat and study with your learning partner, key insights across all chats in this notebook are automatically preserved here.
                 </p>
               </div>
@@ -2427,18 +2369,18 @@ export function WorkspaceThreePanelView({
               notebookNotes.map((note) => (
                 <div
                   key={note.id}
-                  className="p-3.5 rounded-2xl bg-[#191919] border border-[#303030] hover:border-brand-500/40 transition group"
+                  className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-[#191919] border border-zinc-200 dark:border-[#303030] hover:border-brand-500/40 transition group"
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-brand-400" />
-                      <h4 className="text-xs font-display font-bold text-[#f4f4f2]">{note.title}</h4>
+                      <div className="w-2 h-2 rounded-full bg-brand-500" />
+                      <h4 className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">{note.title}</h4>
                     </div>
-                    <span className="text-[10px] text-[#9a9a94] font-mono">
+                    <span className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono">
                       Auto-saved
                     </span>
                   </div>
-                  <p className="text-xs text-[#9a9a94] font-serif leading-relaxed whitespace-pre-wrap pl-4 border-l border-[#303030]">
+                  <p className="text-xs text-zinc-600 dark:text-[#9a9a94] font-serif leading-relaxed whitespace-pre-wrap pl-4 border-l border-zinc-200 dark:border-[#303030]">
                     {note.content}
                   </p>
                 </div>
@@ -2461,7 +2403,7 @@ export function WorkspaceThreePanelView({
             onChange={(e) => setNewSourceTitle(e.target.value)}
             placeholder="Source title"
             autoFocus
-            className="bg-[#191919] border-[#303030]"
+            className="bg-white dark:bg-[#191919] border-zinc-200 dark:border-[#303030] text-zinc-900 dark:text-[#f4f4f2]"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setRenamingSource(null)}>
@@ -2507,10 +2449,10 @@ export function WorkspaceThreePanelView({
         description={selectedStudioAction?.desc || ''}
       >
         <div className="space-y-4 pt-2">
-          <div className="p-4 rounded-2xl bg-[#191919] border border-[#303030] text-xs text-[#9a9a94] font-serif space-y-2">
+          <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-[#191919] border border-zinc-200 dark:border-[#303030] text-xs text-zinc-600 dark:text-[#9a9a94] font-serif space-y-2">
             <p>
               In Phase 3, this tool will synthesize your{' '}
-              <span className="text-[#f4f4f2] font-semibold">{enabledCount} enabled sources</span>{' '}
+              <span className="text-zinc-900 dark:text-[#f4f4f2] font-semibold">{enabledCount} enabled sources</span>{' '}
               using Gemini AI into interactive outputs with inline source citations.
             </p>
             <p>
@@ -2526,7 +2468,7 @@ export function WorkspaceThreePanelView({
                 setSelectedStudioAction(null);
                 onOpenSettings();
               }}
-              className="text-xs border-[#303030] text-brand-400 hover:text-brand-300"
+              className="text-xs border-zinc-200 dark:border-[#303030] text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
             >
               <Key className="w-3.5 h-3.5 mr-1" />
               Configure API Key

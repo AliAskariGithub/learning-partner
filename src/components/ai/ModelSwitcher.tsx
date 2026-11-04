@@ -372,7 +372,7 @@ export function ModelSwitcher({
                   return (
                     <div key={pId} className="space-y-1">
                       {/* Provider Header */}
-                      <div className="flex items-center justify-between px-2 pt-1.5 text-[11px] font-display font-bold text-[#9a9a94]">
+                      <div className="flex items-center justify-between px-2 pt-1.5 text-[11px] font-display font-bold text-zinc-500 dark:text-[#9a9a94]">
                         <span className="flex items-center gap-1.5">
                           {providerMeta.name}
                         </span>

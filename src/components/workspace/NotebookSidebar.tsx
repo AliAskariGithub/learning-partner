@@ -874,11 +874,11 @@ export function NotebookSidebar({
                   )}
                 </AnimatePresence>
 
-                {/* The User Button: Initial Circle or Photo + Display Name + Chevron (Clean without • Free) */}
-                <div className="flex items-center justify-between gap-1.5">
+                {/* The User Button: Initial Circle or Photo + Display Name + Chevron */}
+                <div className="flex items-center">
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-surface-raised transition-colors cursor-pointer flex-1 min-w-0 text-left group"
+                    className="flex items-center gap-3 p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-surface-raised transition-colors cursor-pointer w-full min-w-0 text-left group"
                   >
                     {/* Circle Avatar with Image or Initial */}
                     {userAvatarUrl ? (
@@ -904,16 +904,6 @@ export function NotebookSidebar({
                       />
                     </div>
                   </button>
-
-                  {/* Collapse Sidebar Button on the Right */}
-                  <Tooltip content="Collapse sidebar" side="top">
-                    <button
-                      onClick={() => setSidebarOpen(false)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-raised transition cursor-pointer shrink-0"
-                    >
-                      <PanelLeftClose className="h-4 w-4" />
-                    </button>
-                  </Tooltip>
                 </div>
               </div>
             </div>

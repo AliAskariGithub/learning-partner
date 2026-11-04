@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Badge, Card } from '@/components/ui';
 import {
   FileText,
@@ -82,22 +82,8 @@ const checkItemVariants = {
 export function LandingClient({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  // Top Scroll Progress Line
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 120,
-    damping: 30,
-    restDelta: 0.001,
-  });
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans overflow-x-hidden relative">
-      {/* ── Top Scroll Progress Bar ── */}
-      <motion.div
-        className="fixed top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-600 via-brand-400 to-indigo-400 origin-left z-50 pointer-events-none shadow-[0_0_8px_rgba(139,92,246,0.5)]"
-        style={{ scaleX }}
-      />
-
       {/* ── Subtle Background Architectural Grid & Spotlight ── */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800c_1px,transparent_1px),linear-gradient(to_bottom,#8080800c_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none -z-20" />
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-[600px] bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(139,92,246,0.15),transparent)] pointer-events-none -z-10" />

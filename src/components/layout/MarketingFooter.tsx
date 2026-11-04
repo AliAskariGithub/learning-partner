@@ -60,6 +60,8 @@ export function MarketingFooter({
   const [emailInput, setEmailInput] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
+  const headingLines = newsletterHeading.split('\n');
+
   const defaultNavColumns: FooterColumn[] = [
     {
       title: 'PRODUCT',
@@ -128,20 +130,24 @@ export function MarketingFooter({
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 pt-14 sm:pt-18 pb-8 flex flex-col justify-between">
           {/* ── Top Section: 2-Line Heading & Newsletter Subscribe ── */}
-          <div className="flex flex-col lg:flex-row justify-between items-start gap-8 lg:gap-16 mb-12 sm:mb-16">
-            <motion.div variants={riseItem} className="max-w-xl">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 sm:gap-8 lg:gap-10 mb-12 sm:mb-16">
+            <motion.div variants={riseItem} className="flex-1 max-w-2xl">
               <div className="flex items-center gap-2.5 mb-3.5">
                 <div className="w-2 h-2 rounded-full bg-brand-500 shadow-[0_0_10px_rgba(139,92,246,0.8)] animate-pulse" />
                 <span className="text-[11px] sm:text-xs font-display font-semibold uppercase tracking-wider text-muted-foreground">
                   {badgeText}
                 </span>
               </div>
-              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-[1.18] sm:leading-[1.15] text-foreground tracking-tight whitespace-pre-line">
-                {newsletterHeading}
+              <h2 className="font-display text-xl sm:text-2xl md:text-3xl lg:text-[1.95rem] xl:text-[2.25rem] font-extrabold leading-[1.2] sm:leading-[1.18] text-foreground tracking-tight">
+                {headingLines.map((line, idx) => (
+                  <span key={idx} className="block md:whitespace-nowrap">
+                    {line}
+                  </span>
+                ))}
               </h2>
             </motion.div>
 
-            <motion.div variants={riseItem} className="w-full max-w-md lg:mt-auto">
+            <motion.div variants={riseItem} className="w-full max-w-md lg:w-96 lg:max-w-sm shrink-0 lg:mb-1">
               {subscribed ? (
                 <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/30 text-foreground flex items-center gap-3 text-xs sm:text-sm font-serif">
                   <div className="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center shrink-0">

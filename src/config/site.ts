@@ -24,7 +24,7 @@ export const siteConfig = {
     legalName: '[[CONFIRM: legal owner or entity name]]',
     contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || '[[CONFIRM: contact email address]]',
     adminNotificationEmail: process.env.CONTACT_TO_EMAIL || '[[CONFIRM: admin recipient email]]',
-    githubUrl: 'https://github.com/[[CONFIRM: github repository path]]',
+    githubUrl: 'https://github.com/AliAskariGithub/learning-partner',
     expectedResponseTime: 'Within 24 to 48 business hours',
     governingJurisdiction: '[[CONFIRM: governing law jurisdiction]]',
   },

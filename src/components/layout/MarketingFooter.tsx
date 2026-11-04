@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, type Variants } from 'framer-motion';
 import { ArrowUpRight, Check } from 'lucide-react';
-import { CookiePreferencesModal } from '@/components/cookies/CookiePreferencesModal';
 import { siteConfig } from '@/config/site';
 
 const staggerContainer: Variants = {
@@ -33,6 +32,11 @@ export interface FooterColumn {
   links: { label: string; href: string }[];
 }
 
+export interface FooterSocialLink {
+  label: string;
+  href: string;
+}
+
 export interface MarketingFooterProps {
   badgeText?: string;
   newsletterHeading?: string;
@@ -42,7 +46,7 @@ export interface MarketingFooterProps {
   brandLogo?: React.ReactNode;
   navColumns?: FooterColumn[];
   copyright?: string;
-  githubUrl?: string;
+  socialLinks?: readonly FooterSocialLink[];
 }
 
 export function MarketingFooter({
@@ -54,9 +58,8 @@ export function MarketingFooter({
   brandLogo,
   navColumns,
   copyright = `© ${new Date().getFullYear()} ${siteConfig.name}. Open-source study workspace.`,
-  githubUrl = siteConfig.owner.githubUrl,
+  socialLinks = siteConfig.socials,
 }: MarketingFooterProps) {
-  const [cookieModalOpen, setCookieModalOpen] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -218,7 +221,7 @@ export function MarketingFooter({
             </div>
           </div>
 
-          {/* ── Bottom Section: Meta & Controls (Clean 2-Sided Layout without Location/Clock) ── */}
+          {/* ── Bottom Section: Meta & Social Links ── */}
           <motion.div
             variants={riseItem}
             className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 text-xs text-muted-foreground border-t border-border font-serif"
@@ -226,37 +229,21 @@ export function MarketingFooter({
             <p className="text-center sm:text-left">{copyright}</p>
 
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-display text-xs">
-              <button
-                type="button"
-                onClick={() => setCookieModalOpen(true)}
-                className="hover:text-foreground transition-colors cursor-pointer text-muted-foreground"
-              >
-                Cookie Settings
-              </button>
-              <Link href="/privacy" className="hover:text-foreground transition-colors text-muted-foreground">
-                Privacy
-              </Link>
-              <Link href="/terms" className="hover:text-foreground transition-colors text-muted-foreground">
-                Terms
-              </Link>
-              <a
-                href={githubUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors text-muted-foreground inline-flex items-center gap-1"
-              >
-                <span>GitHub</span>
-                <ArrowUpRight className="w-3 h-3" />
-              </a>
+              {socialLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors text-muted-foreground"
+                >
+                  {link.label}
+                </a>
+              ))}
             </div>
           </motion.div>
         </div>
       </motion.footer>
-
-      <CookiePreferencesModal
-        open={cookieModalOpen}
-        onOpenChange={setCookieModalOpen}
-      />
     </>
   );
 }

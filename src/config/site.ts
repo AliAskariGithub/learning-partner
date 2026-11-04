@@ -25,9 +25,23 @@ export const siteConfig = {
     contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || '[[CONFIRM: contact email address]]',
     adminNotificationEmail: process.env.CONTACT_TO_EMAIL || '[[CONFIRM: admin recipient email]]',
     githubUrl: 'https://github.com/AliAskariGithub/learning-partner',
+    portfolioUrl: 'https://aliaskari.xyz/',
+    linkedinUrl: 'https://www.linkedin.com/in/aliaskaridev/',
+    xUrl: 'https://x.com/aliaskaridev',
+    instagramUrl: 'https://www.instagram.com/aliaskaridev/',
+    facebookUrl: 'https://www.facebook.com/aliaskaridev/',
     expectedResponseTime: 'Within 24 to 48 business hours',
     governingJurisdiction: '[[CONFIRM: governing law jurisdiction]]',
   },
+
+  // Public Social Handles
+  socials: [
+    { label: 'Portfolio', href: 'https://aliaskari.xyz/' },
+    { label: 'LinkedIn', href: 'https://www.linkedin.com/in/aliaskaridev/' },
+    { label: 'X', href: 'https://x.com/aliaskaridev' },
+    { label: 'Instagram', href: 'https://www.instagram.com/aliaskaridev/' },
+    { label: 'Facebook', href: 'https://www.facebook.com/aliaskaridev/' },
+  ],
 
   // Compliance & Demographics
   compliance: {

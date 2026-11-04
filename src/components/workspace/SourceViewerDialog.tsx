@@ -120,11 +120,10 @@ export function SourceViewerDialog({
                   key={chunk.id}
                   id={`chunk-${chunk.chunkIndex}`}
                   onClick={() => setActiveChunkIndex(chunk.chunkIndex)}
-                  className={`p-4 rounded-xl border transition cursor-pointer text-foreground ${
-                    isHighlighted
+                  className={`p-4 rounded-xl border transition cursor-pointer text-foreground ${isHighlighted
                       ? 'bg-brand-500/10 border-brand-500 shadow-sm'
                       : 'bg-surface border-border hover:border-brand-500/40 hover:bg-surface-raised'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-border/50 text-[11px] font-mono text-muted-foreground">
                     <div className="flex items-center gap-1.5 font-display font-semibold text-brand-400">

@@ -30,7 +30,7 @@ export async function GET(
     let fileBuffer: Buffer | null = null;
     for (const p of candidatePaths) {
       try {
-        fileBuffer = await fs.readFile(p);
+        fileBuffer = await fs.readFile(/*turbopackIgnore: true*/ p);
         break;
       } catch {
         // try next candidate path

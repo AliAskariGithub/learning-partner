@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
       const creds = await getCredentialsForRequest(session.user.id, 'gemini-3.8-flash');
       if (creds?.apiKey) {
         const ttsModels = [
-          'gemini-3.8-flash-tts',
-          'gemini-3.8-flash-lite-tts',
+          'gemini-2.0-flash',
+          'gemini-2.5-flash',
           'gemini-3.8-flash',
           'gemini-3.7-flash',
         ];

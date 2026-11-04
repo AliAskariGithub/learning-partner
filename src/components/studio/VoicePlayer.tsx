@@ -91,12 +91,18 @@ export function VoicePlayer({
     }
 
     const turn = safeScript[index];
+    const isNarration = (voiceConfig as any)?.style === 'narration';
     const isUrdu =
       (voiceConfig as any)?.language?.toLowerCase().includes('urdu') ||
       (voiceConfig as any)?.language === 'ur' ||
       /[\u0600-\u06FF]/.test(turn.text);
 
-    const isAlex = turn.speaker.toLowerCase().includes('alex') || turn.speaker.toLowerCase().includes('host 1');
+    const isAlex =
+      !isNarration &&
+      (turn.speaker.toLowerCase().includes('alex') ||
+        turn.speaker.toLowerCase().includes('host 1') ||
+        turn.speaker.toLowerCase() === safeScript[0]?.speaker.toLowerCase());
+
     const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
     const urduVoices = voices.filter(
       (v) => v.lang.startsWith('ur') || v.name.toLowerCase().includes('urdu') || v.lang.startsWith('pa')
@@ -106,7 +112,7 @@ export function VoicePlayer({
     if (isUrdu && urduVoices.length === 0) {
       if (audioRef.current) {
         audioRef.current.pause();
-        const hostNumber = isAlex ? '1' : '2';
+        const hostNumber = isNarration ? '1' : isAlex ? '1' : '2';
         const audioUrl = `/api/studio/tts-preview?text=${encodeURIComponent(turn.text)}&lang=ur&host=${hostNumber}`;
         audioRef.current.src = audioUrl;
         audioRef.current.playbackRate = playbackSpeed;
@@ -144,21 +150,27 @@ export function VoicePlayer({
       utterance.lang = 'en-US';
     }
 
-    // Try to find matching voice
+    // Assign consistent character voice
     if (voices.length > 0) {
       if (isUrdu) {
         if (urduVoices.length > 0) {
-          if (isAlex && urduVoices[0]) utterance.voice = urduVoices[0];
-          else if (!isAlex && urduVoices.length > 1) utterance.voice = urduVoices[1];
-          else utterance.voice = urduVoices[0];
+          if (isNarration || isAlex) {
+            utterance.voice = urduVoices[0];
+          } else {
+            utterance.voice = urduVoices.length > 1 ? urduVoices[1] : urduVoices[0];
+          }
         }
       } else {
-        if (isAlex && voices[0]) utterance.voice = voices[0];
-        else if (!isAlex && voices.length > 1) utterance.voice = voices[1];
+        if (isNarration || isAlex) {
+          utterance.voice = voices[0];
+        } else {
+          utterance.voice = voices.length > 1 ? voices[1] : voices[0];
+        }
       }
     }
 
     utterance.onend = () => {
+      (window as any).__activeUtterance = null;
       if (index + 1 < safeScript.length) {
         setCurrentTurnIndex(index + 1);
         playWebSpeechTurn(index + 1);
@@ -169,10 +181,13 @@ export function VoicePlayer({
     };
 
     utterance.onerror = () => {
+      (window as any).__activeUtterance = null;
       setIsPlaying(false);
     };
 
     utteranceRef.current = utterance;
+    // Retain global reference to avoid Chromium garbage collection bug dropping voice/speech mid-sentence
+    (window as any).__activeUtterance = utterance;
     window.speechSynthesis.speak(utterance);
     setIsPlaying(true);
   };
@@ -187,7 +202,10 @@ export function VoicePlayer({
     }
 
     const key = safeAudioKeys[index];
-    const audioUrl = `/api/storage/${key}`;
+    const audioUrl =
+      key.startsWith('/') || key.startsWith('http') || key.startsWith('data:')
+        ? key
+        : `/api/storage/${key}`;
     audioRef.current.src = audioUrl;
     audioRef.current.playbackRate = playbackSpeed;
     audioRef.current.muted = isMuted;

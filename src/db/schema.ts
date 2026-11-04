@@ -590,4 +590,20 @@ export const feedbackReports = pgTable(
 export type FeedbackReport = typeof feedbackReports.$inferSelect;
 export type NewFeedbackReport = typeof feedbackReports.$inferInsert;
 
+// Persistent Storage Files table (Fallback storage for serverless deployments like Vercel)
+export const storageFiles = pgTable(
+  'storage_files',
+  {
+    key: text('key').primaryKey(),
+    mimeType: text('mime_type').notNull(),
+    data: text('data').notNull(), // base64 payload
+    size: integer('size').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  }
+);
+
+export type StorageFile = typeof storageFiles.$inferSelect;
+export type NewStorageFile = typeof storageFiles.$inferInsert;
+
+
 

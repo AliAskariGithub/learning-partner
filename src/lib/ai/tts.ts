@@ -84,7 +84,8 @@ async function synthesizeGoogleTtsChunk(chunkText: string, targetLang: string): 
  * Splits long text at natural sentence boundaries to guarantee zero truncation and full native cadence.
  */
 async function synthesizeGoogleTtsFallback(text: string, lang = 'ur'): Promise<Buffer> {
-  const targetLang = lang.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(text) ? 'ur' : 'en';
+  const isUrdu = lang.toLowerCase().startsWith('ur');
+  const targetLang = isUrdu ? 'ur' : 'en';
 
   // Split text at natural sentence boundaries
   const sentences = text
@@ -189,6 +190,9 @@ function concatAudioBuffers(buffers: Buffer[]): { buffer: Buffer; mimeType: stri
   };
 }
 
+// Track working Gemini audio model across turns to minimize wasted calls
+let detectedGeminiTtsModel: string | null = null;
+
 /**
  * Synthesizes a single turn using Google Gemini TTS with resilient fallback.
  */
@@ -200,15 +204,19 @@ async function synthesizeGeminiTurn(
 ): Promise<Buffer> {
   const isUrdu = language?.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(text);
 
-  // Real Gemini TTS models supporting audio modality
-  const ttsModels = [
-    'gemini-3.8-flash-tts',
-    'gemini-3.8-flash-lite-tts',
+  // High-availability Gemini models supporting native audio generation
+  const candidateModels = [
+    ...(detectedGeminiTtsModel ? [detectedGeminiTtsModel] : []),
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
     'gemini-3.8-flash',
     'gemini-3.7-flash',
-  ];
+  ].filter((v, i, a) => a.indexOf(v) === i);
 
-  for (const model of ttsModels) {
+  let lastStatus = 0;
+  let lastErrText = '';
+
+  for (const model of candidateModels) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const res = await fetch(url, {
@@ -231,22 +239,33 @@ async function synthesizeGeminiTurn(
         }),
       });
 
+      lastStatus = res.status;
+
       if (res.ok) {
         const json = await res.json();
         const base64Audio = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (base64Audio) {
+          detectedGeminiTtsModel = model;
           return Buffer.from(base64Audio, 'base64');
         }
       } else {
-        const errText = await res.text().catch(() => '');
-        console.warn(`Gemini TTS model ${model} returned ${res.status}: ${errText.slice(0, 150)}`);
+        lastErrText = await res.text().catch(() => '');
+        // On 429 rate limit, throw so outer retry backoff can wait and retry without switching voices!
+        if (res.status === 429) {
+          throw new Error('RATE_LIMIT_429');
+        }
+        console.warn(`Gemini TTS model ${model} returned ${res.status}: ${lastErrText.slice(0, 150)}`);
       }
-    } catch (err) {
-      console.warn(`Gemini TTS call with model ${model} failed:`, err);
+    } catch (err: any) {
+      if (err?.message === 'RATE_LIMIT_429') {
+        throw err;
+      }
+      console.warn(`Gemini TTS call with model ${model} failed:`, err?.message || err);
     }
   }
 
-  // Resilient fallback ensuring sound is always produced
+  // Resilient fallback ensuring sound is always produced if non-rate-limit error persists
+  console.warn(`Gemini audio models exhausted (status ${lastStatus}): ${lastErrText.slice(0, 100)}. Using fallback.`);
   return synthesizeGoogleTtsFallback(text, isUrdu ? 'ur' : 'en');
 }
 
@@ -282,41 +301,47 @@ export async function synthesizeVoiceScript(
   let totalWords = 0;
 
   // Process turns with smart co-host voice assignment & resilient rate-limit pacing
+  const isNarration = (voiceConfig as any)?.style === 'narration';
   const speaker1 = voiceConfig.speaker1Name?.toLowerCase() || 'alex';
+  const speaker2 = voiceConfig.speaker2Name?.toLowerCase() || 'jordan';
   const voice1 = voiceConfig.speaker1Voice;
   const voice2 = voiceConfig.speaker2Voice;
+  const firstSpeaker = turns[0]?.speaker.toLowerCase();
 
   for (let i = 0; i < turns.length; i++) {
     const turn = turns[i];
     const sLower = turn.speaker.toLowerCase();
 
-    // Accurate speaker gender detection supporting English & Urdu naming
-    const isFemaleLead =
-      sLower.includes(speaker1) ||
-      sLower.includes('alex') ||
-      sLower.includes('ایلکس') ||
-      sLower.includes('host 1') ||
-      sLower.includes('خاتون') ||
-      sLower.includes('مریم') ||
-      sLower.includes('سارہ') ||
-      sLower.includes('female');
+    // Accurate speaker voice assignment
+    let assignedVoice = voice1;
+    if (isNarration) {
+      // Solo narration always uses the chosen narrator voice for all lines
+      assignedVoice = voice1;
+    } else {
+      const isLead =
+        sLower.includes(speaker1) ||
+        sLower.includes('alex') ||
+        sLower.includes('ایلکس') ||
+        sLower.includes('host 1') ||
+        sLower.includes('speaker 1') ||
+        sLower === firstSpeaker;
 
-    const isJordan =
-      sLower.includes('jordan') ||
-      sLower.includes('جورڈن') ||
-      sLower.includes('host 2') ||
-      sLower.includes('طارق') ||
-      sLower.includes('ارسلان') ||
-      sLower.includes('male');
+      const isCoHost =
+        sLower.includes(speaker2) ||
+        sLower.includes('jordan') ||
+        sLower.includes('جورڈن') ||
+        sLower.includes('host 2') ||
+        sLower.includes('speaker 2');
 
-    // Assign Female Character Voice to Host 1 (Alex), Jordan Voice to Host 2
-    const assignedVoice = isFemaleLead
-      ? voice1
-      : isJordan
-        ? voice2
-        : i % 2 === 0
-          ? voice1
-          : voice2;
+      if (isLead) {
+        assignedVoice = voice1;
+      } else if (isCoHost) {
+        assignedVoice = voice2;
+      } else {
+        // Fallback: match first speaker, otherwise use second voice
+        assignedVoice = sLower === firstSpeaker ? voice1 : voice2;
+      }
+    }
 
     totalWords += turn.text.split(/\s+/).length;
 
@@ -324,7 +349,7 @@ export async function synthesizeVoiceScript(
     let audioBuffer: Buffer | null = null;
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
       try {
         if (provider === 'google') {
           audioBuffer = await synthesizeGeminiTurn(apiKey, turn.text, assignedVoice, voiceConfig.language);
@@ -336,8 +361,15 @@ export async function synthesizeVoiceScript(
         break;
       } catch (err: any) {
         lastError = err;
-        if (attempt < 3) {
-          await new Promise((r) => setTimeout(r, 1200 * attempt));
+        if (attempt <= 3) {
+          const delay = err?.message === 'RATE_LIMIT_429' ? 2500 * attempt : 1200 * attempt;
+          console.warn(`[TTS] Turn ${i + 1} attempt ${attempt} delayed (${err?.message || 'error'}), retrying in ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+        } else if (provider === 'google') {
+          // If all rate-limit retries exhausted, fall back to Google TTS
+          console.warn(`[TTS] All attempts for turn ${i + 1} exhausted. Falling back to Google TTS service.`);
+          const isUrdu = voiceConfig.language?.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(turn.text);
+          audioBuffer = await synthesizeGoogleTtsFallback(turn.text, isUrdu ? 'ur' : 'en');
         }
       }
     }
@@ -359,9 +391,9 @@ export async function synthesizeVoiceScript(
       onProgress(i + 1, turns.length);
     }
 
-    // Gentle pacing delay between consecutive turns to stay within API rate limits
+    // Pacing delay between consecutive turns to stay within 15 RPM free tier quota
     if (i < turns.length - 1 && provider === 'google') {
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 

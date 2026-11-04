@@ -2,6 +2,7 @@ import { put, del } from '@vercel/blob';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { neon } from '@neondatabase/serverless';
 
 export interface StorageUploadResult {
   storageKey: string;
@@ -106,21 +107,42 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
     const uploadDir = await this.getWritableDir();
     const sanitized = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const filePath = path.resolve(uploadDir, sanitized);
+    const buffer = Buffer.isBuffer(file) ? file : Buffer.from(file);
 
     try {
       await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, file);
-    } catch (primaryErr) {
+      await fs.writeFile(filePath, buffer);
+    } catch {
       // Secondary fallback to OS tmp directory if primary path fails
-      const fallbackPath = path.resolve(this.fallbackUploadDir, sanitized);
-      await fs.mkdir(path.dirname(fallbackPath), { recursive: true });
-      await fs.writeFile(fallbackPath, file);
+      try {
+        const fallbackPath = path.resolve(this.fallbackUploadDir, sanitized);
+        await fs.mkdir(path.dirname(fallbackPath), { recursive: true });
+        await fs.writeFile(fallbackPath, buffer);
+      } catch {
+        // Disk write failed, database will hold persistent file
+      }
+    }
+
+    // Persist to Neon Postgres so all serverless instances on Vercel deployment can serve it
+    if (process.env.DATABASE_URL) {
+      try {
+        const sql = neon(process.env.DATABASE_URL);
+        const base64Data = buffer.toString('base64');
+        await sql.query(
+          `INSERT INTO storage_files ("key", mime_type, data, size)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT ("key") DO UPDATE SET data = $3, mime_type = $2, size = $4`,
+          [sanitized, mimeType, base64Data, buffer.byteLength]
+        );
+      } catch (dbErr) {
+        console.warn('[StorageAdapter] Failed to persist file to database:', dbErr);
+      }
     }
 
     return {
       storageKey: sanitized,
       url: `/api/storage/${sanitized}`,
-      size: file.byteLength,
+      size: buffer.byteLength,
       mimeType,
     };
   }
@@ -145,19 +167,51 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
         // try next candidate path
       }
     }
-    throw new Error(`File not found on disk: ${storageKey}`);
+
+    // Fallback: Query persistent database storage (essential for Vercel Serverless)
+    if (process.env.DATABASE_URL) {
+      try {
+        const sql = neon(process.env.DATABASE_URL);
+        const rows = await sql.query(
+          `SELECT data FROM storage_files WHERE "key" = $1 OR "key" = $2 LIMIT 1`,
+          [storageKey, filename]
+        );
+        if (rows && rows.length > 0 && rows[0].data) {
+          return Buffer.from(rows[0].data, 'base64');
+        }
+      } catch (dbErr) {
+        console.warn('[StorageAdapter] Database read fallback error:', dbErr);
+      }
+    }
+
+    throw new Error(`File not found: ${storageKey}`);
   }
 
   async delete(storageKey: string): Promise<void> {
+    const filename = path.basename(storageKey);
     const paths = [
       path.resolve(this.primaryUploadDir, storageKey),
       path.resolve(this.fallbackUploadDir, storageKey),
+      path.resolve(this.primaryUploadDir, filename),
+      path.resolve(this.fallbackUploadDir, filename),
     ];
     for (const p of paths) {
       try {
         await fs.unlink(p);
       } catch {
         // File may already be removed
+      }
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const sql = neon(process.env.DATABASE_URL);
+        await sql.query(
+          `DELETE FROM storage_files WHERE "key" = $1 OR "key" = $2`,
+          [storageKey, filename]
+        );
+      } catch (dbErr) {
+        console.warn('[StorageAdapter] Database delete error:', dbErr);
       }
     }
   }

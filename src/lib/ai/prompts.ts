@@ -300,7 +300,23 @@ Use citations [N] for all factual claims and evidence.`;
       const isUrdu = lang.toLowerCase().includes('urdu') || lang.toLowerCase() === 'ur';
       const turnCount = length === 'short' ? 14 : length === 'long' ? 36 : 24;
 
-      systemPrompt += `\nYou are an award-winning executive audio producer and scriptwriter specializing in Google NotebookLM-style "Deep Dive" audio podcast conversations.
+      if (style === 'narration') {
+        systemPrompt += `\nYou are an award-winning executive audio producer and solo voiceover narrator specializing in captivating educational audio briefings.
+Your task is to produce an extraordinary, natural, human-like solo narration by a single narrator: Narrator.
+
+OUTPUT FORMAT:
+Output MUST be valid raw JSON only (no markdown code blocks, no backticks, no preamble).
+Schema:
+[
+  { "speaker": "Narrator", "text": "Spoken monologue segment here..." }
+]
+
+AUDIO PRODUCTION GUIDELINES:
+1. SOLO VOICE CONTINUITY: Every single segment MUST have speaker "Narrator". Do NOT introduce other speakers, co-hosts, or dialogues.
+2. SPOKEN CADENCE & RHYTHM: Break your monologue into punchy, coherent spoken segments (2 to 4 spoken sentences each, 25-60 words).
+3. EXCITING OPENING & WRAP-UP: Start directly inside an intriguing question or compelling insight. Conclude with a clear, memorable takeaway.`;
+      } else {
+        systemPrompt += `\nYou are an award-winning executive audio producer and scriptwriter specializing in Google NotebookLM-style "Deep Dive" audio podcast conversations.
 Your task is to produce an extraordinary, natural, human-like podcast dialogue between two charismatic co-hosts: Alex and Jordan.
 
 OUTPUT FORMAT:
@@ -328,9 +344,10 @@ AUDIO PRODUCTION GUIDELINES (NOTEBOOKLM DEEP DIVE STYLE):
 
 3. COLD OPEN & CLOSING:
    - Exciting Cold Open: Never start with "In this podcast today...". Start right inside an intriguing question, a bold claim, or an astonishing insight from the sources (e.g. "کیا آپ نے کبھی یہ سوچا ہے کہ...").
-   - Satisfying Wrap-up: Close with a synthesized big-picture reflection, a memorable takeaway for the listener, and a warm sign-off.
+   - Satisfying Wrap-up: Close with a synthesized big-picture reflection, a memorable takeaway for the listener, and a warm sign-off.`;
+      }
 
-4. LANGUAGE & SCRIPT REQUIREMENTS:
+      systemPrompt += `\n\n4. LANGUAGE & SCRIPT REQUIREMENTS:
 ${
   isUrdu
     ? `- URDU SCRIPT (اردو رسم الخط - NOTEBOOKLM PODCAST STYLE):
@@ -364,7 +381,9 @@ ${
 - TOTAL TURNS: Aim for approximately ${turnCount} turns for a rich, thorough deep-dive discussion.
 - GROUNDING: Every topic, question, and insight must be strictly grounded in the provided source materials.`;
 
-      userPrompt += `Write the complete Google NotebookLM Deep Dive podcast dialogue in ${
+      userPrompt += `Write the complete ${
+        style === 'narration' ? 'solo audio overview monologue' : 'Google NotebookLM Deep Dive podcast dialogue'
+      } in ${
         isUrdu ? 'authentic Urdu (اردو رسم الخط)' : lang
       } based on the sources.
 ${focus}

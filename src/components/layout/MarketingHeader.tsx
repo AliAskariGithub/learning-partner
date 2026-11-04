@@ -23,16 +23,84 @@ import { Button } from '@/components/ui';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { siteConfig } from '@/config/site';
 
+const megaMenuVariants = {
+  hidden: { opacity: 0, y: -10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.22,
+      ease: [0.16, 1, 0.3, 1],
+      staggerChildren: 0.03,
+      delayChildren: 0.01,
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: {
+      duration: 0.16,
+      ease: 'easeIn',
+    },
+  },
+};
+
+const columnVariants = {
+  hidden: { opacity: 0, y: 6 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.2,
+      ease: [0.16, 1, 0.3, 1],
+    },
+  },
+};
+
 export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
   const pathname = usePathname();
   const [solutionsOpen, setSolutionsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSolutionsExpanded, setMobileSolutionsExpanded] = useState(false);
   const navContainerRef = useRef<HTMLDivElement>(null);
+  const leaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to open solutions menu smoothly and clear any pending close timer
+  const handleSolutionsOpen = () => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+    setSolutionsOpen(true);
+  };
+
+  // Helper to close solutions menu (graceful debounce by default, or immediate)
+  const handleSolutionsClose = (immediate = false) => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+    if (immediate) {
+      setSolutionsOpen(false);
+      return;
+    }
+    leaveTimeoutRef.current = setTimeout(() => {
+      setSolutionsOpen(false);
+    }, 180);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (leaveTimeoutRef.current) {
+        clearTimeout(leaveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Close menus on route change
   useEffect(() => {
-    setSolutionsOpen(false);
+    handleSolutionsClose(true);
     setMobileMenuOpen(false);
   }, [pathname]);
 
@@ -43,7 +111,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
         navContainerRef.current &&
         !navContainerRef.current.contains(event.target as Node)
       ) {
-        setSolutionsOpen(false);
+        handleSolutionsClose(true);
       }
     }
 
@@ -59,7 +127,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        setSolutionsOpen(false);
+        handleSolutionsClose(true);
         setMobileMenuOpen(false);
       }
     }
@@ -78,6 +146,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
           {/* Brand Logo */}
           <Link
             href="/"
+            onMouseEnter={() => handleSolutionsClose(true)}
             className="flex items-center gap-2.5 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg cursor-pointer shrink-0"
             title={`${siteConfig.name} — Return to home`}
           >
@@ -93,6 +162,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
           <nav className="hidden lg:flex items-center gap-1 font-display text-xs sm:text-sm">
             <Link
               href="/features"
+              onMouseEnter={() => handleSolutionsClose(true)}
               className={`rounded-xl px-3 py-1.5 font-medium transition-colors ${
                 pathname === '/features'
                   ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
@@ -104,6 +174,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
 
             <Link
               href="/how-it-works"
+              onMouseEnter={() => handleSolutionsClose(true)}
               className={`rounded-xl px-3 py-1.5 font-medium transition-colors ${
                 pathname === '/how-it-works'
                   ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
@@ -113,13 +184,19 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
               How It Works
             </Link>
 
-            {/* Mega Menu Trigger: Solutions */}
-            <div className="relative">
+            {/* Mega Menu Trigger: Solutions with Automatic Hover & Smooth Bridge */}
+            <div
+              className="relative py-2"
+              onMouseEnter={handleSolutionsOpen}
+              onMouseLeave={() => handleSolutionsClose(false)}
+            >
               <button
                 type="button"
                 onClick={() => setSolutionsOpen((prev) => !prev)}
+                onFocus={handleSolutionsOpen}
                 aria-expanded={solutionsOpen}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-medium transition-all cursor-pointer ${
+                aria-haspopup="true"
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-medium transition-all duration-200 cursor-pointer ${
                   solutionsOpen || pathname.startsWith('/use-cases')
                     ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
                     : 'text-muted-foreground hover:bg-surface-raised hover:text-foreground'
@@ -127,15 +204,18 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
               >
                 <span>Solutions</span>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  className={`w-3.5 h-3.5 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                     solutionsOpen ? 'rotate-180 text-brand-500' : 'text-muted-foreground'
                   }`}
                 />
               </button>
+              {/* Invisible hover bridge to eliminate gap between trigger button and menu border */}
+              <div className="absolute top-full left-0 right-0 h-4 pointer-events-auto" />
             </div>
 
             <Link
               href="/pricing"
+              onMouseEnter={() => handleSolutionsClose(true)}
               className={`rounded-xl px-3 py-1.5 font-medium transition-colors ${
                 pathname === '/pricing'
                   ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
@@ -147,6 +227,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
 
             <Link
               href="/connect-ai"
+              onMouseEnter={() => handleSolutionsClose(true)}
               className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-medium transition-colors ${
                 pathname === '/connect-ai'
                   ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
@@ -162,7 +243,10 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
         </div>
 
         {/* ── Right: Theme Toggle & Auth Action Buttons ── */}
-        <div className="hidden lg:flex items-center gap-3">
+        <div
+          className="hidden lg:flex items-center gap-3"
+          onMouseEnter={() => handleSolutionsClose(true)}
+        >
           <ThemeToggle />
 
           {isLoggedIn ? (
@@ -218,15 +302,17 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
       <AnimatePresence>
         {solutionsOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute inset-x-0 top-full w-full border-b border-border bg-surface shadow-2xl shadow-black/20 dark:shadow-black/60 z-50 overflow-hidden"
+            variants={megaMenuVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onMouseEnter={handleSolutionsOpen}
+            onMouseLeave={() => handleSolutionsClose(false)}
+            className="absolute inset-x-0 top-full w-full border-b border-border bg-surface/98 backdrop-blur-xl shadow-2xl shadow-black/25 dark:shadow-black/70 z-50 overflow-hidden"
           >
             <div className="mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-4 gap-6 divide-y md:divide-y-0 md:divide-x divide-border px-6 sm:px-8 py-8">
               {/* Column 1: Core Study Studio Spotlight */}
-              <div className="flex flex-col pr-0 md:pr-4">
+              <motion.div variants={columnVariants} className="flex flex-col pr-0 md:pr-4">
                 <div className="mb-3.5 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                   <Sparkles className="h-5 w-5" />
                 </div>
@@ -239,7 +325,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                 <div className="flex flex-wrap gap-2 mt-auto">
                   <Link
                     href="/features"
-                    onClick={() => setSolutionsOpen(false)}
+                    onClick={() => handleSolutionsClose(true)}
                     className="inline-flex items-center gap-1.5 h-7 rounded-full px-3 text-[11px] font-display font-medium border border-border bg-surface-raised hover:border-brand-500/40 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Layers className="h-3 w-3 text-brand-500" />
@@ -247,7 +333,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                   </Link>
                   <Link
                     href="/features"
-                    onClick={() => setSolutionsOpen(false)}
+                    onClick={() => handleSolutionsClose(true)}
                     className="inline-flex items-center gap-1.5 h-7 rounded-full px-3 text-[11px] font-display font-medium border border-border bg-surface-raised hover:border-brand-500/40 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <HelpCircle className="h-3 w-3 text-brand-500" />
@@ -255,23 +341,23 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                   </Link>
                   <Link
                     href="/features"
-                    onClick={() => setSolutionsOpen(false)}
+                    onClick={() => handleSolutionsClose(true)}
                     className="inline-flex items-center gap-1.5 h-7 rounded-full px-3 text-[11px] font-display font-medium border border-border bg-surface-raised hover:border-brand-500/40 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Headphones className="h-3 w-3 text-brand-500" />
                     <span>Voice Audio</span>
                   </Link>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Column 2: Study Use Cases */}
-              <div className="flex flex-col gap-2.5 pt-4 md:pt-0 md:pl-6">
+              <motion.div variants={columnVariants} className="flex flex-col gap-2.5 pt-4 md:pt-0 md:pl-6">
                 <h4 className="mb-1 text-xs font-bold font-display uppercase tracking-wider text-muted-foreground">
                   Use Cases
                 </h4>
                 <Link
                   href="/use-cases"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors flex items-center justify-between group"
                 >
                   <span>Exam &amp; Board Prep</span>
@@ -279,7 +365,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                 </Link>
                 <Link
                   href="/use-cases"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors flex items-center justify-between group"
                 >
                   <span>Research &amp; Literature Review</span>
@@ -287,7 +373,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                 </Link>
                 <Link
                   href="/use-cases"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors flex items-center justify-between group"
                 >
                   <span>Technical &amp; Code Documentation</span>
@@ -295,64 +381,64 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                 </Link>
                 <Link
                   href="/use-cases"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors flex items-center justify-between group"
                 >
                   <span>Language Learning &amp; Bilingual</span>
                   <ArrowRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-brand-500" />
                 </Link>
-              </div>
+              </motion.div>
 
               {/* Column 3: Resources & Guides */}
-              <div className="flex flex-col gap-2.5 pt-4 md:pt-0 md:pl-6">
+              <motion.div variants={columnVariants} className="flex flex-col gap-2.5 pt-4 md:pt-0 md:pl-6">
                 <h4 className="mb-1 text-xs font-bold font-display uppercase tracking-wider text-muted-foreground">
                   Resources
                 </h4>
                 <Link
                   href="/help"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Help Center &amp; Documentation
                 </Link>
                 <Link
                   href="/security"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Security &amp; Encryption
                 </Link>
                 <Link
                   href="/faq"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Frequently Asked Questions
                 </Link>
                 <Link
                   href="/connect-ai"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Connect Your AI Guide
                 </Link>
                 <Link
                   href="/about"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="text-xs sm:text-sm font-serif text-muted-foreground hover:text-foreground transition-colors"
                 >
                   About Learning Partner
                 </Link>
-              </div>
+              </motion.div>
 
               {/* Column 4: Featured Spotlight Card */}
-              <div className="flex flex-col pt-4 md:pt-0 md:pl-6">
+              <motion.div variants={columnVariants} className="flex flex-col pt-4 md:pt-0 md:pl-6">
                 <h4 className="mb-2 text-xs font-bold font-display uppercase tracking-wider text-muted-foreground">
                   Featured
                 </h4>
                 <Link
                   href="/connect-ai"
-                  onClick={() => setSolutionsOpen(false)}
+                  onClick={() => handleSolutionsClose(true)}
                   className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl p-5 border border-brand-500/30 bg-brand-500/5 hover:border-brand-500/60 transition-all shadow-sm cursor-pointer"
                 >
                   <div>
@@ -372,7 +458,7 @@ export function MarketingHeader({ isLoggedIn = false }: { isLoggedIn?: boolean }
                     <ArrowUpRight className="ml-1 size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </div>
                 </Link>
-              </div>
+              </motion.div>
             </div>
           </motion.div>
         )}

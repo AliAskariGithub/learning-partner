@@ -3,7 +3,8 @@ import { sources, sourceChunks } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import * as cheerio from 'cheerio';
 import mammoth from 'mammoth';
-import { extractText } from 'unpdf';
+import { extractText, extractTextItems } from 'unpdf';
+import zlib from 'zlib';
 import { STORAGE_LIMITS } from '@/config/limits';
 
 export interface PageText {
@@ -109,16 +110,105 @@ export function chunkPages(
 }
 
 // 4. Parsers for different file types
-export async function parsePdf(buffer: Buffer): Promise<PageText[]> {
+export async function parsePdf(buffer: Buffer | Uint8Array): Promise<PageText[]> {
   try {
-    const { text } = await extractText(buffer, { mergePages: false });
-    if (Array.isArray(text)) {
-      return text.map((pageStr, idx) => ({
-        pageNumber: idx + 1,
-        text: pageStr || '',
-      }));
+    // Crucial: unpdf and pdfjs-dist reject Node.js Buffer instances and require pure Uint8Array
+    const uint8Data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+
+    // Tier 1: Standard unpdf extraction
+    try {
+      const { text } = await extractText(uint8Data, { mergePages: false });
+      if (Array.isArray(text)) {
+        const pages = text
+          .map((pageStr, idx) => ({
+            pageNumber: idx + 1,
+            text: cleanText(pageStr || ''),
+          }))
+          .filter((p) => p.text.length > 0);
+        if (pages.length > 0) return pages;
+      } else if (typeof text === 'string' && cleanText(text).length > 0) {
+        return [{ pageNumber: 1, text: cleanText(text) }];
+      }
+    } catch (unpdfErr: any) {
+      console.warn('unpdf extractText failed, attempting extractTextItems fallback:', unpdfErr?.message);
     }
-    return [{ pageNumber: 1, text: typeof text === 'string' ? text : '' }];
+
+    // Tier 2: unpdf extractTextItems structured fallback
+    try {
+      const { items } = await extractTextItems(uint8Data);
+      if (Array.isArray(items) && items.length > 0) {
+        const pages: PageText[] = [];
+        items.forEach((pageItems, pageIdx) => {
+          if (!Array.isArray(pageItems)) return;
+          const pageStr = pageItems
+            .map((item: any) => (typeof item === 'object' && item ? item.text || item.str || '' : ''))
+            .filter(Boolean)
+            .join(' ');
+          const cleaned = cleanText(pageStr);
+          if (cleaned) {
+            pages.push({ pageNumber: pageIdx + 1, text: cleaned });
+          }
+        });
+        if (pages.length > 0) return pages;
+      }
+    } catch (itemsErr: any) {
+      console.warn('unpdf extractTextItems fallback failed, attempting stream extraction:', itemsErr?.message);
+    }
+
+    // Tier 3: Direct stream & text object extraction fallback (BT ... ET, Tj, TJ)
+    try {
+      const rawPdf = buffer.toString('binary');
+      const textChunks: string[] = [];
+
+      const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+      let streamMatch: RegExpExecArray | null;
+      while ((streamMatch = streamRegex.exec(rawPdf)) !== null) {
+        const content = streamMatch[1];
+        let decompressed = '';
+        try {
+          const streamBuf = Buffer.from(content, 'binary');
+          decompressed = zlib.inflateSync(streamBuf).toString('utf-8');
+        } catch {
+          try {
+            const streamBuf = Buffer.from(content, 'binary');
+            decompressed = zlib.inflateRawSync(streamBuf).toString('utf-8');
+          } catch {
+            decompressed = content;
+          }
+        }
+
+        if (decompressed.includes('BT') && decompressed.includes('ET')) {
+          const btBlocks = decompressed.match(/BT[\s\S]*?ET/g) || [];
+          for (const block of btBlocks) {
+            const tjMatches = block.match(/\(([\s\S]*?)\)\s*(?:Tj|'|")/g) || [];
+            for (const tj of tjMatches) {
+              const text = tj.replace(/\s*(?:Tj|'|")$/, '').slice(1, -1);
+              if (text && text.trim()) textChunks.push(text);
+            }
+            const tjArrays = block.match(/\[([\s\S]*?)\]\s*TJ/g) || [];
+            for (const arr of tjArrays) {
+              const inner = arr.replace(/^\s*\[/, '').replace(/\]\s*TJ$/, '');
+              const innerStrings = inner.match(/\(([\s\S]*?)\)/g) || [];
+              for (const s of innerStrings) {
+                const text = s.slice(1, -1);
+                if (text && text.trim()) textChunks.push(text);
+              }
+            }
+          }
+        }
+      }
+
+      if (textChunks.length > 0) {
+        const combined = cleanText(textChunks.join(' '));
+        if (combined.length > 20) {
+          return [{ pageNumber: 1, text: combined }];
+        }
+      }
+    } catch (streamErr: any) {
+      console.warn('Stream extraction fallback encountered error:', streamErr?.message);
+    }
+
+    throw new Error('No readable text could be extracted from this PDF. If this is a scanned document or image, please ensure it has selectable text.');
   } catch (err: any) {
     throw new Error(`PDF extraction failed: ${err.message || 'Corrupt or password-protected PDF'}`);
   }

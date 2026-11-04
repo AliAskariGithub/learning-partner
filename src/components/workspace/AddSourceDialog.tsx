@@ -368,7 +368,7 @@ export function AddSourceDialog({
                     <span>{selectedFile.name}</span>
                   </div>
                   <div className="text-[11px] text-zinc-500 dark:text-muted-foreground font-mono mt-1">
-                    {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Ready to upload
+                    {selectedFile.size < 1024 * 1024 ? `${(selectedFile.size / 1024).toFixed(1)} KB` : `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`} • Ready to upload
                   </div>
                 </div>
               ) : (

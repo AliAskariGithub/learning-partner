@@ -13,6 +13,7 @@ export interface StorageUploadResult {
 export interface StorageAdapter {
   upload(file: Buffer | Uint8Array, filename: string, mimeType: string): Promise<StorageUploadResult>;
   getUrl(storageKey: string): Promise<string>;
+  get(storageKey: string): Promise<Buffer>;
   delete(storageKey: string): Promise<void>;
 }
 
@@ -52,6 +53,20 @@ export class VercelBlobStorageAdapter implements StorageAdapter {
       return localAdapter.getUrl(storageKey);
     }
     return `https://${process.env.BLOB_READ_WRITE_TOKEN?.split('_')[0] || ''}.public.blob.vercel-storage.com/${storageKey}`;
+  }
+
+  async get(storageKey: string): Promise<Buffer> {
+    if (!this.hasToken) {
+      const localAdapter = new LocalDiskStorageAdapter();
+      return localAdapter.get(storageKey);
+    }
+    const url = await this.getUrl(storageKey);
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch file from blob storage: ${res.statusText}`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
   async delete(storageKey: string): Promise<void> {
@@ -111,7 +126,26 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
   }
 
   async getUrl(storageKey: string): Promise<string> {
-    return `/api/storage/${storageKey}`;
+    return `/api/storage/${path.basename(storageKey)}`;
+  }
+
+  async get(storageKey: string): Promise<Buffer> {
+    const filename = path.basename(storageKey);
+    const candidatePaths = [
+      path.resolve(this.primaryUploadDir, filename),
+      path.resolve(this.fallbackUploadDir, filename),
+      path.resolve(this.primaryUploadDir, storageKey),
+      path.resolve(this.fallbackUploadDir, storageKey),
+    ];
+    for (const p of candidatePaths) {
+      try {
+        const data = await fs.readFile(p);
+        return data;
+      } catch {
+        // try next candidate path
+      }
+    }
+    throw new Error(`File not found on disk: ${storageKey}`);
   }
 
   async delete(storageKey: string): Promise<void> {

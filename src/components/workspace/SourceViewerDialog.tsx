@@ -78,7 +78,7 @@ export function SourceViewerDialog({
             <Badge variant="brand">{source.type.toUpperCase()}</Badge>
             <span className="text-muted-foreground">•</span>
             <span className="font-mono text-muted-foreground">
-              {source.wordCount.toLocaleString()} words
+              {(source.wordCount || 0).toLocaleString()} words
             </span>
             <span className="text-muted-foreground">•</span>
             <span className="font-mono text-muted-foreground">

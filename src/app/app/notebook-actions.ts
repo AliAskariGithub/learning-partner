@@ -196,8 +196,15 @@ export async function retrySource(sourceId: string) {
     processSourceIngestion(sourceId, { url: sourceRecord.originalUrl }).catch(console.error);
   } else if (sourceRecord.type === 'text' && sourceRecord.extractedText) {
     processSourceIngestion(sourceId, { rawText: sourceRecord.extractedText }).catch(console.error);
+  } else if (sourceRecord.storageKey) {
+    try {
+      const storage = getStorageAdapter();
+      const buffer = await storage.get(sourceRecord.storageKey);
+      processSourceIngestion(sourceId, { buffer }).catch(console.error);
+    } catch (err: any) {
+      throw new Error(`Could not retrieve stored file: ${err?.message || 'File missing'}. Please re-upload.`);
+    }
   } else {
-    // Attempt re-reading from storage if available
     throw new Error('Please re-upload this file to retry ingestion.');
   }
 

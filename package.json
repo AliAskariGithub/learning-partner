@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --env-file=.env.local scripts/tests/critical-paths.test.mjs scripts/tests/phase6.test.mjs"
+    "test": "node --test --env-file=.env.local --import tsx scripts/tests/critical-paths.test.mjs scripts/tests/phase6.test.mjs scripts/tests/pdf-ingestion.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.90",

@@ -13,6 +13,8 @@ import {
   apiKeys,
   connections,
   sourceChunks,
+  contactMessages,
+  feedbackReports,
 } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -118,6 +120,16 @@ export async function exportUserData(): Promise<{ success: boolean; data?: any; 
       .from(connections)
       .where(eq(connections.userId, user.id));
 
+    const userContactMessages = await db
+      .select()
+      .from(contactMessages)
+      .where(eq(contactMessages.userId, user.id));
+
+    const userFeedbackReports = await db
+      .select()
+      .from(feedbackReports)
+      .where(eq(feedbackReports.userId, user.id));
+
     const exportPayload = {
       exportVersion: '1.0',
       exportedAt: new Date().toISOString(),
@@ -133,6 +145,8 @@ export async function exportUserData(): Promise<{ success: boolean; data?: any; 
       conversations: userConvs,
       studioOutputs: userOutputs,
       aiConnections: userConns,
+      contactMessages: userContactMessages,
+      feedbackReports: userFeedbackReports,
     };
 
     return { success: true, data: exportPayload };
@@ -163,6 +177,10 @@ export async function deleteAccountAndData(): Promise<{ success: boolean; error?
       await sql`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ${userId})`;
       await sql`DELETE FROM conversations WHERE user_id = ${userId}`;
 
+      // Delete contact and feedback reports submitted by user
+      await sql`DELETE FROM contact_messages WHERE user_id = ${userId}`;
+      await sql`DELETE FROM feedback_reports WHERE user_id = ${userId}`;
+
       // Delete notebooks, connections, api keys, profile
       await sql`DELETE FROM notebooks WHERE user_id = ${userId}`;
       await sql`DELETE FROM connections WHERE user_id = ${userId}`;
@@ -178,6 +196,8 @@ export async function deleteAccountAndData(): Promise<{ success: boolean; error?
       await db.delete(outputs).where(eq(outputs.userId, userId));
       await db.delete(notes).where(eq(notes.userId, userId));
       await db.delete(conversations).where(eq(conversations.userId, userId));
+      await db.delete(contactMessages).where(eq(contactMessages.userId, userId));
+      await db.delete(feedbackReports).where(eq(feedbackReports.userId, userId));
       await db.delete(notebooks).where(eq(notebooks.userId, userId));
       await db.delete(connections).where(eq(connections.userId, userId));
       await db.delete(apiKeys).where(eq(apiKeys.userId, userId));

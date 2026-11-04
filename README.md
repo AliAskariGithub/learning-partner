@@ -182,3 +182,30 @@ This verifies:
   - [x] Responsive 3-panel workspace (drawers on tablet, bottom tabs on mobile).
   - [x] Security audit: SSRF protection, rate limiting, access-controlled storage URLs, per-user limits.
   - [x] Critical path test suite passing 100%.
+
+
+---
+
+## 🌐 Phase 7: Public Website Pages & Documentation
+
+A full suite of public marketing, documentation, legal, and operational pages built with high-fidelity typography, Lenis smooth scrolling, GSAP ScrollTrigger, and strict factual grounding:
+
+### Public Routes
+- **About (`/about`)**: Mission, student problem statement, architectural differences, target audience, maintainer background, and `Organization` JSON-LD.
+- **Features (`/features`)**: Scroll-driven tour featuring miniature real UI components, source formats, citations, the 3 modes, the 7 studio tools, shared memory, and capability gating.
+- **How It Works (`/how-it-works`)**: 3-step GSAP storytelling guide (Add sources &rarr; Ask/Learn/Quiz &rarr; Study in Studio) with an honest, plain-language "Under the Hood" retrieval explanation.
+- **Connect Your AI Guide (`/connect-ai`)**: Step-by-step BYOK setup for Google Gemini Free Tier, ChatGPT Plus/Pro OAuth, Anthropic Claude, OpenAI, Groq, OpenRouter, and custom endpoints (Server Mode vs. Browser Mode).
+- **Pricing (`/pricing`)**: Honest $0 platform software cost, provider wholesale cost comparison table, and rate limit explanations (no fake plans, no payment forms).
+- **FAQ (`/faq`)**: Framer Motion searchable accordion grouped by 8 topics with `FAQPage` JSON-LD schema.
+- **Contact (`/contact`)**: Form with honeypot, 3s submission time check, sliding window rate limits, salted IP hashing, save-first DB storage, and Resend email notification.
+- **Feedback & Bug Reports (`/feedback`)**: Bug report submission with type, severity, reproduction steps, automated non-sensitive client context, and screenshot uploads (PNG/JPEG/WebP, magic bytes validation, EXIF metadata stripped).
+- **Security (`/security`)**: Plain-language overview of AES-256-GCM encryption, tenant database isolation, SSRF defense, upload screening, and vulnerability disclosure policy (no unverified certifications).
+- **Help Center (`/help` and `/help/[slug]`)**: File-based markdown documentation (`/content/help/*.md`) with instant search, category sidebar, breadcrumbs with `BreadcrumbList` JSON-LD, previous/next navigation, and related articles.
+- **Example Use Cases (`/use-cases`)**: Realistic study workflows (midterm exam prep, textbook photo problem solving, research summarization, active recall retesting, and audio commute).
+- **Legal Policies (`/privacy` and `/terms`)**: Comprehensive file-based markdown documents (`/content/legal/*.md`) with dynamic Table of Contents, effective dates, and legal review notices.
+- **Owner Admin Inbox (`/admin/inbox`)**: Private administrative inbox for reviewing contact messages and feedback reports, filtered by status, with private notes and server authorization (returns HTTP 404 to unauthorized visitors; `noindex`).
+
+### Scripts & Verification Tools
+- `npm run check:placeholders`: Audits all `[[CONFIRM: ...]]` placeholders across configuration and content files.
+- `npm run check:links`: Verifies that all internal links across marketing and documentation pages resolve to valid routes.
+- `node scripts/cleanup-ip-hashes.mjs`: Anonymizes IP hashes older than the configured 30-day retention window.

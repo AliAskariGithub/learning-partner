@@ -502,3 +502,92 @@ export type NewMessageChunk = typeof messageChunks.$inferInsert;
 export type QuizAttempt = typeof quizAttempts.$inferSelect;
 export type NewQuizAttempt = typeof quizAttempts.$inferInsert;
 
+// Phase 7: Public Inquiries & Support Messaging
+export const contactMessages = pgTable(
+  'contact_messages',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id'),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    topic: text('topic', {
+      enum: ['general', 'support', 'partnership', 'other'],
+    }).notNull(),
+    message: text('message').notNull(),
+    status: text('status', {
+      enum: ['new', 'read', 'replied', 'archived'],
+    })
+      .default('new')
+      .notNull(),
+    ipHash: text('ip_hash').notNull(),
+    userAgent: text('user_agent'),
+    emailStatus: text('email_status', {
+      enum: ['sent', 'failed', 'skipped'],
+    })
+      .default('skipped')
+      .notNull(),
+    adminNote: text('admin_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('contact_messages_user_id_idx').on(table.userId),
+    index('contact_messages_status_idx').on(table.status),
+    index('contact_messages_created_at_idx').on(table.createdAt),
+  ]
+);
+
+export type ContactMessage = typeof contactMessages.$inferSelect;
+export type NewContactMessage = typeof contactMessages.$inferInsert;
+
+// Phase 7: Bug Reports & User Feedback
+export const feedbackReports = pgTable(
+  'feedback_reports',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id'),
+    type: text('type', {
+      enum: ['bug', 'idea', 'other'],
+    }).notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    stepsToReproduce: text('steps_to_reproduce'),
+    expectedResult: text('expected_result'),
+    actualResult: text('actual_result'),
+    severity: text('severity', {
+      enum: ['low', 'medium', 'high'],
+    })
+      .default('medium')
+      .notNull(),
+    screenshotUrl: text('screenshot_url'),
+    contextUrl: text('context_url'),
+    browserInfo: text('browser_info'),
+    osInfo: text('os_info'),
+    appVersion: text('app_version'),
+    status: text('status', {
+      enum: ['new', 'triaged', 'in_progress', 'done', 'wontfix'],
+    })
+      .default('new')
+      .notNull(),
+    emailStatus: text('email_status', {
+      enum: ['sent', 'failed', 'skipped'],
+    })
+      .default('skipped')
+      .notNull(),
+    adminNote: text('admin_note'),
+    ipHash: text('ip_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('feedback_reports_user_id_idx').on(table.userId),
+    index('feedback_reports_type_idx').on(table.type),
+    index('feedback_reports_status_idx').on(table.status),
+    index('feedback_reports_created_at_idx').on(table.createdAt),
+  ]
+);
+
+export type FeedbackReport = typeof feedbackReports.$inferSelect;
+export type NewFeedbackReport = typeof feedbackReports.$inferInsert;
+
+

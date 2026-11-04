@@ -602,116 +602,25 @@ export function StudioGenerateDialog({
                 </div>
               )}
 
-              {/* Voice Provider & Host Selection (Shown for English; hidden for Urdu per user requirement) */}
-              {!isUrdu ? (
-                <>
-                  {/* Voice Provider Selector */}
-                  <div>
-                    <label className="block text-[11px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94] mb-1.5">
-                      Voice Provider
-                    </label>
-                    <select
-                      value={voiceProvider}
-                      onChange={(e) => {
-                        const p = e.target.value as any;
-                        setVoiceProvider(p);
-                        const voices = getVoicesForProvider(p);
-                        setSpeaker1Voice(voices[0]?.id || 'Puck');
-                        setSpeaker2Voice(voices[1]?.id || 'Kore');
-                      }}
-                      className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs font-display text-zinc-900 focus:outline-none focus:border-brand-500 dark:bg-[#1f1f1f] dark:border-[#383838] dark:text-[#f4f4f2]"
-                    >
-                      {hasGeminiKey && <option value="google">Google Gemini TTS (Puck, Kore, Charon)</option>}
-                      {hasOpenAiKey && <option value="openai">OpenAI TTS (Alloy, Echo, Nova)</option>}
-                      <option value="web_speech">Basic Voice (Free · Browser Speech)</option>
-                    </select>
-                  </div>
-
-                  {/* Host Voices Selection with Play Sample Button */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[11px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94]">
-                          {voiceStyle === 'narration' ? 'Narrator Voice' : 'Host 1 (Alex)'}
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => playSamplePreview(speaker1Voice, 1)}
-                          className="text-[10px] text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer transition-colors"
-                        >
-                          <Volume2
-                            className={`w-3 h-3 ${playingPreview === `${speaker1Voice}-1` ? 'text-brand-500 animate-pulse' : ''
-                              }`}
-                          />
-                          {playingPreview === `${speaker1Voice}-1` ? 'Playing...' : 'Preview'}
-                        </button>
-                      </div>
-                      <select
-                        value={speaker1Voice}
-                        onChange={(e) => setSpeaker1Voice(e.target.value)}
-                        className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs font-display text-zinc-900 focus:outline-none focus:border-brand-500 dark:bg-[#1f1f1f] dark:border-[#383838] dark:text-[#f4f4f2]"
-                      >
-                        {availableVoices.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {`${v.name} (${v.gender})`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {voiceStyle === 'conversation' && (
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-[11px] font-display font-bold uppercase tracking-wider text-zinc-500 dark:text-[#9a9a94]">
-                            Host 2 (Jordan)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => playSamplePreview(speaker2Voice, 2)}
-                            className="text-[10px] text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 inline-flex items-center gap-1 font-display cursor-pointer transition-colors"
-                          >
-                            <Volume2
-                              className={`w-3 h-3 ${playingPreview === `${speaker2Voice}-2` ? 'text-brand-500 animate-pulse' : ''
-                                }`}
-                            />
-                            {playingPreview === `${speaker2Voice}-2` ? 'Playing...' : 'Preview'}
-                          </button>
-                        </div>
-                        <select
-                          value={speaker2Voice}
-                          onChange={(e) => setSpeaker2Voice(e.target.value)}
-                          className="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs font-display text-zinc-900 focus:outline-none focus:border-brand-500 dark:bg-[#1f1f1f] dark:border-[#383838] dark:text-[#f4f4f2]"
-                        >
-                          {availableVoices.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {`${v.name} (${v.gender})`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-500/30 flex items-center gap-3 dark:bg-[#191919]">
-                  <div className="p-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400 shrink-0">
-                    <Headphones className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">
-                        Google NotebookLM Deep Dive (اردو)
-                      </span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/40">
-                        2 Hosts
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-zinc-600 dark:text-[#9a9a94] font-serif mt-0.5 leading-snug">
-                      Authentic dual-speaker natural dialogue in Urdu, automatically calibrated like the NotebookLM reference podcast.
-                    </p>
-                  </div>
+              {/* Audio Overview Co-Hosts Badge */}
+              <div className="p-3.5 rounded-2xl bg-purple-50/60 border border-purple-500/30 flex items-center gap-3 dark:bg-[#191919]">
+                <div className="p-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400 shrink-0">
+                  <Headphones className="w-4 h-4" />
                 </div>
-              )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-display font-bold text-zinc-900 dark:text-[#f4f4f2]">
+                      NotebookLM Deep Dive Audio
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/40">
+                      {voiceStyle === 'conversation' ? 'Alex & Jordan' : 'Solo Narrator'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-600 dark:text-[#9a9a94] font-serif mt-0.5 leading-snug">
+                    Natural conversational dialogue calibrated to NotebookLM studio audio quality with perfect pacing and citations.
+                  </p>
+                </div>
+              </div>
 
               {length === 'long' && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 dark:bg-amber-950/20 dark:border-amber-500/30 dark:text-amber-300 text-xs">

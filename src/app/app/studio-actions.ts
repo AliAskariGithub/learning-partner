@@ -21,6 +21,7 @@ export interface GenerateStudioOutputParams {
   title?: string;
   sourceIds?: string[];
   modelId?: string;
+  existingOutputId?: string;
   options: StudioPromptParams['options'] & {
     voiceProvider?: ProviderId | 'web_speech';
     speaker1Voice?: string;
@@ -120,15 +121,14 @@ async function generateTextWithFallback(params: {
   // Start strictly with the user-selected model
   let primaryModel = modelId?.trim();
   if (provider === 'google' && (!primaryModel || primaryModel.includes('2.0-flash') || primaryModel.includes('2.5-flash') || primaryModel.includes('1.5-flash'))) {
-    primaryModel = 'gemini-3.8-flash';
+    primaryModel = 'gemini-3.5-flash-lite';
   }
-  const candidateModels: string[] = [primaryModel || 'gemini-3.8-flash'];
+  const candidateModels: string[] = [primaryModel || 'gemini-3.5-flash-lite'];
   if (provider === 'google') {
     const googleFallbacks = [
       'gemini-3.5-flash-lite',
-      'gemini-3-flash-preview',
-      'gemini-3.7-flash',
       'gemini-3.8-flash',
+      'gemini-3.7-flash',
     ];
     for (const fb of googleFallbacks) {
       if (!candidateModels.includes(fb)) candidateModels.push(fb);
@@ -340,22 +340,35 @@ export async function generateStudioOutput(
     };
     const defaultTitle = title || typeTitles[type] || 'Studio Synthesis';
 
-    // 1. Create initial output record with 'generating' status
-    const [initialRow] = await db
-      .insert(outputs)
-      .values({
-        notebookId,
-        conversationId: params.conversationId || null,
-        userId: user.id,
-        type,
-        title: defaultTitle,
-        sourceIds: targetSourceIds,
-        model: modelId,
-        status: 'generating',
-      })
-      .returning();
-
-    const outputId = initialRow.id;
+    // 1. Create initial output record with 'generating' status or update existing
+    let outputId: string;
+    if (params.existingOutputId) {
+      outputId = params.existingOutputId;
+      await db
+        .update(outputs)
+        .set({
+          status: 'generating',
+          errorMessage: null,
+          model: modelId,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(outputs.id, outputId), eq(outputs.userId, user.id)));
+    } else {
+      const [initialRow] = await db
+        .insert(outputs)
+        .values({
+          notebookId,
+          conversationId: params.conversationId || null,
+          userId: user.id,
+          type,
+          title: defaultTitle,
+          sourceIds: targetSourceIds,
+          model: modelId,
+          status: 'generating',
+        })
+        .returning();
+      outputId = initialRow.id;
+    }
 
     // Asynchronous / immediate generation pipeline with fallback
     try {
@@ -651,7 +664,7 @@ export async function regenerateStudioOutput(
     const chosenModel = modelId || row.model;
     const effectiveModelId = (chosenModel && !chosenModel.includes('2.0-flash') && !chosenModel.includes('2.5-flash') && !chosenModel.includes('1.5-flash') && !chosenModel.includes('1.5-pro'))
       ? chosenModel
-      : 'gemini-3.8-flash';
+      : 'gemini-3.5-flash-lite';
 
     return generateStudioOutput({
       notebookId: row.notebookId,
@@ -660,6 +673,7 @@ export async function regenerateStudioOutput(
       title: row.title,
       sourceIds: (row.sourceIds as string[]) || undefined,
       modelId: effectiveModelId,
+      existingOutputId: outputId,
       options: {
         voiceStyle: (row.voiceConfig as any)?.style,
         voiceFormat: (row.voiceConfig as any)?.format,

@@ -648,9 +648,17 @@ export async function POST(req: NextRequest) {
         await writer.close();
       } catch (streamErr: any) {
         console.error('Streaming pipeline error:', streamErr);
+        const errMsg = streamErr?.message || '';
+        const userFriendlyError =
+          errMsg.includes('Quota exceeded') || errMsg.includes('limit: 20') || errMsg.toLowerCase().includes('quota')
+            ? 'Daily API request quota exceeded on Google Free Tier (limit 20 requests/day for Gemini 3.8 Flash). Please switch to Gemini 3.5 Flash Lite in the model switcher or check your rate limits at ai.google.dev.'
+            : errMsg.includes('high demand') || errMsg.includes('overloaded') || errMsg.includes('503') || errMsg.includes('429')
+            ? 'The AI model is temporarily experiencing high demand. Please try again with Gemini 3.5 Flash Lite.'
+            : errMsg || 'Failed to stream response from AI model.';
+
         await sendEvent({
           type: 'error',
-          error: streamErr?.message || 'Failed to stream response from AI model.',
+          error: userFriendlyError,
         });
         await writer.close();
       }

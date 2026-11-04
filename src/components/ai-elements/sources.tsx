@@ -60,7 +60,10 @@ export interface SourcesContentProps extends React.HTMLAttributes<HTMLDivElement
 export function SourcesContent({ className, children, ...props }: SourcesContentProps) {
   return (
     <CollapsibleContent
-      className={cn('mt-2.5 flex flex-wrap gap-2 pt-1', className)}
+      className={cn(
+        'mt-2 flex flex-wrap gap-1.5 pt-0.5 max-h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-[#383838] pr-1',
+        className
+      )}
       {...props}
     >
       {children}
@@ -85,7 +88,7 @@ export function Source({
       type="button"
       onClick={() => onCitationClick?.(citation)}
       className={cn(
-        'flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all text-left text-xs cursor-pointer shadow-xs max-w-sm group border',
+        'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all text-left text-[11px] cursor-pointer max-w-[220px] group border shrink-0',
         'bg-white border-zinc-200 text-zinc-800 hover:bg-zinc-50 hover:border-zinc-300 hover:text-zinc-950',
         'dark:bg-[#1f1f1f] dark:border-[#383838] dark:text-[#d4d4ce] dark:hover:bg-[#282828] dark:hover:border-brand-500/40 dark:hover:text-white',
         className
@@ -93,18 +96,18 @@ export function Source({
       title={citation.snippet ? `"${citation.snippet}"` : citation.sourceTitle}
       {...props}
     >
-      <span className="flex items-center justify-center w-4 h-4 rounded-md font-mono text-[10px] font-bold shrink-0 bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
+      <span className="flex items-center justify-center w-3.5 h-3.5 rounded font-mono text-[9px] font-bold shrink-0 bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
         {citation.citationNumber}
       </span>
-      <span className="truncate font-medium text-[11px] text-zinc-900 dark:text-[#f4f4f2]">
+      <span className="truncate font-medium text-[10.5px] text-zinc-900 dark:text-[#f4f4f2]">
         {citation.sourceTitle}
       </span>
       {citation.pageNumber && (
-        <span className="text-[10px] text-zinc-500 dark:text-[#9a9a94] font-mono shrink-0">
-          p. {citation.pageNumber}
+        <span className="text-[9px] text-zinc-500 dark:text-[#9a9a94] font-mono shrink-0">
+          p.{citation.pageNumber}
         </span>
       )}
-      <ExternalLink className="w-3 h-3 text-zinc-400 dark:text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0" />
+      <ExternalLink className="w-2.5 h-2.5 text-zinc-400 dark:text-[#9a9a94] opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0" />
     </button>
   );
 }

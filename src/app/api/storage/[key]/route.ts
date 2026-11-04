@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 
 export async function GET(
   request: NextRequest,
@@ -18,27 +19,43 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid storage key.' }, { status: 400 });
     }
 
-    const uploadDir = path.resolve(process.cwd(), '.storage', 'uploads');
-    const filePath = path.resolve(uploadDir, key);
+    const primaryUploadDir = path.resolve(process.cwd(), '.storage', 'uploads');
+    const fallbackUploadDir = path.resolve(os.tmpdir(), 'learningpartner', 'uploads');
 
-    try {
-      const fileBuffer = await fs.readFile(filePath);
-      
-      let contentType = 'application/octet-stream';
-      if (key.endsWith('.mp3')) contentType = 'audio/mpeg';
-      else if (key.endsWith('.wav')) contentType = 'audio/wav';
-      else if (key.endsWith('.pdf')) contentType = 'application/pdf';
-      else if (key.endsWith('.json')) contentType = 'application/json';
+    const candidatePaths = [
+      path.resolve(primaryUploadDir, key),
+      path.resolve(fallbackUploadDir, key),
+    ];
 
-      return new NextResponse(fileBuffer, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'private, max-age=3600',
-        },
-      });
-    } catch {
+    let fileBuffer: Buffer | null = null;
+    for (const p of candidatePaths) {
+      try {
+        fileBuffer = await fs.readFile(p);
+        break;
+      } catch {
+        // try next candidate path
+      }
+    }
+
+    if (!fileBuffer) {
       return NextResponse.json({ error: 'File not found.' }, { status: 404 });
     }
+
+    let contentType = 'application/octet-stream';
+    if (key.endsWith('.mp3')) contentType = 'audio/mpeg';
+    else if (key.endsWith('.wav')) contentType = 'audio/wav';
+    else if (key.endsWith('.pdf')) contentType = 'application/pdf';
+    else if (key.endsWith('.json')) contentType = 'application/json';
+    else if (key.endsWith('.png')) contentType = 'image/png';
+    else if (key.endsWith('.jpg') || key.endsWith('.jpeg')) contentType = 'image/jpeg';
+    else if (key.endsWith('.webp')) contentType = 'image/webp';
+
+    return new NextResponse(new Uint8Array(fileBuffer), {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'private, max-age=3600',
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal server error.' }, { status: 500 });
   }

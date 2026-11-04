@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth/session';
+import { getSession } from '@/lib/auth/session';
 import { db } from '@/db';
 import { notebooks, sources } from '@/db/schema';
 import { and, eq, count } from 'drizzle-orm';
@@ -14,7 +14,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireUser();
+    const session = await getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Please sign in to view notebook sources.' }, { status: 401 });
+    }
+    const user = session.user;
     const { id: notebookId } = await params;
 
     const notebookSources = await db
@@ -34,7 +38,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireUser();
+    const session = await getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Please sign in to manage notebook sources.' }, { status: 401 });
+    }
+    const user = session.user;
     const { id: notebookId } = await params;
 
     // 1. Verify notebook exists and belongs to user
@@ -86,12 +94,13 @@ export async function POST(
       const originalName = file.name;
       const extension = '.' + originalName.split('.').pop()?.toLowerCase();
 
-      if (!STORAGE_LIMITS.ALLOWED_FILE_EXTENSIONS.includes(extension as any)) {
+      const validDocExtensions = ['.pdf', '.docx', '.txt', '.md'];
+      const validImageExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+
+      if (!validDocExtensions.includes(extension) && !validImageExtensions.includes(extension)) {
         return NextResponse.json(
           {
-            error: `Unsupported file type. Allowed formats: ${STORAGE_LIMITS.ALLOWED_FILE_EXTENSIONS.join(
-              ', '
-            )}`,
+            error: `Unsupported file type. Allowed formats: PDF, DOCX, TXT, MD, PNG, JPG, WEBP`,
           },
           { status: 400 }
         );

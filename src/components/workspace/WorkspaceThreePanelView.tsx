@@ -1412,24 +1412,25 @@ export function WorkspaceThreePanelView({
             </div>
           ) : (
           /* Empty State: Greeting, Prompt suggestions, and Recents List */
-          <div className="max-w-xl w-full mx-auto my-auto py-6 text-center space-y-4">
-            {/* Brand-Accented Brain Badge */}
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500/20 via-brand-500/10 to-transparent border border-brand-500/40 flex items-center justify-center mx-auto shadow-xl shadow-brand-600/15">
-              <Brain className="w-7 h-7 text-brand-400" />
-            </div>
+          <div className="flex-1 w-full min-h-full flex flex-col justify-center items-center py-6">
+            <div className="max-w-xl w-full mx-auto text-center space-y-4 my-auto">
+              {/* Brand-Accented Brain Badge */}
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500/20 via-brand-500/10 to-transparent border border-brand-500/40 flex items-center justify-center mx-auto shadow-xl shadow-brand-600/15">
+                <Brain className="w-7 h-7 text-brand-600 dark:text-brand-400" />
+              </div>
 
-            <div className="space-y-2">
-              <h1 className="text-2xl md:text-3xl font-serif font-bold text-[#f4f4f2]">
-                {notebook.title}
-              </h1>
-              <p className="text-xs md:text-sm text-[#9a9a94] font-serif max-w-md mx-auto leading-relaxed">
-                {sources.length === 0
-                  ? 'Upload your first study document or web link to start asking source-grounded questions.'
-                  : `Ready to answer questions strictly grounded in your ${enabledCount} enabled source${
-                      enabledCount === 1 ? '' : 's'
-                    }.`}
-              </p>
-            </div>
+              <div className="space-y-2">
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 dark:text-[#f4f4f2]">
+                  {notebook.title}
+                </h1>
+                <p className="text-xs md:text-sm text-zinc-600 dark:text-[#9a9a94] font-serif max-w-md mx-auto leading-relaxed">
+                  {sources.length === 0
+                    ? 'Upload your first study document or web link to start asking source-grounded questions.'
+                    : `Ready to answer questions strictly grounded in your ${enabledCount} enabled source${
+                        enabledCount === 1 ? '' : 's'
+                      }.`}
+                </p>
+              </div>
 
             {/* Suggested Prompts */}
             {sources.length > 0 && (
@@ -1568,6 +1569,7 @@ export function WorkspaceThreePanelView({
                 </div>
               </div>
             )}
+            </div>
           </div>
         )
       ) : (

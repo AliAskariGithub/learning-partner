@@ -1,6 +1,7 @@
 import { put, del } from '@vercel/blob';
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 
 export interface StorageUploadResult {
   storageKey: string;
@@ -62,29 +63,44 @@ export class VercelBlobStorageAdapter implements StorageAdapter {
   }
 }
 
-// 2. Local Disk Storage Adapter (Dev & offline fallback)
+// 2. Local Disk Storage Adapter (Dev & offline fallback with resilient multi-directory support)
 export class LocalDiskStorageAdapter implements StorageAdapter {
-  private uploadDir: string;
+  private primaryUploadDir: string;
+  private fallbackUploadDir: string;
 
   constructor() {
-    this.uploadDir = path.resolve(process.cwd(), '.storage', 'uploads');
+    this.primaryUploadDir = path.resolve(process.cwd(), '.storage', 'uploads');
+    this.fallbackUploadDir = path.resolve(os.tmpdir(), 'learningpartner', 'uploads');
   }
 
-  private async ensureDir() {
+  private async getWritableDir(): Promise<string> {
     try {
-      await fs.mkdir(this.uploadDir, { recursive: true });
+      await fs.mkdir(this.primaryUploadDir, { recursive: true });
+      return this.primaryUploadDir;
     } catch {
-      // directory already exists
+      try {
+        await fs.mkdir(this.fallbackUploadDir, { recursive: true });
+        return this.fallbackUploadDir;
+      } catch {
+        return this.primaryUploadDir;
+      }
     }
   }
 
   async upload(file: Buffer | Uint8Array, filename: string, mimeType: string): Promise<StorageUploadResult> {
-    await this.ensureDir();
+    const uploadDir = await this.getWritableDir();
     const sanitized = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const filePath = path.resolve(this.uploadDir, sanitized);
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    const filePath = path.resolve(uploadDir, sanitized);
 
-    await fs.writeFile(filePath, file);
+    try {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, file);
+    } catch (primaryErr) {
+      // Secondary fallback to OS tmp directory if primary path fails
+      const fallbackPath = path.resolve(this.fallbackUploadDir, sanitized);
+      await fs.mkdir(path.dirname(fallbackPath), { recursive: true });
+      await fs.writeFile(fallbackPath, file);
+    }
 
     return {
       storageKey: sanitized,
@@ -99,11 +115,16 @@ export class LocalDiskStorageAdapter implements StorageAdapter {
   }
 
   async delete(storageKey: string): Promise<void> {
-    try {
-      const filePath = path.resolve(this.uploadDir, storageKey);
-      await fs.unlink(filePath);
-    } catch {
-      // File may already be removed
+    const paths = [
+      path.resolve(this.primaryUploadDir, storageKey),
+      path.resolve(this.fallbackUploadDir, storageKey),
+    ];
+    for (const p of paths) {
+      try {
+        await fs.unlink(p);
+      } catch {
+        // File may already be removed
+      }
     }
   }
 }

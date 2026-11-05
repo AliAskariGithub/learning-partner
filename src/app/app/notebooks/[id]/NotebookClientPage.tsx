@@ -113,18 +113,22 @@ export function NotebookClientPage({
   const [connections, setConnections] = useState<SafeConnection[]>(initialConnections);
   const [attachedImageFromDialog, setAttachedImageFromDialog] = useState<ChatImageAttachment | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>(() => {
-    if (typeof window !== 'undefined' && notebook.id) {
-      try {
-        const saved = localStorage.getItem(`lp_model_${notebook.id}`);
-        if (saved && MODEL_CATALOG.some((m) => m.id === saved)) {
-          return saved;
-        }
-      } catch {}
-    }
     const last = notebook.lastModel;
     if (last && MODEL_CATALOG.some((m) => m.id === last)) return last;
     return 'gemini-3.8-flash';
   });
+
+  // Restore client-side model preference from localStorage strictly after hydration to prevent SSR mismatch
+  useEffect(() => {
+    if (!notebook.id) return;
+    try {
+      const saved = localStorage.getItem(`lp_model_${notebook.id}`);
+      if (saved && saved !== selectedModelId && MODEL_CATALOG.some((m) => m.id === saved)) {
+        setSelectedModelId(saved);
+      }
+    } catch {}
+  }, [notebook.id]);
+
   const [selectedMode, setSelectedMode] = useState<'chat' | 'learn' | 'quiz'>(
     (initialConversations[0]?.mode as 'chat' | 'learn' | 'quiz') || 'chat'
   );

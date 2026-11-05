@@ -295,6 +295,7 @@ export function ModelSwitcher({
           type="button"
           disabled={disabled}
           onClick={() => setDropdownOpen(!dropdownOpen)}
+          suppressHydrationWarning
           className={`h-8 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-display font-medium transition-colors cursor-pointer shadow-sm shrink-0 disabled:opacity-50 ${
             !hasAnyConnection
               ? 'text-purple-600 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 dark:text-purple-300'
@@ -304,7 +305,10 @@ export function ModelSwitcher({
           aria-expanded={dropdownOpen}
         >
           {!hasAnyConnection && <Zap className="w-3.5 h-3.5 text-purple-500 shrink-0" />}
-          <span className="truncate max-w-[95px] xs:max-w-[130px] sm:max-w-[160px]">
+          <span
+            className="truncate max-w-[95px] xs:max-w-[130px] sm:max-w-[160px]"
+            suppressHydrationWarning
+          >
             {hasAnyConnection ? displayName : 'Configure Model'}
           </span>
           <ChevronDown

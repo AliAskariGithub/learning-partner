@@ -28,13 +28,13 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
     if (session?.user?.id) {
-      const creds = await getCredentialsForRequest(session.user.id, 'gemini-3.8-flash');
+      const creds = await getCredentialsForRequest(session.user.id, 'gemini-3.8-flash-tts');
       if (creds?.apiKey) {
         const ttsModels = [
-          'gemini-2.0-flash',
-          'gemini-2.5-flash',
-          'gemini-3.8-flash',
-          'gemini-3.7-flash',
+          'gemini-3.8-flash-tts',
+          'gemini-3.8-flash-lite-tts',
+          'gemini-3.1-flash-tts-preview',
+          'gemini-2.5-flash-preview-tts',
         ];
         for (const m of ttsModels) {
           try {
@@ -117,4 +117,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

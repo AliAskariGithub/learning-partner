@@ -202,15 +202,16 @@ async function synthesizeGeminiTurn(
   voice: string,
   language?: string
 ): Promise<Buffer> {
+  ``
   const isUrdu = language?.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(text);
 
   // High-availability Gemini models supporting native audio generation
   const candidateModels = [
     ...(detectedGeminiTtsModel ? [detectedGeminiTtsModel] : []),
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-    'gemini-3.8-flash',
-    'gemini-3.7-flash',
+    'gemini-3.8-flash-tts',
+    'gemini-3.8-flash-lite-tts',
+    'gemini-3.1-flash-tts-preview',
+    'gemini-2.5-flash-preview-tts',
   ].filter((v, i, a) => a.indexOf(v) === i);
 
   let lastStatus = 0;
@@ -250,11 +251,11 @@ async function synthesizeGeminiTurn(
         }
       } else {
         lastErrText = await res.text().catch(() => '');
-        // On 429 rate limit, throw so outer retry backoff can wait and retry without switching voices!
-        if (res.status === 429) {
+        console.warn(`Gemini TTS model ${model} returned ${res.status}: ${lastErrText.slice(0, 150)}`);
+        // If 429 and this is the last candidate model, raise rate limit indicator
+        if (res.status === 429 && model === candidateModels[candidateModels.length - 1]) {
           throw new Error('RATE_LIMIT_429');
         }
-        console.warn(`Gemini TTS model ${model} returned ${res.status}: ${lastErrText.slice(0, 150)}`);
       }
     } catch (err: any) {
       if (err?.message === 'RATE_LIMIT_429') {
@@ -264,7 +265,7 @@ async function synthesizeGeminiTurn(
     }
   }
 
-  // Resilient fallback ensuring sound is always produced if non-rate-limit error persists
+  // Resilient fallback ensuring sound is always produced
   console.warn(`Gemini audio models exhausted (status ${lastStatus}): ${lastErrText.slice(0, 100)}. Using fallback.`);
   return synthesizeGoogleTtsFallback(text, isUrdu ? 'ur' : 'en');
 }
@@ -349,7 +350,7 @@ export async function synthesizeVoiceScript(
     let audioBuffer: Buffer | null = null;
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= 4; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         if (provider === 'google') {
           audioBuffer = await synthesizeGeminiTurn(apiKey, turn.text, assignedVoice, voiceConfig.language);
@@ -361,12 +362,12 @@ export async function synthesizeVoiceScript(
         break;
       } catch (err: any) {
         lastError = err;
-        if (attempt <= 3) {
-          const delay = err?.message === 'RATE_LIMIT_429' ? 2500 * attempt : 1200 * attempt;
+        if (attempt === 1) {
+          const delay = err?.message === 'RATE_LIMIT_429' ? 1000 : 500;
           console.warn(`[TTS] Turn ${i + 1} attempt ${attempt} delayed (${err?.message || 'error'}), retrying in ${delay}ms...`);
           await new Promise((r) => setTimeout(r, delay));
         } else if (provider === 'google') {
-          // If all rate-limit retries exhausted, fall back to Google TTS
+          // If rate-limit retries exhausted, fall back to Google TTS
           console.warn(`[TTS] All attempts for turn ${i + 1} exhausted. Falling back to Google TTS service.`);
           const isUrdu = voiceConfig.language?.toLowerCase().startsWith('ur') || /[\u0600-\u06FF]/.test(turn.text);
           audioBuffer = await synthesizeGoogleTtsFallback(turn.text, isUrdu ? 'ur' : 'en');
@@ -391,9 +392,9 @@ export async function synthesizeVoiceScript(
       onProgress(i + 1, turns.length);
     }
 
-    // Pacing delay between consecutive turns to stay within 15 RPM free tier quota
+    // Light pacing delay between consecutive turns
     if (i < turns.length - 1 && provider === 'google') {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 200));
     }
   }
 
@@ -423,4 +424,3 @@ export async function synthesizeVoiceScript(
     totalDurationSeconds: Math.max(10, estimatedDuration),
   };
 }
-

@@ -33,7 +33,7 @@ export function createProviderModel(params: CreateModelParams): LanguageModel {
       const m = safeModelId.toLowerCase();
       // Replace discontinued models (2.0-flash, 2.5-flash, 1.5-flash, 1.5-pro) with high-availability model
       if (!safeModelId || m.includes('2.0-flash') || m.includes('2.5-flash') || m.includes('1.5-flash') || m.includes('1.5-pro')) {
-        safeModelId = 'gemini-3.5-flash-lite';
+        safeModelId = 'gemini-3.5-flash';
       }
       return google(safeModelId);
     }

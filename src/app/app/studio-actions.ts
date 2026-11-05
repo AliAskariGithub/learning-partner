@@ -121,14 +121,15 @@ async function generateTextWithFallback(params: {
   // Start strictly with the user-selected model
   let primaryModel = modelId?.trim();
   if (provider === 'google' && (!primaryModel || primaryModel.includes('2.0-flash') || primaryModel.includes('2.5-flash') || primaryModel.includes('1.5-flash'))) {
-    primaryModel = 'gemini-3.5-flash-lite';
+    primaryModel = 'gemini-3.5-flash';
   }
-  const candidateModels: string[] = [primaryModel || 'gemini-3.5-flash-lite'];
+  const candidateModels: string[] = [primaryModel || 'gemini-3.5-flash'];
   if (provider === 'google') {
     const googleFallbacks = [
+      'gemini-3.5-flash',
       'gemini-3.5-flash-lite',
-      'gemini-3.8-flash',
       'gemini-3.7-flash',
+      'gemini-3.8-flash',
     ];
     for (const fb of googleFallbacks) {
       if (!candidateModels.includes(fb)) candidateModels.push(fb);
@@ -244,24 +245,22 @@ export async function generateStudioOutput(
     }
 
     // Determine model to use from user selection
-    let modelId = params.modelId || 'gemini-3.8-flash';
+    let modelId = params.modelId || 'gemini-3.5-flash';
     if (modelId.includes('2.5-flash') || modelId.includes('2.0-flash')) {
-      modelId = 'gemini-3.8-flash';
+      modelId = 'gemini-3.5-flash';
     }
     const modelDef = getModelDefinition(modelId);
 
     // Capability check: Ensure the selected model supports this studio output type
     const requiredCapability: keyof ModelCapabilities =
-      type === 'voice'
-        ? 'audioOutput'
-        : type === 'quiz' || type === 'flashcards' || type === 'mind_map'
+      type === 'quiz' || type === 'flashcards' || type === 'mind_map'
         ? 'structuredOutput'
         : 'text';
 
     if (!modelDef.capabilities[requiredCapability]) {
       return {
         success: false,
-        error: `The selected model (${modelDef.name}) does not support ${type.replace('_', ' ')} generation (requires ${requiredCapability} capability). Please choose a supported model in the model switcher.`,
+        error: `The selected model (${modelDef.name}) does not support ${type.replace('_', ' ')} generation. Please choose a supported model in the model switcher.`,
       };
     }
 
@@ -488,7 +487,7 @@ export async function generateStudioOutput(
         if (voiceProvider !== 'web_speech') {
           const ttsCreds = await getCredentialsForRequest(
             user.id,
-            voiceProvider === 'google' ? 'gemini-3.8-flash' : 'gpt-4o-mini'
+            voiceProvider === 'google' ? 'gemini-3.8-flash-tts' : 'gpt-4o-mini'
           );
           if (ttsCreds?.apiKey) {
             voiceApiKey = ttsCreds.apiKey;
@@ -664,7 +663,7 @@ export async function regenerateStudioOutput(
     const chosenModel = modelId || row.model;
     const effectiveModelId = (chosenModel && !chosenModel.includes('2.0-flash') && !chosenModel.includes('2.5-flash') && !chosenModel.includes('1.5-flash') && !chosenModel.includes('1.5-pro'))
       ? chosenModel
-      : 'gemini-3.5-flash-lite';
+      : 'gemini-3.5-flash';
 
     return generateStudioOutput({
       notebookId: row.notebookId,
